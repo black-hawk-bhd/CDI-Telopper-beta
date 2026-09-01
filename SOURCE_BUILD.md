@@ -1,4 +1,4 @@
-# CDI-Telopper 2.0.0-beta.31 unified source build
+# CDI-Telopper 2.0.0-beta.32 unified source build
 
 Formal name: **Comprehensive Disaster Information Telopper**
 
@@ -25,12 +25,12 @@ and runs all automated tests. Warnings are treated as errors.
 After verification succeeds, build the current unified beta release:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.31 -OutputLabel 2.0.0-beta.31-full
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.32
 ```
 
 Self-contained folder and single-file packages are written under:
 
-- `artifacts\release\2.0.0-beta.31-full\win-x64`
+- `artifacts\release\2.0.0-beta.32\win-x64`
 
 The former stable/separated source-package helpers are not included in the
 public repository and are not part of the current unified release procedure.
