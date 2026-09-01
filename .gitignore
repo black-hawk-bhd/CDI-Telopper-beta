@@ -1,0 +1,54 @@
+bin/
+obj/
+.vs/
+TestResults/
+artifacts/
+.dotnet-cli/
+.dotnet-cli-home/
+.dotnet-home/
+.dotnet8/
+.dotnet-sdk/
+.nuget/
+.appdata/
+.tmp/
+Microsoft/
+**/Microsoft/TestingPlatform/
+
+# Local archive content intentionally excluded from the public repository
+/archive/
+
+# Source artwork and historical/project-planning documents are not required
+# to restore, build, test, or package the application.
+/assets/
+/docs/*
+!/docs/assets-license.md
+!/docs/data-sources.md
+
+# External reference and raw test data belong in the local archive
+/JMA_Format/
+/XML data/
+/XMLサンプル/
+/reference/
+/Qmap_nhk/
+/QTelopper.FlaUI.Tests/
+/P2P API仕様書.yaml
+/fixtures/jma-xml/
+/README_QTelopper_*.txt
+*.docx
+*.zip
+
+# Runtime and user-provided data must not be published
+settings.json
+state.json
+logs/
+cache/
+raw-reception/
+*.provider.xml
+*.transport.json
+QTelopper-diagnostics-*.zip
+*.wav
+*.mp3
+*.ogg
+*.wma
+*.aac
+*.m4a

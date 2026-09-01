@@ -1,0 +1,43 @@
+{
+  "id": "fixture-eew-message-001",
+  "code": 556,
+  "time": "2026/07/31 15:00:01.000",
+  "test": false,
+  "cancelled": false,
+  "earthquake": {
+    "originTime": "2026/07/31 14:59:50",
+    "arrivalTime": "2026/07/31 14:59:58",
+    "condition": "",
+    "hypocenter": {
+      "name": "訓練震源",
+      "reduceName": "訓練地域",
+      "latitude": 37.5,
+      "longitude": 137.0,
+      "depth": 10.0,
+      "magnitude": 6.5
+    }
+  },
+  "issue": {
+    "time": "2026/07/31 15:00:00",
+    "eventId": "fixture-eew-event-001",
+    "serial": "3"
+  },
+  "areas": [
+    {
+      "pref": "訓練県",
+      "name": "訓練地域A",
+      "scaleFrom": 55.0,
+      "scaleTo": 60.0,
+      "kindCode": "10",
+      "arrivalTime": "2026/07/31 15:00:05"
+    },
+    {
+      "pref": "訓練県",
+      "name": "訓練地域B",
+      "scaleFrom": 45.0,
+      "scaleTo": 99.0,
+      "kindCode": 19,
+      "arrivalTime": null
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "_id": "fixture-quake-legacy-001",
+  "code": 551,
+  "time": "2026/07/31 13:05:00.000",
+  "issue": {
+    "source": "気象庁",
+    "time": "2026/07/31 13:01:00",
+    "type": "Destination",
+    "correct": "None"
+  },
+  "earthquake": {
+    "time": "2026/07/31 13:00:30",
+    "hypocenter": {
+      "name": "固定震源",
+      "latitude": 34.4,
+      "longitude": 139.1,
+      "depth": 10,
+      "magnitude": 5
+    },
+    "maxScale": -1,
+    "domesticTsunami": "Checking",
+    "foreignTsunami": "Unknown"
+  },
+  "points": [],
+  "comments": { "freeFormComment": "" }
+}

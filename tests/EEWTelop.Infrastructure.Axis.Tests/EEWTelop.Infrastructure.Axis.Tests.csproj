@@ -1,0 +1,10 @@
+<Project Sdk="MSTest.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <TestingExtensionsProfile>None</TestingExtensionsProfile>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\EEWTelop.Infrastructure.Axis\EEWTelop.Infrastructure.Axis.csproj" />
+    <ProjectReference Include="..\..\src\EEWTelop.Infrastructure.Dmdata\EEWTelop.Infrastructure.Dmdata.csproj" />
+  </ItemGroup>
+</Project>

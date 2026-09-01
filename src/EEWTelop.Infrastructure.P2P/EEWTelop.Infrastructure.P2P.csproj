@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>EEWTelop.Infrastructure.P2P</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\EEWTelop.Application\EEWTelop.Application.csproj" />
+    <ProjectReference Include="..\EEWTelop.Domain\EEWTelop.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="EEWTelop.Infrastructure.P2P.Tests" />
+  </ItemGroup>
+</Project>

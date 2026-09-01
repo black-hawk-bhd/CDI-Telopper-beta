@@ -1,0 +1,10 @@
+<Project Sdk="MSTest.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <TestingExtensionsProfile>None</TestingExtensionsProfile>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\EEWTelop.Wpf\EEWTelop.Wpf.csproj" />
+  </ItemGroup>
+</Project>

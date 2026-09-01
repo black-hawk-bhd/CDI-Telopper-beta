@@ -1,0 +1,11 @@
+{
+  "id": "fixture-invalid-001",
+  "code": 551,
+  "time": "2026/07/31 16:00:00.000",
+  "earthquake": {
+    "time": "2026/07/31 15:59:00",
+    "maxScale": 30
+  },
+  "points": [],
+  "comments": { "freeFormComment": "" }
+}

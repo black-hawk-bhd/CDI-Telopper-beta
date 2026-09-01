@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>EEWTelop.Wpf</RootNamespace>
+    <AssemblyName>CDI-Telopper</AssemblyName>
+    <AssemblyTitle>Comprehensive Disaster Information Telopper</AssemblyTitle>
+    <Title>Comprehensive Disaster Information Telopper</Title>
+    <Product>CDI-Telopper</Product>
+    <Description>Comprehensive Disaster Information Telopper</Description>
+    <ApplicationIcon>Assets\QTelopper.ico</ApplicationIcon>
+    <Version Condition="'$(Version)' == ''">2.0.0-beta.32</Version>
+    <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">2.0.0.0</AssemblyVersion>
+    <FileVersion Condition="'$(FileVersion)' == ''">2.0.0.0</FileVersion>
+    <InformationalVersion Condition="'$(InformationalVersion)' == ''">2.0.0-beta.32</InformationalVersion>
+    <AxisProviderEnabled Condition="'$(AxisProviderEnabled)' == ''">true</AxisProviderEnabled>
+    <DefineConstants Condition="'$(AxisProviderEnabled)' == 'true'">$(DefineConstants);QTELOPPER_AXIS_PROVIDER</DefineConstants>
+    <DmdataProviderEnabled Condition="'$(DmdataProviderEnabled)' == ''">true</DmdataProviderEnabled>
+    <DefineConstants Condition="'$(DmdataProviderEnabled)' == 'true'">$(DefineConstants);QTELOPPER_DMDATA_PROVIDER</DefineConstants>
+    <ExtendedFeaturesEnabled Condition="'$(ExtendedFeaturesEnabled)' == ''">true</ExtendedFeaturesEnabled>
+    <DefineConstants Condition="'$(ExtendedFeaturesEnabled)' == 'true'">$(DefineConstants);QTELOPPER_EXTENDED_FEATURES</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <AssemblyMetadata Include="QTelopperAxisProvider" Value="$(AxisProviderEnabled)" />
+    <AssemblyMetadata Include="QTelopperDmdataProvider" Value="$(DmdataProviderEnabled)" />
+    <AssemblyMetadata Include="QTelopperExtendedFeatures" Value="$(ExtendedFeaturesEnabled)" />
+    <InternalsVisibleTo Include="EEWTelop.Wpf.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\EEWTelop.Application\EEWTelop.Application.csproj" />
+    <ProjectReference Include="..\EEWTelop.Infrastructure\EEWTelop.Infrastructure.csproj" />
+    <ProjectReference Include="..\EEWTelop.Infrastructure.Dmdata\EEWTelop.Infrastructure.Dmdata.csproj" Condition="'$(DmdataProviderEnabled)' == 'true'" />
+    <ProjectReference Include="..\EEWTelop.Infrastructure.Axis\EEWTelop.Infrastructure.Axis.csproj" Condition="'$(AxisProviderEnabled)' == 'true'" />
+    <ProjectReference Include="..\EEWTelop.Infrastructure.P2P\EEWTelop.Infrastructure.P2P.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\QTelopper.ico" />
+    <Resource Include="Assets\QTelopper.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Obs\Assets\overlay.html" />
+    <EmbeddedResource Include="Obs\Assets\overlay.js" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,73 @@
+<Window x:Class="EEWTelop.Wpf.SubtitlePhraseTemplateWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="受信前の定型文を編集"
+        Width="900" Height="720" MinWidth="700" MinHeight="520"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResizeWithGrip"
+        Background="#FF101820" Foreground="White">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Margin="0,0,0,14">
+            <TextBlock Text="電文受信前に使う定型文を編集します"
+                       FontSize="20" FontWeight="Bold" />
+            <TextBlock Text="地名・震度・時刻・観測値など、電文から取得する情報は変更しません。空欄にした定型文は表示されません。"
+                       Foreground="#FFFFC857" TextWrapping="Wrap" Margin="0,6,0,0" />
+            <TextBlock Text="ここで決定した後、操作画面の「保存して反映」を押すと、以後に作画する字幕へ適用されます。"
+                       Foreground="#FFB9CCDD" TextWrapping="Wrap" Margin="0,4,0,0" />
+        </StackPanel>
+
+        <Border Grid.Row="1" Background="#FF172431" BorderBrush="#FF526576"
+                BorderThickness="1" CornerRadius="5" Padding="10">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding Phrases}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="#FF101820" BorderBrush="#FF405568"
+                                    BorderThickness="1" CornerRadius="4"
+                                    Padding="10" Margin="0,0,0,10">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <DockPanel>
+                                        <TextBlock Text="{Binding Category}"
+                                                   Foreground="#FF8FA8BC" Margin="0,0,12,0" />
+                                        <TextBlock Text="{Binding Label}" FontWeight="Bold" />
+                                    </DockPanel>
+                                    <TextBox Grid.Row="1"
+                                             Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
+                                             AcceptsReturn="True" TextWrapping="Wrap"
+                                             VerticalScrollBarVisibility="Auto"
+                                             MaxLength="500"
+                                             MinHeight="52" Padding="7,5" Margin="0,7,0,4" />
+                                    <TextBlock Grid.Row="2"
+                                               Text="{Binding DefaultText, StringFormat=初期文: {0}}"
+                                               Foreground="#FF8FA8BC" TextWrapping="Wrap" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+
+        <Grid Grid.Row="2" Margin="0,16,0,0">
+            <Button Content="すべて初期文に戻す" Click="OnResetClicked"
+                    HorizontalAlignment="Left" Padding="15,7" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="キャンセル" IsCancel="True" MinWidth="100"
+                        Padding="15,7" Margin="0,0,8,0" />
+                <Button Content="決定" Click="OnApplyClicked" MinWidth="120"
+                        Padding="15,7" Background="#FFF4512C" Foreground="White" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

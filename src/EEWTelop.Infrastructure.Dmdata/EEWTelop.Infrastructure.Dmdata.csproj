@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>EEWTelop.Infrastructure.Dmdata</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\EEWTelop.Application\EEWTelop.Application.csproj" />
+    <ProjectReference Include="..\EEWTelop.Domain\EEWTelop.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WPF" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="EEWTelop.Infrastructure.Dmdata.Tests" />
+  </ItemGroup>
+</Project>

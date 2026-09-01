@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CDI-Telopper OBS Local View</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
+    body { font-family: "BIZ UDPGothic", "Yu Gothic UI", Meiryo, sans-serif; }
+    #viewport { position: relative; width: 100%; height: 100%; overflow: hidden; }
+    #canvas { position: absolute; width: 1920px; height: 1080px; transform-origin: left top; overflow: hidden; }
+    #canvas.transparent { background: transparent; }
+    #canvas.green { background: #00ff00; }
+    #canvas.blue { background: #0000ff; }
+    #canvas.opaque { background: #111; }
+    #banner { position: absolute; z-index: 10; left: 24px; top: 24px; max-width: 1344px;
+      padding: calc(8.32px * var(--font-scale, 1)) calc(28.6px * var(--font-scale, 1));
+      border: 5px solid #d00000; border-radius: 13px; background: #ffe600; color: #111;
+      font-size: calc(52px * var(--font-scale, 1)); line-height: calc(1.1 * var(--line-spacing, 1));
+      letter-spacing: calc((.04em + var(--letter-spacing, 0em))); font-weight: 900; }
+    #content { position: absolute; left: 154px; top: 140px; right: 115px; bottom: 55px; overflow: hidden; }
+    #blocks { display: flex; flex-direction: column; }
+    .block { display: flex; align-items: center; min-height: 68px; margin: 0 0 12px; padding: 18px 26px;
+      border-radius: 8px; background: rgba(17,17,17,.90); color: #fff; }
+    .block.eew-header { background: #a83218; }
+    .block.eew-header-cancel, .block.tsunami-cancel, .block.weather-cancel { background: #555; }
+    .block.eew-header-test { background: #a83218; }
+    .block.tsunami { border-left: 8px solid #c00060; background: rgba(17,17,17,.93); }
+    .block.correction { background: rgba(211,84,0,.93); }
+    .badge { flex: 0 0 auto; margin-right: 20px; padding: 7px 14px; border-radius: 5px;
+      background: rgba(255,255,255,.87); color: #111; font-size: 40px; line-height: 1.1; font-weight: 900; }
+    .texts { min-width: 0; flex: 1 1 auto; }
+    .primary, .secondary { overflow-wrap: anywhere; color: #fff; font-weight: 900;
+      text-shadow: 2px 2px 1px #000, -1px -1px 1px #000, 1px -1px 1px #000, -1px 1px 1px #000; }
+    .primary { font-size: 50px; line-height: 1.0; }
+    .secondary { margin-top: 6px; color: #f0f000; font-size: 31px; line-height: 1.0; }
+    #content.eew { left: 8px; top: 0; right: 8px; bottom: auto; height: 570px;
+      background: #3a3ad0; }
+    #content.eew.has-banner { top: 140px; }
+    #content.eew #blocks { min-height: 570px; background: #3a3ad0; }
+    #content.eew .block { min-height: 0; margin: 0; padding: 6px 24px;
+      border: 0; border-radius: 0; background: transparent; }
+    #content.eew .block.eew-header, #content.eew .block.eew-header-test,
+    #content.eew .block.eew-header-cancel { padding: 16px 24px; }
+    #content.eew .block.eew-header, #content.eew .block.eew-header-test { background: #a83218; }
+    #content.eew .block.eew-header-cancel { background: #555; }
+    #content.eew .primary { color: #fff; font-size: calc(58px * var(--font-scale, 1));
+      line-height: calc(1.25 * var(--line-spacing, 1)); font-weight: 900;
+      text-shadow: 0 1px 2px rgba(0,0,0,.25); }
+    #content.eew .eew-header .primary, #content.eew .eew-header-test .primary,
+    #content.eew .eew-header-cancel .primary { width: 100%; text-align: center;
+      font-size: calc(76px * var(--font-scale, 1)); line-height: calc(1.15 * var(--line-spacing, 1));
+      letter-spacing: calc(.04em + var(--letter-spacing, 0em)); }
+    #content.eew .eew-warning .primary { color: #f0f000; }
+    #content.eew.concurrent .block { padding: 8px 18px; }
+    #content.eew.concurrent .primary { font-size: calc(38px * var(--font-scale, 1));
+      line-height: calc(1.12 * var(--line-spacing, 1)); }
+    #content.eew.concurrent .eew-header .primary,
+    #content.eew.concurrent .eew-header-test .primary,
+    #content.eew.concurrent .eew-header-cancel .primary { font-size: calc(50px * var(--font-scale, 1));
+      line-height: calc(1.1 * var(--line-spacing, 1)); }
+    #content.subtitle .block { align-items: flex-start; min-height: 0; margin: 0 0 20px; padding: 0;
+      border: 0; border-radius: 0; background: transparent; }
+    #content.subtitle .badge { min-width: calc(124.8px * var(--font-scale, 1));
+      margin: calc(6px * var(--font-scale, 1)) 22px 0 0;
+      padding: calc(6.24px * var(--font-scale, 1)) calc(26px * var(--font-scale, 1));
+      border-radius: 9px; color: #fff; font-size: calc(52px * var(--font-scale, 1));
+      line-height: 1.1; text-align: center; white-space: nowrap;
+      box-shadow: 3px 3px 7px rgba(0,0,0,.8); }
+    #content.subtitle .badge.placeholder { visibility: hidden; }
+    #content.subtitle .primary, #content.subtitle .secondary {
+      margin: 0; color: #fff; font-size: calc(58px * var(--font-scale, 1));
+      line-height: calc(1.25 * var(--line-spacing, 1));
+      letter-spacing: calc(.02em + var(--letter-spacing, 0em));
+      -webkit-text-stroke: calc(6px * var(--font-scale, 1)) #000;
+      paint-order: stroke fill; text-shadow: 2px 2px 2px #000; }
+    #content.subtitle .block.tsunami .texts { display: flex; align-items: baseline; flex-wrap: wrap; }
+    #content.subtitle .block.tsunami .secondary { margin: 0 0 0 14px;
+      font-size: calc(34.8px * var(--font-scale, 1)); }
+    #pageIndicator { width: max-content; margin-left: auto; padding: calc(3.12px * var(--font-scale, 1)) calc(13px * var(--font-scale, 1));
+      border-radius: 5px; background: rgba(0,0,0,.72); color: #fff;
+      font-size: calc(26px * var(--font-scale, 1)); font-weight: 900; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main id="viewport" aria-live="polite">
+    <section id="canvas" class="transparent">
+      <div id="banner" hidden></div>
+      <div id="content" hidden>
+        <div id="blocks"></div>
+        <div id="pageIndicator" hidden></div>
+      </div>
+      <audio id="alertAudio" preload="auto"></audio>
+    </section>
+  </main>
+  <script src="/assets/overlay.js"></script>
+</body>
+</html>

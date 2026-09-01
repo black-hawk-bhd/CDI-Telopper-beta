@@ -1,0 +1,29 @@
+{
+  "id": "fixture-quake-551-001",
+  "code": 551,
+  "time": "2026/07/31 12:05:00.000",
+  "issue": {
+    "source": "気象庁",
+    "time": "2026/07/31 12:01:00",
+    "type": "DetailScale",
+    "correct": "None"
+  },
+  "earthquake": {
+    "time": "2026/07/31 12:00:30",
+    "hypocenter": {
+      "name": "テスト沖",
+      "latitude": 35.1,
+      "longitude": 139.2,
+      "depth": 10,
+      "magnitude": 6
+    },
+    "maxScale": 55,
+    "domesticTsunami": "None",
+    "foreignTsunami": "Unknown"
+  },
+  "points": [
+    { "pref": "東京都", "addr": "府中市押立町", "isArea": false, "scale": 55 },
+    { "pref": "広島県", "addr": "府中市府川町", "isArea": false, "scale": 50 }
+  ],
+  "comments": { "freeFormComment": "" }
+}

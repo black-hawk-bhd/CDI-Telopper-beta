@@ -1,0 +1,14 @@
+<Project Sdk="MSTest.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <TestingExtensionsProfile>None</TestingExtensionsProfile>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\EEWTelop.Infrastructure.P2P\EEWTelop.Infrastructure.P2P.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\..\fixtures\p2p\*.json"
+             Link="Fixtures\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
