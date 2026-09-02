@@ -21,6 +21,7 @@
 | `src/EEWTelop.Infrastructure.P2P` | P2P地震情報APIの通信、JSON検証、正規化、復旧 |
 | `src/EEWTelop.Infrastructure.Dmdata` | DMDATA.JP通信、気象庁XMLの安全な解析、履歴取得 |
 | `src/EEWTelop.Infrastructure.Axis` | AXIS通信、専用EEW JSON、JMA JSONからXMLへの復元、トークン更新 |
+| `src/EEWTelop.Infrastructure.Wolfx` | WolfxのEEW・地震情報WebSocket通信、ハートビート、JSON正規化 |
 | `src/EEWTelop.Wpf` | アプリ起動、依存関係の構成、操作画面、プレビュー、OBS連携、音声 |
 | `tests` | 上記各プロジェクトに対応する自動テスト |
 | `fixtures` | 公開可能な最小限のテスト入力 |

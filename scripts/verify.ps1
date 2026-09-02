@@ -53,6 +53,7 @@ try {
         'tests/EEWTelop.Infrastructure.P2P.Tests/EEWTelop.Infrastructure.P2P.Tests.csproj',
         'tests/EEWTelop.Infrastructure.Dmdata.Tests/EEWTelop.Infrastructure.Dmdata.Tests.csproj',
         'tests/EEWTelop.Infrastructure.Axis.Tests/EEWTelop.Infrastructure.Axis.Tests.csproj',
+        'tests/EEWTelop.Infrastructure.Wolfx.Tests/EEWTelop.Infrastructure.Wolfx.Tests.csproj',
         'tests/EEWTelop.Wpf.Tests/EEWTelop.Wpf.Tests.csproj'
     )
     foreach ($testProject in $automatedTestProjects) {

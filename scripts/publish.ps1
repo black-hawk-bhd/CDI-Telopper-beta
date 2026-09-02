@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '2.0.0-beta.33',
+    [string]$Version = '2.0.0-beta.34',
     [string]$RuntimeIdentifier = 'win-x64',
     [string]$OutputLabel = '',
     [ValidateSet('true', 'false')]
@@ -53,7 +53,7 @@ $msbuildProperties = @(
     "-p:ExtendedFeaturesEnabled=$ExtendedFeaturesEnabled",
     '-p:NuGetAudit=false'
 )
-$enabledProviders = @('P2PQuake')
+$enabledProviders = @('P2PQuake', 'Wolfx')
 if ($DmdataProviderEnabled -eq 'true') { $enabledProviders += 'DMDATA.JP' }
 if ($AxisProviderEnabled -eq 'true') { $enabledProviders += 'AXIS' }
 $dataEnvironmentVariable = if ($versionMajor -ge 2) {

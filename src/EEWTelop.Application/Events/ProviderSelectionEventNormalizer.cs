@@ -78,6 +78,12 @@ public sealed class ProviderSelectionEventNormalizer :
             return true;
         }
 
+        if (string.Equals(provider, "wolfx", StringComparison.OrdinalIgnoreCase))
+        {
+            receptionProvider = ReceptionProvider.Wolfx;
+            return true;
+        }
+
         receptionProvider = default;
         return false;
     }

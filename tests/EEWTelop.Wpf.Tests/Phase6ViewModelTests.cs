@@ -41,7 +41,17 @@ public sealed class Phase6ViewModelTests
             expectedProviders.Add(ReceptionProvider.Axis);
         }
         expectedProviders.Add(ReceptionProvider.Disabled);
+        expectedProviders.Add(ReceptionProvider.Wolfx);
         CollectionAssert.AreEqual(expectedProviders, editor.ReceptionProviders.ToArray());
+        Assert.IsTrue(editor.EewAndQuakeProviderOptions.Any(option =>
+            option.Value == ReceptionProvider.Wolfx));
+        Assert.IsFalse(editor.TsunamiProviderOptions.Any(option =>
+            option.Value == ReceptionProvider.Wolfx));
+        Assert.IsFalse(editor.CommercialProviderOptions.Any(option =>
+            option.Value == ReceptionProvider.Wolfx));
+        Assert.IsFalse(editor.IsWolfxQuakeProvider);
+        editor.QuakeProvider = ReceptionProvider.Wolfx;
+        Assert.IsTrue(editor.IsWolfxQuakeProvider);
         CollectionAssert.AreEqual(
             new[] { ProviderMode.Production, ProviderMode.Sandbox },
             editor.ProviderModes.ToArray());

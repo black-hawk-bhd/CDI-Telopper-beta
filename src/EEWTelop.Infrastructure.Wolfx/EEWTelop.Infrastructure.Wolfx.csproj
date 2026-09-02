@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>EEWTelop.Infrastructure.Wolfx</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\EEWTelop.Application\EEWTelop.Application.csproj" />
+    <ProjectReference Include="..\EEWTelop.Domain\EEWTelop.Domain.csproj" />
+  </ItemGroup>
+</Project>

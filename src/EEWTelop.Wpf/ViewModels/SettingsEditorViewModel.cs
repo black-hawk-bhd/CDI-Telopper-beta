@@ -40,6 +40,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private string _axisApiBaseUrl;
     private string _axisAccessToken;
     private string _axisChannel;
+    private string _wolfxEewWebSocketUrl;
+    private string _wolfxQuakeWebSocketUrl;
     private bool _filterEew;
     private bool _filterQuake;
     private bool _filterTsunami;
@@ -188,6 +190,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _axisApiBaseUrl = settings.Provider.AxisApiBaseUrl;
         _axisAccessToken = UnprotectAxisToken(settings.Provider.AxisProtectedAccessToken);
         _axisChannel = GetAxisChannel(initialRouting);
+        _wolfxEewWebSocketUrl = settings.Provider.WolfxEewWebSocketUrl;
+        _wolfxQuakeWebSocketUrl = settings.Provider.WolfxQuakeWebSocketUrl;
         _filterEew = settings.Filter.Eew;
         _filterQuake = settings.Filter.Quake;
         _filterTsunami = settings.Filter.Tsunami;
@@ -335,15 +339,22 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 ReceptionProvider.P2pQuake => true,
                 ReceptionProvider.Dmdata => BuildFeatures.DmdataProviderEnabled,
                 ReceptionProvider.Axis => BuildFeatures.AxisProviderEnabled,
+                ReceptionProvider.Wolfx => true,
                 _ => false,
             })
             .ToArray();
 
-    public IReadOnlyList<ReceptionProviderOption> EarthquakeProviderOptions { get; } =
-        CreateReceptionProviderOptions(includeP2p: true);
+    public IReadOnlyList<ReceptionProviderOption> EewAndQuakeProviderOptions { get; } =
+        CreateReceptionProviderOptions(includeP2p: true, includeWolfx: true);
+
+    public IReadOnlyList<ReceptionProviderOption> EarthquakeProviderOptions =>
+        EewAndQuakeProviderOptions;
+
+    public IReadOnlyList<ReceptionProviderOption> TsunamiProviderOptions { get; } =
+        CreateReceptionProviderOptions(includeP2p: true, includeWolfx: false);
 
     public IReadOnlyList<ReceptionProviderOption> CommercialProviderOptions { get; } =
-        CreateReceptionProviderOptions(includeP2p: false);
+        CreateReceptionProviderOptions(includeP2p: false, includeWolfx: false);
 
     public bool HasCommercialProviderOptions => CommercialProviderOptions.Any(
         static option => option.Value != ReceptionProvider.Disabled);
@@ -437,6 +448,10 @@ public sealed class SettingsEditorViewModel : ObservableObject
 
     public bool IsAxisProvider => CurrentRouting.Uses(ReceptionProvider.Axis);
 
+    public bool IsWolfxProvider => CurrentRouting.Uses(ReceptionProvider.Wolfx);
+
+    public bool IsWolfxQuakeProvider => QuakeProvider == ReceptionProvider.Wolfx;
+
     public bool IsCustomProvider => IsP2pProvider && ProviderMode == ProviderMode.Custom;
 
     public ReceptionProvider ReceptionProvider
@@ -528,6 +543,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public string AxisApiBaseUrl { get => _axisApiBaseUrl; set => SetProperty(ref _axisApiBaseUrl, value); }
     public string AxisAccessToken { get => _axisAccessToken; set => SetProperty(ref _axisAccessToken, value); }
     public string AxisChannel { get => _axisChannel; set => SetProperty(ref _axisChannel, value); }
+    public string WolfxEewWebSocketUrl { get => _wolfxEewWebSocketUrl; set => SetProperty(ref _wolfxEewWebSocketUrl, value); }
+    public string WolfxQuakeWebSocketUrl { get => _wolfxQuakeWebSocketUrl; set => SetProperty(ref _wolfxQuakeWebSocketUrl, value); }
     public bool FilterEew { get => _filterEew; set => SetProperty(ref _filterEew, value); }
     public bool FilterQuake { get => _filterQuake; set => SetProperty(ref _filterQuake, value); }
     public bool FilterTsunami { get => _filterTsunami; set => SetProperty(ref _filterTsunami, value); }
@@ -706,7 +723,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
             Math.Clamp(PageDurationSeconds, 1, 30) * 2,
             MidpointRounding.AwayFromZero) / 2;
         ProviderMode providerMode = routing.Uses(ReceptionProvider.Axis) ||
-            routing.Uses(ReceptionProvider.Dmdata)
+            routing.Uses(ReceptionProvider.Dmdata) ||
+            routing.Uses(ReceptionProvider.Wolfx)
             ? ProviderMode.Production
             : ProviderMode == ProviderMode.Sandbox
             ? ProviderMode.Sandbox
@@ -746,6 +764,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 AxisApiBaseUrl = AxisApiBaseUrl.Trim(),
                 AxisProtectedAccessToken = ProtectAxisToken(AxisAccessToken),
                 AxisChannel = GetAxisChannel(routing),
+                WolfxEewWebSocketUrl = WolfxEewWebSocketUrl.Trim(),
+                WolfxQuakeWebSocketUrl = WolfxQuakeWebSocketUrl.Trim(),
             },
             Filter = new FilterSettings(
                 FilterEew,
@@ -1140,6 +1160,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
         AxisApiBaseUrl = defaults.AxisApiBaseUrl;
         AxisAccessToken = string.Empty;
         AxisChannel = defaults.AxisChannel;
+        WolfxEewWebSocketUrl = defaults.WolfxEewWebSocketUrl;
+        WolfxQuakeWebSocketUrl = defaults.WolfxQuakeWebSocketUrl;
     }
 
     public void ResetFilterSettings()
@@ -1417,11 +1439,14 @@ public sealed class SettingsEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(IsP2pProvider));
         OnPropertyChanged(nameof(IsDmdataProvider));
         OnPropertyChanged(nameof(IsAxisProvider));
+        OnPropertyChanged(nameof(IsWolfxProvider));
+        OnPropertyChanged(nameof(IsWolfxQuakeProvider));
         OnPropertyChanged(nameof(IsCustomProvider));
     }
 
     private static List<ReceptionProviderOption> CreateReceptionProviderOptions(
-        bool includeP2p)
+        bool includeP2p,
+        bool includeWolfx)
     {
         var options = new List<ReceptionProviderOption>(4)
         {
@@ -1430,6 +1455,11 @@ public sealed class SettingsEditorViewModel : ObservableObject
         if (includeP2p)
         {
             options.Add(new ReceptionProviderOption(ReceptionProvider.P2pQuake, "P2P"));
+        }
+
+        if (includeWolfx)
+        {
+            options.Add(new ReceptionProviderOption(ReceptionProvider.Wolfx, "Wolfx"));
         }
 
         if (BuildFeatures.AxisProviderEnabled)
@@ -1453,6 +1483,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 ReceptionProvider.Dmdata,
             ReceptionProvider.Axis when BuildFeatures.AxisProviderEnabled =>
                 ReceptionProvider.Axis,
+            ReceptionProvider.Wolfx => ReceptionProvider.Wolfx,
             _ => ReceptionProvider.P2pQuake,
         };
 

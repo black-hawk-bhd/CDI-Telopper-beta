@@ -12,10 +12,10 @@
     <Product>CDI-Telopper</Product>
     <Description>Comprehensive Disaster Information Telopper</Description>
     <ApplicationIcon>Assets\QTelopper.ico</ApplicationIcon>
-    <Version Condition="'$(Version)' == ''">2.0.0-beta.33</Version>
+    <Version Condition="'$(Version)' == ''">2.0.0-beta.34</Version>
     <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">2.0.0.0</AssemblyVersion>
     <FileVersion Condition="'$(FileVersion)' == ''">2.0.0.0</FileVersion>
-    <InformationalVersion Condition="'$(InformationalVersion)' == ''">2.0.0-beta.33</InformationalVersion>
+    <InformationalVersion Condition="'$(InformationalVersion)' == ''">2.0.0-beta.34</InformationalVersion>
     <AxisProviderEnabled Condition="'$(AxisProviderEnabled)' == ''">true</AxisProviderEnabled>
     <DefineConstants Condition="'$(AxisProviderEnabled)' == 'true'">$(DefineConstants);QTELOPPER_AXIS_PROVIDER</DefineConstants>
     <DmdataProviderEnabled Condition="'$(DmdataProviderEnabled)' == ''">true</DmdataProviderEnabled>
@@ -35,6 +35,7 @@
     <ProjectReference Include="..\EEWTelop.Infrastructure.Dmdata\EEWTelop.Infrastructure.Dmdata.csproj" Condition="'$(DmdataProviderEnabled)' == 'true'" />
     <ProjectReference Include="..\EEWTelop.Infrastructure.Axis\EEWTelop.Infrastructure.Axis.csproj" Condition="'$(AxisProviderEnabled)' == 'true'" />
     <ProjectReference Include="..\EEWTelop.Infrastructure.P2P\EEWTelop.Infrastructure.P2P.csproj" />
+    <ProjectReference Include="..\EEWTelop.Infrastructure.Wolfx\EEWTelop.Infrastructure.Wolfx.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Assets\QTelopper.ico" />

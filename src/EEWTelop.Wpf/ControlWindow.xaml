@@ -274,17 +274,17 @@
                                         </Grid.RowDefinitions>
                                         <TextBlock Grid.Row="0" Text="EEW" VerticalAlignment="Center" />
                                         <ComboBox Grid.Row="0" Grid.Column="1"
-                                                  ItemsSource="{Binding Settings.EarthquakeProviderOptions}"
+                                                  ItemsSource="{Binding Settings.EewAndQuakeProviderOptions}"
                                                   DisplayMemberPath="Label" SelectedValuePath="Value"
                                                   SelectedValue="{Binding Settings.EewProvider}" />
                                         <TextBlock Grid.Row="1" Text="地震情報" VerticalAlignment="Center" />
                                         <ComboBox Grid.Row="1" Grid.Column="1"
-                                                  ItemsSource="{Binding Settings.EarthquakeProviderOptions}"
+                                                  ItemsSource="{Binding Settings.EewAndQuakeProviderOptions}"
                                                   DisplayMemberPath="Label" SelectedValuePath="Value"
                                                   SelectedValue="{Binding Settings.QuakeProvider}" />
                                         <TextBlock Grid.Row="2" Text="津波情報" VerticalAlignment="Center" />
                                         <ComboBox Grid.Row="2" Grid.Column="1"
-                                                  ItemsSource="{Binding Settings.EarthquakeProviderOptions}"
+                                                  ItemsSource="{Binding Settings.TsunamiProviderOptions}"
                                                   DisplayMemberPath="Label" SelectedValuePath="Value"
                                                   SelectedValue="{Binding Settings.TsunamiProvider}" />
                                         <TextBlock Grid.Row="3" Text="気象情報" VerticalAlignment="Center"
@@ -357,6 +357,23 @@
                                         <PasswordBox x:Name="AxisAccessTokenBox"
                                                      PasswordChanged="OnAxisAccessTokenChanged" />
                                         <TextBlock Text="AXISはベータ提供です。利用条件を確認し、利用者ごとに正規登録したトークンを設定してください。"
+                                                   Foreground="#FFFFC66D" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                    </StackPanel>
+                                    <StackPanel Visibility="{Binding Settings.IsWolfxProvider, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="Wolfx（公開API）" FontWeight="Bold" />
+                                        <Border Background="#FF4A2D12" BorderBrush="#FFFFA726" BorderThickness="1"
+                                                CornerRadius="5" Padding="9" Margin="0,4,0,7"
+                                                Visibility="{Binding Settings.IsWolfxQuakeProvider, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <TextBlock Foreground="#FFFFC66D" FontWeight="Bold" TextWrapping="Wrap"
+                                                       Text="注意：Wolfxの地震情報は、現在はVXSE53相当の「震源・震度情報」のみです。震度速報（VXSE51）や震源に関する情報（VXSE52）などは、この受信元からは取得できません。" />
+                                        </Border>
+                                        <TextBlock Text="EEW WebSocket URL" Foreground="{StaticResource MutedBrush}" />
+                                        <TextBox Text="{Binding Settings.WolfxEewWebSocketUrl, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Text="地震情報 WebSocket URL" Foreground="{StaticResource MutedBrush}" />
+                                        <TextBox Text="{Binding Settings.WolfxQuakeWebSocketUrl, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Text="Wolfxを選択したEEW・地震情報だけを受信します。認証情報は不要です。EEWは警報・取消を採用し、予報のみの更新は表示しません。"
+                                                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                                        <TextBlock Text="Wolfxは非公式配信です。気象庁などの公式情報と併用し、利用規約と接続制限を守って使用してください。"
                                                    Foreground="#FFFFC66D" TextWrapping="Wrap" Margin="0,5,0,0" />
                                     </StackPanel>
                                     <TextBlock Text="保存すると接続先を反映し、接続中の場合は自動再接続します。" Foreground="#FFFFC66D" TextWrapping="Wrap" />

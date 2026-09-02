@@ -12,6 +12,7 @@ EEWTelop.Wpf
   ├─ EEWTelop.Infrastructure.P2P
   ├─ EEWTelop.Infrastructure.Dmdata
   ├─ EEWTelop.Infrastructure.Axis
+  ├─ EEWTelop.Infrastructure.Wolfx
   └─ EEWTelop.Application
          └─ EEWTelop.Domain
 
@@ -25,7 +26,7 @@ Domainはほかのプロジェクトへ依存しません。ApplicationはDomain
 ## 実行時の処理経路
 
 ```text
-P2P / DMDATA.JP / AXIS
+P2P / DMDATA.JP / AXIS / Wolfx
         │
         ▼
 IEventSource ── RawProviderMessage
@@ -35,7 +36,7 @@ ProviderRoutingEventNormalizer
 ProviderSelectionEventNormalizer
         │
         ▼
-P2pEventNormalizer / JmaXmlEventNormalizer / AxisEventNormalizer
+P2pEventNormalizer / JmaXmlEventNormalizer / AxisEventNormalizer / WolfxEventNormalizer
         │
         ▼
 DisasterEvent
@@ -63,8 +64,8 @@ ControlWindowViewModel
 
 | イベント | 主な入力 | 主なComposer |
 | --- | --- | --- |
-| `EewEvent` | P2P 556、VXSE43、警報を含むVXSE45、AXIS `eew` | `EewPageComposer` |
-| `QuakeEvent` | P2P 551、VXSE51/52/53/62、VYSE50/60 | `QuakePageComposer` |
+| `EewEvent` | P2P 556、VXSE43、警報を含むVXSE45、AXIS `eew`、Wolfx JMA EEW | `EewPageComposer` |
+| `QuakeEvent` | P2P 551、VXSE51/52/53/62、VYSE50/60、Wolfx JMA地震情報 | `QuakePageComposer` |
 | `TsunamiEvent` | P2P 552、VTSE41/51/52 | `TsunamiPageComposer` |
 | `WeatherWarningEvent` | VPWW、VPOA、VPBS、VPHW | `WeatherWarningPageComposer` |
 | `VolcanoEvent` | VFVO50/56 | `VolcanoPageComposer` |

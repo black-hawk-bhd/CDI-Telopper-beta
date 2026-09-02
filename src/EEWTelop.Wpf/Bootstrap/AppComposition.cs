@@ -28,6 +28,9 @@ using EEWTelop.Infrastructure.Dmdata.Transport;
 using EEWTelop.Infrastructure.P2P.Configuration;
 using EEWTelop.Infrastructure.P2P.Normalization;
 using EEWTelop.Infrastructure.P2P.Transport;
+using EEWTelop.Infrastructure.Wolfx.Configuration;
+using EEWTelop.Infrastructure.Wolfx.Normalization;
+using EEWTelop.Infrastructure.Wolfx.Transport;
 using EEWTelop.Infrastructure.Settings;
 using EEWTelop.Infrastructure.Operations;
 using EEWTelop.Infrastructure.Time;
@@ -70,6 +73,7 @@ public static class AppComposition
         var liveNormalizers = new List<KeyValuePair<string, IEventNormalizer>>
         {
             new("p2pquake", p2pNormalizer),
+            new(WolfxProviderOptions.ProviderName, new WolfxEventNormalizer(signatureBuilder)),
         };
 #if QTELOPPER_DMDATA_PROVIDER
         // AXIS jmx-* and DMDATA.JP both carry JMA XML-derived telegrams.
@@ -117,6 +121,10 @@ public static class AppComposition
         var eventSources = new Dictionary<ReceptionProvider, IEventSource>
         {
             [ReceptionProvider.P2pQuake] = p2pEventSource,
+            [ReceptionProvider.Wolfx] = new WolfxEventSource(
+                WolfxProviderOptions.FromSettings(settings.Provider),
+                clock,
+                logWriter),
         };
         if (BuildFeatures.DmdataProviderEnabled)
         {
@@ -218,6 +226,7 @@ public static class AppComposition
             ReceptionProvider.Dmdata when BuildFeatures.DmdataProviderEnabled =>
                 ReceptionProvider.Dmdata,
             ReceptionProvider.P2pQuake => ReceptionProvider.P2pQuake,
+            ReceptionProvider.Wolfx => ReceptionProvider.Wolfx,
             _ => ReceptionProvider.P2pQuake,
         };
 

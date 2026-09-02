@@ -145,6 +145,12 @@ public sealed record ProviderSettings(
     public string AxisChannel { get; init; } =
         "jmx-seismology,jmx-meteorology,jmx-volcanology,eew";
 
+    public string WolfxEewWebSocketUrl { get; init; } =
+        "wss://ws-api.wolfx.jp/jma_eew";
+
+    public string WolfxQuakeWebSocketUrl { get; init; } =
+        "wss://ws-api.wolfx.jp/jma_eqlist";
+
     // AXIS jmx-meteorology can deliver both the legacy aggregate warning
     // telegrams and the reorganized telegrams. Never consume both families.
     public bool AxisUseLegacyWeatherWarningTelegrams { get; init; }
@@ -192,6 +198,13 @@ public sealed record ProviderRoutingSettings(
                 ReceptionProvider.Dmdata,
                 ReceptionProvider.Dmdata,
                 ReceptionProvider.Dmdata),
+            ReceptionProvider.Wolfx => new ProviderRoutingSettings(
+                ReceptionProvider.Wolfx,
+                ReceptionProvider.Wolfx,
+                ReceptionProvider.P2pQuake,
+                ReceptionProvider.P2pQuake,
+                ReceptionProvider.P2pQuake,
+                ReceptionProvider.P2pQuake),
             _ => new ProviderRoutingSettings(
                 ReceptionProvider.P2pQuake,
                 ReceptionProvider.P2pQuake,
@@ -216,9 +229,11 @@ public sealed record ProviderRoutingSettings(
             ? ReceptionProvider.Axis
             : Uses(ReceptionProvider.Dmdata)
                 ? ReceptionProvider.Dmdata
-                : Uses(ReceptionProvider.P2pQuake)
-                    ? ReceptionProvider.P2pQuake
-                    : ReceptionProvider.Disabled;
+                : Uses(ReceptionProvider.Wolfx)
+                    ? ReceptionProvider.Wolfx
+                    : Uses(ReceptionProvider.P2pQuake)
+                        ? ReceptionProvider.P2pQuake
+                        : ReceptionProvider.Disabled;
 
     public ReceptionProvider GetProvider(EventKind kind, bool isNankaiTrough = false) =>
         isNankaiTrough
@@ -560,6 +575,7 @@ public enum ReceptionProvider
     Dmdata = 1,
     Axis = 2,
     Disabled = 3,
+    Wolfx = 4,
 }
 
 public enum DmdataAuthenticationMode

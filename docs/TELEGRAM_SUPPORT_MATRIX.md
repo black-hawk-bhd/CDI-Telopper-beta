@@ -53,6 +53,17 @@ DMDATA.JP、NII履歴、ローカルXML、テストライブラリ、AXISの `jm
 
 AXISの `eew` は気象庁XML形状ではありません。`jmx-*` と同じDecoderへ統合しないでください。警報条件、取消、トークン、チャンネル契約はそれぞれ独立して確認します。
 
+## Wolfx
+
+| WebSocket | 入力 | 処理 |
+| --- | --- | --- |
+| `wss://ws-api.wolfx.jp/jma_eew` | JMA EEW JSON | 警報・取消を `EewEvent`へ変換。予報のみは無視 |
+| `wss://ws-api.wolfx.jp/jma_eqlist` | JMA地震情報一覧JSON | VXSE53相当の「震源・震度情報」。`No1`の最新項目を `QuakeEvent`へ変換 |
+
+WolfxはEEW・地震情報にだけ割り当て可能です。1分間隔の `heartbeat` を受けた場合は同じ接続へ `ping` を返し、字幕イベントにはしません。両分類がWolfxの場合は2本のWebSocketを独立して再接続します。選択されていない分類のWolfx WebSocketには接続しません。
+
+Wolfxの地震情報は現在VXSE53相当の「震源・震度情報」だけです。VXSE51、VXSE52、VXSE62などの個別電文をWolfxから取得できるものとして扱わないでください。
+
 ## 追加・変更時のチェックリスト
 
 1. 入力形式と電文コードをProvider層で受理できるか。

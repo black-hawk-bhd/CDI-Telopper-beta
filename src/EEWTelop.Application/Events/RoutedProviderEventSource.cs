@@ -305,6 +305,7 @@ public sealed class RoutedProviderEventSource : IEventSource,
         ReceptionProvider.P2pQuake => "P2P",
         ReceptionProvider.Dmdata => "DMDATA.JP",
         ReceptionProvider.Axis => "AXIS",
+        ReceptionProvider.Wolfx => "Wolfx",
         _ => provider.ToString(),
     };
 }

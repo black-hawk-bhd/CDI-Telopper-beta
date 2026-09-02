@@ -4,17 +4,17 @@
 
 Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津波・気象・火山・南海トラフに関する防災情報を受信し、OBS向け字幕として出力するWindowsアプリです。
 
-現在の公開版は **2.0.0-beta.33** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
+現在の公開版は **2.0.0-beta.34** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
 
-- [2.0.0-beta.33をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.33)
-- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.33.txt)
+- [2.0.0-beta.34をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.34)
+- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.34.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
 - [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
 
 ## 主な機能
 
 - EEW、地震、津波、気象、火山、南海トラフ情報の受信と字幕生成
-- 情報分類ごとにP2P地震情報、DMDATA.JP、AXIS、または「受信しない」を選択
+- 情報分類ごとにP2P地震情報、DMDATA.JP、AXIS、Wolfx、または「受信しない」を選択
 - 選択された情報に不要なプロバイダーAPIへは接続しない構成
 - 同一イベントの続報、取消、解除、重複、古い更新報を考慮した表示制御
 - 注意報・警報解除時に対象地域と解除種別を表示
@@ -29,8 +29,8 @@ Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津�
 
 | 分類 | 主な対応内容 |
 | --- | --- |
-| EEW | P2P EEW、VXSE43、警報を含むVXSE45、AXIS `eew` |
-| 地震 | VXSE51、VXSE52、VXSE53、VXSE62、VYSE60、P2P地震情報 |
+| EEW | P2P EEW、VXSE43、警報を含むVXSE45、AXIS `eew`、Wolfx JMA EEW |
+| 地震 | VXSE51、VXSE52、VXSE53、VXSE62、VYSE60、P2P地震情報、Wolfx JMA地震情報 |
 | 津波 | VTSE41、VTSE51、VTSE52、P2P津波情報 |
 | 気象 | VPWW55～61、VPOA50、VPBS50・51、VPHW50・51 |
 | 火山 | VFVO50、VFVO56 |
@@ -61,6 +61,16 @@ https://dmdata.jp/
 ※非商用に限り無料で利用できます。商用利用はできません。
 
 https://axis.prioris.jp/
+
+### Wolfx
+
+認証不要の公開WebSocket APIです。EEWと地震情報の受信元として選択できます。EEWでは警報・取消のみを字幕対象とし、予報のみの更新は表示しません。
+
+**注意：Wolfxの地震情報は、現在はVXSE53相当の「震源・震度情報」のみです。** 震度速報（VXSE51）、震源に関する情報（VXSE52）、長周期地震動に関する観測情報（VXSE62）などはWolfxから取得できません。地震情報は配信された一覧の最新項目を取り込み、既存のイベントID重複判定を適用します。
+
+Wolfxは非公式サービスです。本ソフトだけを防災判断の根拠にせず、気象庁などの公式情報を併用してください。利用規約、接続数、再配信条件は提供元で確認してください。
+
+https://wolfx.jp/docs/open-api/
 
 DMDATA.JPとAXISの認証情報はWindows DPAPI CurrentUserで暗号化して保存します。認証情報をソース、配布ZIP、ログ、診断ZIPへ平文で含めない設計です。
 
@@ -115,15 +125,15 @@ GitHub Releasesの配布物は.NET 8自己完結型です。通常利用ではVi
 powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
-このスクリプトは依存関係を復元し、Release構成で全プロジェクトをビルドして、自動テストを実行します。現在のbeta.33では472件のテストを確認しています。
+このスクリプトは依存関係を復元し、Release構成で全プロジェクトをビルドして、自動テストを実行します。現在のbeta.34では477件のテストを確認しています。
 
 配布物を作成する場合は次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.33
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.34
 ```
 
-フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.33\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
+フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.34\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
 
 ## 開発者向け資料
 

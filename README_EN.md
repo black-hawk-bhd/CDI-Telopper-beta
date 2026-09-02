@@ -4,16 +4,16 @@ English | [日本語](README.md)
 
 **Comprehensive Disaster Information Telopper (CDI-Telopper)** is a Windows application that receives disaster information related to earthquakes, tsunamis, weather, volcanoes, and the Nankai Trough, then generates captions for OBS.
 
-The current public release is **2.0.0-beta.33**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.34**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.33](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.33)
-- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.33.txt)
+- [Download 2.0.0-beta.34](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.34)
+- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.34.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
 
 - Receives and generates captions for EEW, earthquake, tsunami, weather, volcano, and Nankai Trough information
-- Selects P2PQuake, DMDATA.JP, AXIS, or “Do not receive” separately for each information category
+- Selects P2PQuake, DMDATA.JP, AXIS, Wolfx, or “Do not receive” separately for each supported information category
 - Does not connect to a provider API when none of the selected categories require it
 - Handles updates, cancellations, lifted warnings and advisories, duplicates, and superseded reports for the same event
 - Shows the affected area and warning or advisory type when a warning is cleared
@@ -28,8 +28,8 @@ The current public release is **2.0.0-beta.33**. This is a development beta. Bef
 
 | Category | Main supported data |
 | --- | --- |
-| EEW | P2P EEW, VXSE43, VXSE45 containing a warning, AXIS `eew` |
-| Earthquake | VXSE51, VXSE52, VXSE53, VXSE62, VYSE60, P2P earthquake information |
+| EEW | P2P EEW, VXSE43, VXSE45 containing a warning, AXIS `eew`, Wolfx JMA EEW |
+| Earthquake | VXSE51, VXSE52, VXSE53, VXSE62, VYSE60, P2P and Wolfx JMA earthquake information |
 | Tsunami | VTSE41, VTSE51, VTSE52, P2P tsunami information |
 | Weather | VPWW55–61, VPOA50, VPBS50/51, VPHW50/51 |
 | Volcano | VFVO50, VFVO56 |
@@ -50,6 +50,14 @@ You must provide your own subscription and API key. For EEW, select either a war
 ### AXIS
 
 AXIS is treated as an experimental provider. You must provide a valid access token and have access to the required channels. Depending on the selected categories, CDI-Telopper uses `eew`, `jmx-seismology`, `jmx-meteorology`, and `jmx-volcanology`.
+
+### Wolfx
+
+Wolfx provides public WebSocket endpoints that require no authentication. It can be selected for EEW and earthquake information. CDI-Telopper accepts warning-level EEW messages and cancellations and ignores forecast-only EEW updates.
+
+**Important: Wolfx earthquake information currently contains only “Hypocenter and seismic intensity information,” equivalent to VXSE53.** It does not provide VXSE51 seismic intensity prompt reports, VXSE52 hypocenter reports, VXSE62 long-period ground motion reports, or the other earthquake telegram types supported through other providers. CDI-Telopper normalizes the latest item in each Wolfx earthquake-list update. Wolfx is an unofficial source; use official JMA information alongside it and confirm the provider's current terms and connection limits.
+
+https://wolfx.jp/docs/open-api/
 
 DMDATA.JP and AXIS credentials are encrypted using Windows DPAPI CurrentUser. The application is designed not to include plaintext credentials in source files, release packages, logs, or diagnostic ZIP files.
 
@@ -104,15 +112,15 @@ Building requires Windows 10/11 x64, the .NET 8 SDK, and PowerShell. Visual Stud
 powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
-The script restores dependencies, builds every project in the Release configuration, and runs the automated tests. The beta.33 source currently has 472 verified tests.
+The script restores dependencies, builds every project in the Release configuration, and runs the automated tests. The beta.34 source currently has 477 verified tests.
 
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.33
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.34
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.33\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.34\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
 
 ## License and attribution
 

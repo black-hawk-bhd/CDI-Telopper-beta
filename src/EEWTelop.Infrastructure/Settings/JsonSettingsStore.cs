@@ -217,6 +217,11 @@ public sealed class JsonSettingsStore : ISettingsStore
         {
             throw new InvalidDataException("The DMDATA.JP provider settings are invalid.");
         }
+        if (!IsSecureWebSocket(settings.Provider.WolfxEewWebSocketUrl) ||
+            !IsSecureWebSocket(settings.Provider.WolfxQuakeWebSocketUrl))
+        {
+            throw new InvalidDataException("The Wolfx provider settings are invalid.");
+        }
         string selectedAxisChannels = BuildAxisChannels(routing);
         ProviderSettings provider = settings.Provider with
         {
@@ -298,6 +303,10 @@ public sealed class JsonSettingsStore : ISettingsStore
         JmaScale.SixLower or
         JmaScale.SixUpper or
         JmaScale.Seven;
+
+    private static bool IsSecureWebSocket(string value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) &&
+        uri.Scheme == Uri.UriSchemeWss;
 
     private static Dictionary<string, string> NormalizeSubtitlePhraseOverrides(
         Dictionary<string, string>? overrides)
@@ -610,7 +619,11 @@ public sealed class JsonSettingsStore : ISettingsStore
         Enum.IsDefined(routing.Tsunami) &&
         Enum.IsDefined(routing.Weather) &&
         Enum.IsDefined(routing.Volcano) &&
-        Enum.IsDefined(routing.NankaiTrough);
+        Enum.IsDefined(routing.NankaiTrough) &&
+        routing.Tsunami != ReceptionProvider.Wolfx &&
+        routing.Weather != ReceptionProvider.Wolfx &&
+        routing.Volcano != ReceptionProvider.Wolfx &&
+        routing.NankaiTrough != ReceptionProvider.Wolfx;
 
     private static bool IsValidProductionReplayPolicy(ProductionReplayPolicy? policy) =>
         policy is not null && policy.RepeatCount is >= 1 and <= 100;

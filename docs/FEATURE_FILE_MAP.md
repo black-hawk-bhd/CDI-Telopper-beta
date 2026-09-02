@@ -14,6 +14,7 @@
 | AXIS接続・再接続 | `Infrastructure.Axis/Transport/AxisEventSource.cs` | `Infrastructure.Axis.Tests/AxisRecoveryAndPolicyTests.cs` |
 | AXIS形式の復元・正規化 | `Infrastructure.Axis/Normalization/AxisEventNormalizer.cs`と関連Decoder | `Infrastructure.Axis.Tests/AxisEnvelopeDecoderTests.cs` |
 | AXISトークン更新 | `Infrastructure.Axis/Security/AxisTokenRefreshService.cs` | `Infrastructure.Axis.Tests/AxisTokenRefreshServiceTests.cs` |
+| Wolfx接続・JSON正規化 | `Infrastructure.Wolfx/Transport/WolfxEventSource.cs`、`Normalization/WolfxEventNormalizer.cs` | `Infrastructure.Wolfx.Tests/WolfxEventNormalizerTests.cs` |
 
 表中のパスはすべて `src/EEWTelop.*` または `tests/EEWTelop.*` から始まります。
 
