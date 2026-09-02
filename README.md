@@ -51,7 +51,8 @@ https://dmdata.jp/
 
 ### AXIS
 
-試験的プロバイダーです。利用者自身が取得した有効なアクセストークンと、利用するチャンネルの契約が必要です。`eew`、`jmx-seismology`、`jmx-meteorology`、`jmx-volcanology`を、選択した情報分類に応じて使用します。※非商用に限り無料で利用できます。商用利用はできません。
+試験的プロバイダーです。利用者自身が取得した有効なアクセストークンと、利用するチャンネルの契約が必要です。`eew`、`jmx-seismology`、`jmx-meteorology`、`jmx-volcanology`を、選択した情報分類に応じて使用します。
+※非商用に限り無料で利用できます。商用利用はできません。
 https://axis.prioris.jp/
 
 DMDATA.JPとAXISの認証情報はWindows DPAPI CurrentUserで暗号化して保存します。認証情報をソース、配布ZIP、ログ、診断ZIPへ平文で含めない設計です。
