@@ -47,6 +47,7 @@ https://www.p2pquake.net/develop/
 ### DMDATA.JP
 
 利用者自身の契約とAPIキーが必要です。EEWは契約に合わせて警報契約（VXSE43）または予報契約（VXSE45）を選択します。予報契約では、警報を含むVXSE45と取消を字幕対象とします。
+法人向けの方は法人向けプランの契約が必要です。
 https://dmdata.jp/
 
 ### AXIS
