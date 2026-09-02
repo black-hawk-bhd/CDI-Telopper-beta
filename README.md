@@ -42,14 +42,17 @@ Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津�
 ### P2P地震情報 API
 
 主にEEW、地震情報、津波情報で利用します。ProductionとSandboxを選択できます。
+https://www.p2pquake.net/develop/
 
 ### DMDATA.JP
 
 利用者自身の契約とAPIキーが必要です。EEWは契約に合わせて警報契約（VXSE43）または予報契約（VXSE45）を選択します。予報契約では、警報を含むVXSE45と取消を字幕対象とします。
+https://dmdata.jp/
 
 ### AXIS
 
-試験的プロバイダーです。利用者自身が取得した有効なアクセストークンと、利用するチャンネルの契約が必要です。`eew`、`jmx-seismology`、`jmx-meteorology`、`jmx-volcanology`を、選択した情報分類に応じて使用します。
+試験的プロバイダーです。利用者自身が取得した有効なアクセストークンと、利用するチャンネルの契約が必要です。`eew`、`jmx-seismology`、`jmx-meteorology`、`jmx-volcanology`を、選択した情報分類に応じて使用します。※非商用に限り無料で利用できます。商用利用はできません。
+https://axis.prioris.jp/
 
 DMDATA.JPとAXISの認証情報はWindows DPAPI CurrentUserで暗号化して保存します。認証情報をソース、配布ZIP、ログ、診断ZIPへ平文で含めない設計です。
 
