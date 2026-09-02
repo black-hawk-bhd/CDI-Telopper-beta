@@ -7,7 +7,8 @@ namespace EEWTelop.Application.Display;
 
 internal static class WeatherWarningPageComposer
 {
-    private const int ItemsPerPage = 3;
+    private const int ReleaseRowsPerPage = 2;
+    private const int ReleaseAreasPerRow = 6;
     private const int ActiveWarningRowsPerPage = 2;
     private const int AreasPerWarningRow = 3;
     private const int HeadlineLinesPerPage = 2;
@@ -489,10 +490,11 @@ internal static class WeatherWarningPageComposer
             return [];
         }
 
-        string badge = weather.Items
+        string kindName = weather.Items
             .Select(static item => item.KindName)
             .FirstOrDefault(static name => !string.IsNullOrWhiteSpace(name)) ??
             "竜巻注意情報";
+        string badge = CreateTornadoAdvisoryBadge(weather, kindName);
         const string style = DisplayStyleTokens.WeatherAdvisory;
         // 竜巻注意情報は一文が長く、安全行動を含むため、通常の注警報と同じ
         // 3項目詰め込みにはしない。1ページ1要点にして自然な折り返しに任せる。
@@ -508,6 +510,39 @@ internal static class WeatherWarningPageComposer
         }
 
         return pages.ToArray();
+    }
+
+    private static string CreateTornadoAdvisoryBadge(
+        WeatherWarningEvent weather,
+        string kindName)
+    {
+        // VPHWの対象地域名は配信経路により府県名を別項目へ持つ場合がある。
+        // バッジだけは市町村名ではなく府県名へ統一し、複数府県なら一度ずつ並べる。
+        string[] prefectureNames = weather.Items
+            .Select(GetTornadoAdvisoryPrefectureName)
+            .Where(static name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(static name => name, StringComparer.Ordinal)
+            .ToArray();
+        return prefectureNames.Length == 0
+            ? kindName
+            : $"{string.Join("・", prefectureNames)}　{kindName}";
+    }
+
+    private static string GetTornadoAdvisoryPrefectureName(WeatherWarningItem item)
+    {
+        string prefectureName = GetPrefectureName(item);
+        if (!string.IsNullOrWhiteSpace(prefectureName))
+        {
+            return prefectureName;
+        }
+
+        string areaName = item.AreaName.Trim();
+        return WeatherPrefectureCatalog.Options
+            .Where(static option => !string.IsNullOrWhiteSpace(option.Code))
+            .FirstOrDefault(option =>
+                areaName.Contains(option.Name, StringComparison.Ordinal))
+            ?.Name ?? string.Empty;
     }
 
     private static string[] SplitBulletinSentences(string headline) => headline
@@ -587,14 +622,27 @@ internal static class WeatherWarningPageComposer
     private static IEnumerable<PageDraft> CreateReleasePages(
         WeatherWarningItem[] releasedWarnings)
     {
-        for (int offset = 0; offset < releasedWarnings.Length; offset += ItemsPerPage)
+        // 市町村ごとに1件ずつ表示すると同時解除でページが急増する。
+        // 府県・警報種別・レベル単位で地域をまとめ、1ページは2行までに保つ。
+        ReleasedWarningRow[] rows = releasedWarnings
+            .GroupBy(static item => new ReleasedWarningKey(
+                GetPrefectureName(item),
+                item.KindName.Trim(),
+                item.Level))
+            .OrderBy(static group => GetLevelDisplayOrder(group.Key.Level))
+            .ThenBy(static group => group.Key.KindName, StringComparer.Ordinal)
+            .ThenBy(static group => group.Key.PrefectureName, StringComparer.Ordinal)
+            .SelectMany(static group => CreateGroupedReleaseRows(group))
+            .ToArray();
+
+        for (int offset = 0; offset < rows.Length; offset += ReleaseRowsPerPage)
         {
-            DisplayBlock[] blocks = releasedWarnings
+            DisplayBlock[] blocks = rows
                 .Skip(offset)
-                .Take(ItemsPerPage)
-                .Select(static item => new DisplayBlock(
+                .Take(ReleaseRowsPerPage)
+                .Select(static row => new DisplayBlock(
                     "解除",
-                    $"{FormatReleaseArea(item)}の{item.KindName}は解除されました",
+                    row.PrimaryText,
                     string.Empty,
                     DisplayStyleTokens.WeatherCancel))
                 .ToArray();
@@ -602,20 +650,35 @@ internal static class WeatherWarningPageComposer
         }
     }
 
-    private static string FormatReleaseArea(WeatherWarningItem item)
+    private static IEnumerable<ReleasedWarningRow> CreateGroupedReleaseRows(
+        IGrouping<ReleasedWarningKey, WeatherWarningItem> group)
     {
-        string areaName = item.AreaName.Trim();
-        if (item.AreaCode.Length < 2)
+        string[] areaNames = group
+            .Select(item => FormatGroupedAreaName(
+                item.AreaName,
+                group.Key.PrefectureName))
+            .Where(static name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(static name => name, StringComparer.Ordinal)
+            .ToArray();
+        if (areaNames.Length == 0)
         {
-            return areaName;
+            yield return new ReleasedWarningRow(
+                $"{group.Key.PrefectureName}の{group.Key.KindName}は解除されました");
+            yield break;
         }
 
-        WeatherPrefectureOption? prefecture =
-            WeatherPrefectureCatalog.Find(item.AreaCode[..2]);
-        return prefecture is null ||
-            areaName.Contains(prefecture.Name, StringComparison.Ordinal)
-                ? areaName
-                : $"{prefecture.Name}{areaName}";
+        for (int offset = 0; offset < areaNames.Length; offset += ReleaseAreasPerRow)
+        {
+            string areas = string.Join(
+                "、",
+                areaNames.Skip(offset).Take(ReleaseAreasPerRow));
+            string target = string.IsNullOrWhiteSpace(group.Key.PrefectureName)
+                ? areas
+                : $"{group.Key.PrefectureName}{areas}";
+            yield return new ReleasedWarningRow(
+                $"{target}の{group.Key.KindName}は解除されました");
+        }
     }
 
     private static string FormatStatus(string status) => status switch
@@ -699,4 +762,11 @@ internal static class WeatherWarningPageComposer
         string Status);
 
     private sealed record ActiveWeatherWarningRow(string PrimaryText);
+
+    private sealed record ReleasedWarningKey(
+        string PrefectureName,
+        string KindName,
+        WeatherWarningLevel Level);
+
+    private sealed record ReleasedWarningRow(string PrimaryText);
 }

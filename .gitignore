@@ -23,6 +23,13 @@ Microsoft/
 /docs/*
 !/docs/assets-license.md
 !/docs/data-sources.md
+!/docs/DEVELOPER_GUIDE.md
+!/docs/ARCHITECTURE.md
+!/docs/FEATURE_FILE_MAP.md
+!/docs/TELEGRAM_SUPPORT_MATRIX.md
+!/docs/SETTINGS_FLOW.md
+!/docs/SAFE_CHANGE_GUIDE.md
+!/docs/HOTSPOTS.md
 
 # External reference and raw test data belong in the local archive
 /JMA_Format/

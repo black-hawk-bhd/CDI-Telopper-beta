@@ -4,11 +4,12 @@
 
 Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津波・気象・火山・南海トラフに関する防災情報を受信し、OBS向け字幕として出力するWindowsアプリです。
 
-現在の公開版は **2.0.0-beta.32** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
+現在の公開版は **2.0.0-beta.33** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
 
-- [2.0.0-beta.32をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.32)
-- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.32.txt)
+- [2.0.0-beta.33をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.33)
+- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.33.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
+- [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
 
 ## 主な機能
 
@@ -42,18 +43,23 @@ Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津�
 ### P2P地震情報 API
 
 主にEEW、地震情報、津波情報で利用します。ProductionとSandboxを選択できます。
+
 https://www.p2pquake.net/develop/
 
 ### DMDATA.JP
 
 利用者自身の契約とAPIキーが必要です。EEWは契約に合わせて警報契約（VXSE43）または予報契約（VXSE45）を選択します。予報契約では、警報を含むVXSE45と取消を字幕対象とします。
+
 法人向けの方は法人向けプランの契約が必要です。
+
 https://dmdata.jp/
 
 ### AXIS
 
 試験的プロバイダーです。利用者自身が取得した有効なアクセストークンと、利用するチャンネルの契約が必要です。`eew`、`jmx-seismology`、`jmx-meteorology`、`jmx-volcanology`を、選択した情報分類に応じて使用します。
+
 ※非商用に限り無料で利用できます。商用利用はできません。
+
 https://axis.prioris.jp/
 
 DMDATA.JPとAXISの認証情報はWindows DPAPI CurrentUserで暗号化して保存します。認証情報をソース、配布ZIP、ログ、診断ZIPへ平文で含めない設計です。
@@ -109,15 +115,19 @@ GitHub Releasesの配布物は.NET 8自己完結型です。通常利用ではVi
 powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
-このスクリプトは依存関係を復元し、Release構成で全プロジェクトをビルドして、自動テストを実行します。現在のbeta.32では470件のテストを確認しています。
+このスクリプトは依存関係を復元し、Release構成で全プロジェクトをビルドして、自動テストを実行します。現在のbeta.33では472件のテストを確認しています。
 
 配布物を作成する場合は次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.32
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.33
 ```
 
-フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.32\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
+フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.33\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
+
+## 開発者向け資料
+
+コードを変更する場合は、最初に[開発者ガイド](docs/DEVELOPER_GUIDE.md)を参照してください。アーキテクチャ、機能別の実装・テスト対応表、対応電文、設定保存の流れ、安全な変更手順、読解負荷が高い箇所の案内を `docs` にまとめています。
 
 ## ライセンスと出典
 

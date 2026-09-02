@@ -50,6 +50,73 @@ public sealed class WeatherWarningPageComposerTests
     }
 
     [TestMethod]
+    public void SameReleasedWarningAcrossMunicipalitiesGroupsAreas()
+    {
+        WeatherWarningEvent weather = CreateWeather(
+            [
+                Released("A市", "1310100", "雷注意報", WeatherWarningLevel.Advisory),
+                Released("B市", "1310200", "雷注意報", WeatherWarningLevel.Advisory),
+                Released("C市", "1310300", "雷注意報", WeatherWarningLevel.Advisory),
+                Released("D市", "1310400", "雷注意報", WeatherWarningLevel.Advisory),
+                Released("E市", "1310500", "雷注意報", WeatherWarningLevel.Advisory),
+                Released("F市", "1310600", "雷注意報", WeatherWarningLevel.Advisory),
+                Released("G市", "1310700", "雷注意報", WeatherWarningLevel.Advisory),
+                Released("H市", "1310800", "雷注意報", WeatherWarningLevel.Advisory),
+            ],
+            isCancelled: true);
+
+        DisplayProgram program = new PageComposer().Compose(
+            weather,
+            AppSettings.CreateDefault().Display);
+        DisplayBlock[] releaseBlocks = program.Pages
+            .SelectMany(static page => page.Blocks)
+            .Where(static block => block.StyleToken == DisplayStyleTokens.WeatherCancel)
+            .ToArray();
+
+        Assert.HasCount(1, program.Pages);
+        Assert.HasCount(2, releaseBlocks);
+        Assert.AreEqual(
+            "東京都A市、B市、C市、D市、E市、F市の雷注意報は解除されました",
+            releaseBlocks[0].PrimaryText);
+        Assert.AreEqual(
+            "東京都G市、H市の雷注意報は解除されました",
+            releaseBlocks[1].PrimaryText);
+    }
+
+    [TestMethod]
+    public void LargeReleasedWarningAreaListUsesGroupedPages()
+    {
+        WeatherWarningItem[] items = Enumerable.Range(1, 40)
+            .Select(index => Released(
+                $"地域{index:00}",
+                $"29{index:00000}",
+                "雷注意報",
+                WeatherWarningLevel.Advisory))
+            .ToArray();
+        WeatherWarningEvent weather = CreateWeather(items, isCancelled: true);
+
+        DisplayProgram program = new PageComposer().Compose(
+            weather,
+            AppSettings.CreateDefault().Display);
+        DisplayBlock[] releaseBlocks = program.Pages
+            .SelectMany(static page => page.Blocks)
+            .Where(static block => block.StyleToken == DisplayStyleTokens.WeatherCancel)
+            .ToArray();
+
+        Assert.HasCount(4, program.Pages);
+        Assert.HasCount(7, releaseBlocks);
+        Assert.IsTrue(program.Pages.All(static page =>
+            page.Blocks.Count(static block =>
+                block.StyleToken == DisplayStyleTokens.WeatherCancel) <= 2));
+        Assert.AreEqual(
+            "奈良県地域01、地域02、地域03、地域04、地域05、地域06の雷注意報は解除されました",
+            releaseBlocks[0].PrimaryText);
+        Assert.AreEqual(
+            "奈良県地域37、地域38、地域39、地域40の雷注意報は解除されました",
+            releaseBlocks[^1].PrimaryText);
+    }
+
+    [TestMethod]
     public void TelegramCancellationIsNotDisplayedAsWarningRelease()
     {
         WeatherWarningEvent weather = CreateWeather(
@@ -621,6 +688,8 @@ public sealed class WeatherWarningPageComposerTests
         Assert.HasCount(5, program.Pages);
         Assert.IsTrue(program.Pages.Take(4).All(static page =>
             WeatherAdvisoryBlocks(page).Length == 1));
+        Assert.IsTrue(program.Pages.All(static page =>
+            WeatherAdvisoryBlocks(page).Single().Badge == "栃木県　竜巻注意情報"));
         Assert.AreEqual(
             "栃木県南部、北部は、竜巻などの激しい突風が発生しやすい気象状況になっています",
             WeatherAdvisoryBlocks(program.Pages[0]).Single().PrimaryText);
@@ -634,7 +703,7 @@ public sealed class WeatherWarningPageComposerTests
             "落雷、ひょう、急な強い雨にも注意してください",
             WeatherAdvisoryBlocks(program.Pages[3]).Single().PrimaryText);
         DisplayBlock validTime = WeatherAdvisoryBlocks(program.Pages[4]).Single();
-        Assert.AreEqual("竜巻注意情報", validTime.Badge);
+        Assert.AreEqual("栃木県　竜巻注意情報", validTime.Badge);
         Assert.AreEqual("この情報は9日 18時10分まで有効です", validTime.PrimaryText);
     }
 
