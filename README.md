@@ -1,4 +1,4 @@
-# CDI-Telopper
+# CDI-Telopper CDI-テロッパー
 
 [English](README_EN.md) | 日本語
 
