@@ -12,10 +12,10 @@
     <Product>CDI-Telopper</Product>
     <Description>Comprehensive Disaster Information Telopper</Description>
     <ApplicationIcon>Assets\QTelopper.ico</ApplicationIcon>
-    <Version Condition="'$(Version)' == ''">2.0.0-beta.34</Version>
+    <Version Condition="'$(Version)' == ''">2.0.0-beta.35</Version>
     <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">2.0.0.0</AssemblyVersion>
     <FileVersion Condition="'$(FileVersion)' == ''">2.0.0.0</FileVersion>
-    <InformationalVersion Condition="'$(InformationalVersion)' == ''">2.0.0-beta.34</InformationalVersion>
+    <InformationalVersion Condition="'$(InformationalVersion)' == ''">2.0.0-beta.35</InformationalVersion>
     <AxisProviderEnabled Condition="'$(AxisProviderEnabled)' == ''">true</AxisProviderEnabled>
     <DefineConstants Condition="'$(AxisProviderEnabled)' == 'true'">$(DefineConstants);QTELOPPER_AXIS_PROVIDER</DefineConstants>
     <DmdataProviderEnabled Condition="'$(DmdataProviderEnabled)' == ''">true</DmdataProviderEnabled>

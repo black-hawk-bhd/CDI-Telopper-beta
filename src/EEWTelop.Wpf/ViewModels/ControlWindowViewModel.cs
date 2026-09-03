@@ -20,12 +20,24 @@ using EEWTelop.Domain.Events;
 using EEWTelop.Infrastructure.Axis.Configuration;
 using EEWTelop.Infrastructure.Axis.Security;
 #endif
+#if QTELOPPER_DMDATA_PROVIDER
+using EEWTelop.Infrastructure.Dmdata.Configuration;
+#endif
+using EEWTelop.Infrastructure.P2P.Configuration;
+using EEWTelop.Infrastructure.Wolfx.Configuration;
 using EEWTelop.Wpf.Bootstrap;
 using EEWTelop.Wpf.Mvvm;
 using EEWTelop.Wpf.Obs;
 using EEWTelop.Wpf.Services;
 
 namespace EEWTelop.Wpf.ViewModels;
+
+internal enum TelegramReplayMode
+{
+    ProductionReplay,
+    PastInformation,
+    Training,
+}
 
 public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDisposable
 {
@@ -57,6 +69,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     private AppSettings _settings;
     private TestScenario? _selectedScenario;
     private ReceivedTelegramViewModel? _selectedReceivedTelegram;
+    private TelegramReplayMode _telegramReplayMode = TelegramReplayMode.Training;
     private bool _isTelegramHistoryLoading;
     private string _telegramReviewStatusText = "本番受信待ち。過去電文は［過去電文を取得］から読み込めます。";
     private AppLogLevel _minimumLogLevel;
@@ -328,7 +341,53 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         {
             if (SetProperty(ref _selectedReceivedTelegram, value))
             {
+                OnPropertyChanged(nameof(CanUseProductionReplayMode));
+                SetTelegramReplayMode(value?.Event.SourceMode switch
+                {
+                    SourceMode.Production => TelegramReplayMode.ProductionReplay,
+                    SourceMode.HistoryRehearsal => TelegramReplayMode.PastInformation,
+                    _ => TelegramReplayMode.Training,
+                });
                 RedisplayReceivedTelegramCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool CanUseProductionReplayMode =>
+        SelectedReceivedTelegram?.Event.SourceMode == SourceMode.Production;
+
+    public bool IsProductionReplayMode
+    {
+        get => _telegramReplayMode == TelegramReplayMode.ProductionReplay;
+        set
+        {
+            if (value && CanUseProductionReplayMode)
+            {
+                SetTelegramReplayMode(TelegramReplayMode.ProductionReplay);
+            }
+        }
+    }
+
+    public bool IsPastInformationReplayMode
+    {
+        get => _telegramReplayMode == TelegramReplayMode.PastInformation;
+        set
+        {
+            if (value)
+            {
+                SetTelegramReplayMode(TelegramReplayMode.PastInformation);
+            }
+        }
+    }
+
+    public bool IsTrainingReplayMode
+    {
+        get => _telegramReplayMode == TelegramReplayMode.Training;
+        set
+        {
+            if (value)
+            {
+                SetTelegramReplayMode(TelegramReplayMode.Training);
             }
         }
     }
@@ -600,23 +659,27 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 #endif
         }
 
-        bool providerChanged = updated.Provider != _settings.Provider;
+        bool providerSettingsChanged = updated.Provider != _settings.Provider;
+        bool receptionConfigurationChanged = HasReceptionConfigurationChanged(
+            _settings.Provider,
+            updated.Provider);
         bool obsChanged = updated.Obs != _settings.Obs;
         // A routed source can report Faulted when only one provider branch has
         // failed while the other branches and the aggregate reader are still
         // running. The UI state alone therefore cannot determine whether it is
         // safe to reconfigure providers.
-        bool restartReception = providerChanged && IsReceptionRunning;
+        bool restartReception = receptionConfigurationChanged && IsReceptionRunning;
         if (restartReception)
         {
             await StopConnectionAsync().ConfigureAwait(false);
         }
 
-        if (providerChanged && _services.EventSource is IProviderConfigurableEventSource configurable)
+        if (receptionConfigurationChanged &&
+            _services.EventSource is IProviderConfigurableEventSource configurable)
         {
             configurable.ConfigureProvider(updated.Provider);
         }
-        if (providerChanged &&
+        if (providerSettingsChanged &&
             _services.EventNormalizer is IProviderSelectionConfigurable selectionConfigurable)
         {
             selectionConfigurable.UpdateProviderSelection(updated.Provider);
@@ -652,7 +715,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         await WriteLogAsync(
             AppLogLevel.Information,
             "SettingsSaved",
-            providerChanged
+            receptionConfigurationChanged
                 ? "設定を保存し、受信先を次の接続へ反映しました。"
                 : "表示・出力・音・履歴・安全設定を保存し、表示設定を即時反映しました。").ConfigureAwait(false);
         _dispatcher.Invoke(() => OnPropertyChanged(nameof(ApiModeText)));
@@ -660,6 +723,57 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         {
             _dispatcher.Invoke(StartConnection);
         }
+    }
+
+    private static bool HasReceptionConfigurationChanged(
+        ProviderSettings current,
+        ProviderSettings updated)
+    {
+        if (current.Routing != updated.Routing)
+        {
+            return true;
+        }
+
+        IReadOnlyList<ReceptionProvider> activeProviders = current.Routing
+            .GetDistinctProviders();
+        if (activeProviders.Contains(ReceptionProvider.P2pQuake) &&
+            ProviderOptions.FromSettings(current) != ProviderOptions.FromSettings(updated))
+        {
+            return true;
+        }
+
+#if QTELOPPER_DMDATA_PROVIDER
+        if (activeProviders.Contains(ReceptionProvider.Dmdata) &&
+            DmdataProviderOptions.FromSettings(current) !=
+                DmdataProviderOptions.FromSettings(updated))
+        {
+            return true;
+        }
+#endif
+
+#if QTELOPPER_AXIS_PROVIDER
+        if (activeProviders.Contains(ReceptionProvider.Axis) &&
+            AxisProviderOptions.FromSettings(current) !=
+                AxisProviderOptions.FromSettings(updated))
+        {
+            return true;
+        }
+#endif
+
+        if (activeProviders.Contains(ReceptionProvider.Wolfx))
+        {
+            WolfxProviderOptions currentWolfx = WolfxProviderOptions.FromSettings(current);
+            WolfxProviderOptions updatedWolfx = WolfxProviderOptions.FromSettings(updated);
+            if ((currentWolfx.ReceiveEew &&
+                 currentWolfx.EewWebSocketUri != updatedWolfx.EewWebSocketUri) ||
+                (currentWolfx.ReceiveQuake &&
+                 currentWolfx.QuakeWebSocketUri != updatedWolfx.QuakeWebSocketUri))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private async Task SaveSettingsFromCommandAsync()
@@ -1278,11 +1392,62 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     {
         if (SelectedReceivedTelegram is { } item)
         {
-            DisplayRehearsal(item.Event, item.Program, "受信電文の再表示／訓練");
+            if (_telegramReplayMode == TelegramReplayMode.ProductionReplay &&
+                item.Event.SourceMode != SourceMode.Production)
+            {
+                TelegramReviewStatusText =
+                    "本番情報として再掲できるのは、本番で受信した電文だけです。";
+                return;
+            }
+
+            string label = BuildTelegramReplayLabel(
+                _telegramReplayMode,
+                item.Event.IssuedAt,
+                _services.Clock.UtcNow);
+            DisplayRehearsal(item.Event, item.Program, label);
+            TelegramReviewStatusText = $"{GetTelegramReplayModeText(_telegramReplayMode)}として再表示しました。";
         }
     }
 
-    private void AddTelegramForReview(DisasterEvent disasterEvent, DisplayProgram program)
+    private void SetTelegramReplayMode(TelegramReplayMode mode)
+    {
+        if (_telegramReplayMode == mode)
+        {
+            return;
+        }
+
+        _telegramReplayMode = mode;
+        OnPropertyChanged(nameof(IsProductionReplayMode));
+        OnPropertyChanged(nameof(IsPastInformationReplayMode));
+        OnPropertyChanged(nameof(IsTrainingReplayMode));
+    }
+
+    private static string BuildTelegramReplayLabel(
+        TelegramReplayMode mode,
+        DateTimeOffset issuedAt,
+        DateTimeOffset nowUtc)
+    {
+        DateTimeOffset localIssuedAt = issuedAt.ToLocalTime();
+        DateTimeOffset localNow = nowUtc.ToLocalTime();
+        string issuedAtText = localIssuedAt.Year == localNow.Year
+            ? localIssuedAt.ToString("M月d日HH時mm分発表", CultureInfo.InvariantCulture)
+            : localIssuedAt.ToString("yyyy年M月d日HH時mm分発表", CultureInfo.InvariantCulture);
+        return mode == TelegramReplayMode.ProductionReplay
+            ? issuedAtText
+            : $"{GetTelegramReplayModeText(mode)}｜{issuedAtText}";
+    }
+
+    private static string GetTelegramReplayModeText(TelegramReplayMode mode) => mode switch
+    {
+        TelegramReplayMode.ProductionReplay => "本番情報・再掲",
+        TelegramReplayMode.PastInformation => "過去情報",
+        _ => "訓練",
+    };
+
+    private void AddTelegramForReview(
+        DisasterEvent disasterEvent,
+        DisplayProgram program,
+        string displayResult = "表示済み")
     {
         ReceivedTelegramViewModel? duplicate = ReceivedTelegrams.FirstOrDefault(item =>
             item.Event.SourceMode == disasterEvent.SourceMode &&
@@ -1294,7 +1459,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             ReceivedTelegrams.Remove(duplicate);
         }
 
-        var item = new ReceivedTelegramViewModel(disasterEvent, program);
+        var item = new ReceivedTelegramViewModel(disasterEvent, program, displayResult);
         ReceivedTelegrams.Insert(0, item);
         while (ReceivedTelegrams.Count > 500)
         {
@@ -1998,13 +2163,18 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 CancelTestScenario();
             }
 
+            DisplayProgram? reviewProgram = result.Program ?? result.ReviewProgram;
             if (result.Status == EventIngestionStatus.Accepted &&
                 result.Event?.SourceMode == SourceMode.Production &&
-                result.Program is not null)
+                reviewProgram is not null)
             {
-                AddTelegramForReview(result.Event, result.Program);
-                TelegramReviewStatusText =
-                    $"本番電文を受信しました（保存中 {ReceivedTelegrams.Count}件）。";
+                string displayResult = result.Program is null
+                    ? result.DisplaySuppressionReason ?? "非表示"
+                    : "表示済み";
+                AddTelegramForReview(result.Event, reviewProgram, displayResult);
+                TelegramReviewStatusText = result.Program is null
+                    ? $"本番電文を受信しました（{displayResult}、保存中 {ReceivedTelegrams.Count}件）。"
+                    : $"本番電文を受信しました（保存中 {ReceivedTelegrams.Count}件）。";
             }
 
             if (result.Status == EventIngestionStatus.Accepted &&
@@ -2033,6 +2203,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             }
 
             if (result.Status == EventIngestionStatus.Accepted &&
+                result.Program is not null &&
                 result.Event is not null &&
                 EventDisplayFilter.Apply(_settings.Filter, result.Event) is
                     DisasterEvent audibleEvent)

@@ -296,6 +296,126 @@ public sealed class EventIngestionPipelineTests
     }
 
     [TestMethod]
+    public void UnchangedFilteredWeatherDisplayIsKeptForReviewButNotDisplayedAgain()
+    {
+        WeatherWarningEvent first = CreateWeatherInformation(
+            WeatherInformationType.WarningAndAdvisory,
+            [
+                WeatherItem(
+                    "倉敷市",
+                    "3320200",
+                    "レベル３大雨警報",
+                    WeatherWarningLevel.Warning,
+                    "継続"),
+                WeatherItem(
+                    "岡山市",
+                    "3310000",
+                    "雷注意報",
+                    WeatherWarningLevel.Advisory,
+                    "継続"),
+            ]) with
+        {
+            Signature = "weather-revision-1",
+        };
+        WeatherWarningEvent advisoryChanged = CreateWeatherInformation(
+            WeatherInformationType.WarningAndAdvisory,
+            [
+                WeatherItem(
+                    "倉敷市",
+                    "3320200",
+                    "レベル３大雨警報",
+                    WeatherWarningLevel.Warning,
+                    "継続"),
+                WeatherItem(
+                    "岡山市",
+                    "3310000",
+                    "雷注意報",
+                    WeatherWarningLevel.Advisory,
+                    "解除"),
+            ]) with
+        {
+            Signature = "weather-revision-2",
+        };
+        FilterSettings filter = AppSettings.CreateDefault().Filter with
+        {
+            WeatherWarnings = true,
+            WeatherAdvisories = false,
+        };
+        var clock = new FakeClock();
+        var coordinator = new PriorityCoordinator(clock, DisplayEventFactory.Settings);
+        var pipeline = new EventIngestionPipeline(
+            new QueueNormalizer(first, advisoryChanged),
+            new EventVersionCache(),
+            new PageComposer(),
+            coordinator,
+            DisplayEventFactory.Settings,
+            filter);
+
+        EventIngestionResult displayed = pipeline.Process(CreateRaw(clock, "first"));
+        EventIngestionResult unchanged = pipeline.Process(CreateRaw(clock, "advisory-changed"));
+
+        Assert.IsNotNull(displayed.Program);
+        Assert.IsNotNull(displayed.Snapshot);
+        Assert.IsNull(unchanged.Program);
+        Assert.IsNull(unchanged.Snapshot);
+        Assert.IsNotNull(unchanged.ReviewProgram);
+        Assert.AreEqual("表示対象の変更なし", unchanged.DisplaySuppressionReason);
+        Assert.AreEqual(0, unchanged.DisplayedItemCount);
+        Assert.IsNotNull(unchanged.ReceptionSummary);
+        Assert.Contains(
+            "採用・非表示(表示対象の変更なし)",
+            unchanged.ReceptionSummary.ProcessingResult);
+        Assert.AreEqual(
+            displayed.Program.ProgramId,
+            coordinator.Evaluate().CurrentProgram?.ProgramId);
+    }
+
+    [TestMethod]
+    public void ChangedFilteredWeatherDisplayIsDisplayedNormally()
+    {
+        WeatherWarningEvent first = CreateWeatherInformation(
+            WeatherInformationType.WarningAndAdvisory,
+            [WeatherItem(
+                "倉敷市",
+                "3320200",
+                "レベル３大雨警報",
+                WeatherWarningLevel.Warning,
+                "継続")]) with
+        {
+            Signature = "weather-visible-revision-1",
+        };
+        WeatherWarningEvent warningChanged = CreateWeatherInformation(
+            WeatherInformationType.WarningAndAdvisory,
+            [WeatherItem(
+                "岡山市",
+                "3310000",
+                "レベル３大雨警報",
+                WeatherWarningLevel.Warning,
+                "継続")]) with
+        {
+            Signature = "weather-visible-revision-2",
+        };
+        var clock = new FakeClock();
+        var pipeline = new EventIngestionPipeline(
+            new QueueNormalizer(first, warningChanged),
+            new EventVersionCache(),
+            new PageComposer(),
+            new PriorityCoordinator(clock, DisplayEventFactory.Settings),
+            DisplayEventFactory.Settings,
+            AppSettings.CreateDefault().Filter);
+
+        pipeline.Process(CreateRaw(clock, "first"));
+        EventIngestionResult changed = pipeline.Process(CreateRaw(clock, "warning-changed"));
+
+        Assert.IsNotNull(changed.Program);
+        Assert.IsNotNull(changed.Snapshot);
+        Assert.IsNull(changed.ReviewProgram);
+        Assert.IsNull(changed.DisplaySuppressionReason);
+        Assert.IsTrue(changed.Program.Pages.Any(static page =>
+            page.AccessibleText.Contains("岡山市", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
     public void TwoIndependentEewWarningsAreComposedIntoOneStackedProgram()
     {
         DateTimeOffset firstTime = new(2026, 8, 9, 12, 0, 0, TimeSpan.FromHours(9));
@@ -507,14 +627,15 @@ public sealed class EventIngestionPipelineTests
         string areaName,
         string areaCode,
         string kindName,
-        WeatherWarningLevel level) => new(
-            areaName,
-            areaCode,
-            kindName,
-            string.Empty,
-            level,
-            "発表",
-            IsActive: true);
+        WeatherWarningLevel level,
+        string status = "発表") => new(
+        areaName,
+        areaCode,
+        kindName,
+        string.Empty,
+        level,
+        status,
+        IsActive: true);
 
     private sealed class StubNormalizer(DisasterEvent disasterEvent) : IEventNormalizer
     {

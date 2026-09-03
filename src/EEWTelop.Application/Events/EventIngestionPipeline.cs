@@ -14,6 +14,8 @@ public sealed class EventIngestionPipeline
     private readonly IDisplayCoordinator _displayCoordinator;
     private readonly ConcurrentEewProgramComposer _concurrentEewComposer = new();
     private readonly TsunamiEventStateAccumulator _tsunamiStateAccumulator = new();
+    private readonly object _weatherDisplayStateGate = new();
+    private readonly Dictionary<string, string> _weatherDisplayStates = new(StringComparer.Ordinal);
     private DisplaySettings _settings;
     private FilterSettings _filter;
     private int _holdBeforeDisplay;
@@ -129,6 +131,26 @@ public sealed class EventIngestionPipeline
         {
             program = _concurrentEewComposer.Compose(eew, program, _settings);
         }
+        if (!HoldBeforeDisplay &&
+            displayEvent is WeatherWarningEvent
+            {
+                SourceMode: SourceMode.Production,
+                InformationType: WeatherInformationType.WarningAndAdvisory,
+            } weather &&
+            IsUnchangedWeatherDisplay(weather, program))
+        {
+            return CreateResult(
+                raw,
+                EventIngestionStatus.Accepted,
+                disasterEvent,
+                null,
+                null,
+                normalized.Issues,
+                "表示対象の変更なし") with
+            {
+                ReviewProgram = program,
+            };
+        }
         if (HoldBeforeDisplay)
         {
             return CreateResult(
@@ -229,6 +251,7 @@ public sealed class EventIngestionPipeline
         if (filter is not null)
         {
             _filter = filter;
+            ClearWeatherDisplayStates();
         }
         _displayCoordinator.UpdateSettings(settings);
     }
@@ -237,6 +260,7 @@ public sealed class EventIngestionPipeline
     {
         _concurrentEewComposer.Clear();
         _tsunamiStateAccumulator.Clear();
+        ClearWeatherDisplayStates();
     }
 
     public void ClearTransientState(EventKind kind)
@@ -249,6 +273,52 @@ public sealed class EventIngestionPipeline
         if (kind == EventKind.Tsunami)
         {
             _tsunamiStateAccumulator.Clear();
+        }
+
+        if (kind == EventKind.WeatherWarning)
+        {
+            ClearWeatherDisplayStates();
+        }
+    }
+
+    private bool IsUnchangedWeatherDisplay(
+        WeatherWarningEvent weather,
+        DisplayProgram program)
+    {
+        string stateKey = string.Join(
+            '\u001f',
+            weather.Provider,
+            weather.Id.Value,
+            weather.Issue.RawType);
+        string displayState = string.Join(
+            '\u001e',
+            program.Pages.SelectMany(static page =>
+                page.Blocks.Select(block => string.Join(
+                    '\u001f',
+                    page.Index,
+                    block.Badge,
+                    block.PrimaryText,
+                    block.SecondaryText,
+                    block.StyleToken))));
+
+        lock (_weatherDisplayStateGate)
+        {
+            if (_weatherDisplayStates.TryGetValue(stateKey, out string? previous) &&
+                string.Equals(previous, displayState, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            _weatherDisplayStates[stateKey] = displayState;
+            return false;
+        }
+    }
+
+    private void ClearWeatherDisplayStates()
+    {
+        lock (_weatherDisplayStateGate)
+        {
+            _weatherDisplayStates.Clear();
         }
     }
 }
@@ -271,6 +341,8 @@ public sealed record EventIngestionResult(
     public ReceptionLogSummary? ReceptionSummary { get; init; }
 
     public string? DisplaySuppressionReason { get; init; }
+
+    public DisplayProgram? ReviewProgram { get; init; }
 
     public int NormalizedItemCount { get; init; }
 

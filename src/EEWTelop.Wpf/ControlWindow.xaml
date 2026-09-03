@@ -316,6 +316,8 @@
                                                   SelectedItem="{Binding Settings.ProviderMode}" />
                                         <TextBlock Text="Sandboxは専用WSへ接続します。約30秒間隔で受信しますが、554/555/561/9611は表示対象外のため受信結果とログだけ更新されます。"
                                                    Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                        <TextBlock Text="P2P地震情報 APIは気象庁が運営する公式APIではありません。気象庁などの公式情報と併用し、提供元の利用条件とレート制限を守って使用してください。"
+                                                   Foreground="#FFFFC66D" TextWrapping="Wrap" Margin="0,5,0,0" />
                                     </StackPanel>
                                     <StackPanel Visibility="{Binding Settings.IsDmdataProvider, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <TextBlock Text="DMDATA.JP（契約者向け）" FontWeight="Bold" />
@@ -373,7 +375,7 @@
                                         <TextBox Text="{Binding Settings.WolfxQuakeWebSocketUrl, UpdateSourceTrigger=PropertyChanged}" />
                                         <TextBlock Text="Wolfxを選択したEEW・地震情報だけを受信します。認証情報は不要です。EEWは警報・取消を採用し、予報のみの更新は表示しません。"
                                                    Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
-                                        <TextBlock Text="Wolfxは非公式配信です。気象庁などの公式情報と併用し、利用規約と接続制限を守って使用してください。"
+                                        <TextBlock Text="Wolfx APIは政府機関・気象機関が運営する公式APIではありません。気象庁などの公式情報と併用し、提供元の利用規約と接続制限を守って使用してください。"
                                                    Foreground="#FFFFC66D" TextWrapping="Wrap" Margin="0,5,0,0" />
                                     </StackPanel>
                                     <TextBlock Text="保存すると接続先を反映し、接続中の場合は自動再接続します。" Foreground="#FFFFC66D" TextWrapping="Wrap" />

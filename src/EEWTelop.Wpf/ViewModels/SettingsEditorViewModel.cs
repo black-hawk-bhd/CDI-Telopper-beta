@@ -744,7 +744,9 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 Routing = routing,
                 DmdataApiBaseUrl = DmdataApiBaseUrl.Trim(),
                 DmdataCredentialEnvironmentVariable = string.Empty,
-                DmdataProtectedCredential = ProtectDmdataCredential(DmdataCredential),
+                DmdataProtectedCredential = ProtectDmdataCredential(
+                    DmdataCredential,
+                    baseline.Provider.DmdataProtectedCredential),
                 DmdataAuthenticationMode = EEWTelop.Application.Configuration.DmdataAuthenticationMode.ApiKey,
                 DmdataEewContractType = DmdataEewContractType,
                 DmdataIncludeTestTelegrams = DmdataIncludeTestTelegrams,
@@ -762,7 +764,9 @@ public sealed class SettingsEditorViewModel : ObservableObject
                     routing.Weather == ReceptionProvider.Dmdata &&
                     DmdataUseLegacyWeatherWarningTelegrams,
                 AxisApiBaseUrl = AxisApiBaseUrl.Trim(),
-                AxisProtectedAccessToken = ProtectAxisToken(AxisAccessToken),
+                AxisProtectedAccessToken = ProtectAxisToken(
+                    AxisAccessToken,
+                    baseline.Provider.AxisProtectedAccessToken),
                 AxisChannel = GetAxisChannel(routing),
                 WolfxEewWebSocketUrl = WolfxEewWebSocketUrl.Trim(),
                 WolfxQuakeWebSocketUrl = WolfxQuakeWebSocketUrl.Trim(),
@@ -849,7 +853,9 @@ public sealed class SettingsEditorViewModel : ObservableObject
                     ObsSettings.MaximumSnapshotIntervalMilliseconds),
                 BrowserSourceSyncEnabled = ObsBrowserSourceSyncEnabled,
                 WebSocketUrl = ObsWebSocketUrl.Trim(),
-                WebSocketProtectedPassword = ObsCredentialProtector.Protect(ObsWebSocketPassword),
+                WebSocketProtectedPassword = ProtectObsPassword(
+                    ObsWebSocketPassword,
+                    baseline.Obs.WebSocketProtectedPassword),
                 TargetSceneName = ObsTargetSceneName.Trim(),
                 AudioMonitoringMode = NormalizeObsAudioMonitoringMode(ObsAudioMonitoringMode),
             },
@@ -945,22 +951,55 @@ public sealed class SettingsEditorViewModel : ObservableObject
         };
     }
 
-    private static string ProtectAxisToken(string token)
+    private static string ProtectAxisToken(string token, string existingProtectedToken)
     {
 #if QTELOPPER_AXIS_PROVIDER
+        if (string.Equals(
+            AxisCredentialProtector.Unprotect(existingProtectedToken),
+            token,
+            StringComparison.Ordinal))
+        {
+            return existingProtectedToken;
+        }
+
         return AxisCredentialProtector.Protect(token);
 #else
         return string.Empty;
 #endif
     }
 
-    private static string ProtectDmdataCredential(string credential)
+    private static string ProtectDmdataCredential(
+        string credential,
+        string existingProtectedCredential)
     {
 #if QTELOPPER_DMDATA_PROVIDER
+        if (string.Equals(
+            DmdataCredentialProtector.Unprotect(existingProtectedCredential),
+            credential,
+            StringComparison.Ordinal))
+        {
+            return existingProtectedCredential;
+        }
+
         return DmdataCredentialProtector.Protect(credential);
 #else
         return string.Empty;
 #endif
+    }
+
+    private static string ProtectObsPassword(
+        string password,
+        string existingProtectedPassword)
+    {
+        if (string.Equals(
+            ObsCredentialProtector.Unprotect(existingProtectedPassword),
+            password,
+            StringComparison.Ordinal))
+        {
+            return existingProtectedPassword;
+        }
+
+        return ObsCredentialProtector.Protect(password);
     }
 
     private static string UnprotectDmdataCredential(string protectedCredential)

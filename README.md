@@ -4,10 +4,10 @@
 
 Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津波・気象・火山・南海トラフに関する防災情報を受信し、OBS向け字幕として出力するWindowsアプリです。
 
-現在の公開版は **2.0.0-beta.34** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
+現在の公開版は **2.0.0-beta.35** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
 
-- [2.0.0-beta.34をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.34)
-- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.34.txt)
+- [2.0.0-beta.35をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.35)
+- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.35.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
 - [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
 
@@ -19,7 +19,7 @@ Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津�
 - 同一イベントの続報、取消、解除、重複、古い更新報を考慮した表示制御
 - 注意報・警報解除時に対象地域と解除種別を表示
 - 本番受信電文と過去電文を確認できる独立ウインドウ
-- 過去電文を使った訓練再表示とテストシナリオ
+- 選択電文を「本番情報の再掲」「過去情報として紹介」「動作訓練」の3方式で再表示
 - OBS Local ViewとOBS WebSocket 5.xによるブラウザーソース自動登録・URL更新
 - OBSへ集約した通知音声出力
 - AXISトークンの期限確認と、期限前の自動更新
@@ -38,11 +38,17 @@ Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津�
 
 配信元から届くすべての電文を字幕化するわけではありません。選択外の受信元、対応外電文、警報条件を満たさないEEW、表示フィルターで除外された情報、破損・重複・古い電文などは表示されない場合があります。
 
+気象警報・注意報では、表示フィルター適用後の内容が直前の同一電文系列と変わらない場合、字幕と音声を再実行しません。受信・過去電文確認には電文を保存し、「表示対象の変更なし」と表示します。
+
+受信・過去電文確認から再表示する際は、用途を3方式から選べます。「本番情報の再掲」の識別バッジは電文の発表日時のみを表示し、「過去情報」「動作訓練」では用途と発表日時を表示します。履歴元から取得した過去電文は「本番情報の再掲」を選べず、本番で受信した電文だけが本番再掲の対象です。
+
 ## 受信プロバイダー
 
 ### P2P地震情報 API
 
 主にEEW、地震情報、津波情報で利用します。ProductionとSandboxを選択できます。
+
+P2P地震情報 APIは気象庁が運営する公式APIではありません。気象庁発表情報を扱う外部サービスとして、公式情報と併用してください。提供元の利用条件、レート制限、二次利用条件も確認してください。
 
 https://www.p2pquake.net/develop/
 
@@ -68,7 +74,7 @@ https://axis.prioris.jp/
 
 **注意：Wolfxの地震情報は、現在はVXSE53相当の「震源・震度情報」のみです。** 震度速報（VXSE51）、震源に関する情報（VXSE52）、長周期地震動に関する観測情報（VXSE62）などはWolfxから取得できません。地震情報は配信された一覧の最新項目を取り込み、既存のイベントID重複判定を適用します。
 
-Wolfxは非公式サービスです。本ソフトだけを防災判断の根拠にせず、気象庁などの公式情報を併用してください。利用規約、接続数、再配信条件は提供元で確認してください。
+Wolfx APIは政府機関・気象機関が運営する公式APIではありません。本ソフトだけを防災判断の根拠にせず、気象庁などの公式情報を併用してください。利用規約、接続数、再配信条件は提供元で確認してください。
 
 https://wolfx.jp/docs/open-api/
 
@@ -125,15 +131,15 @@ GitHub Releasesの配布物は.NET 8自己完結型です。通常利用ではVi
 powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
-このスクリプトは依存関係を復元し、Release構成で全プロジェクトをビルドして、自動テストを実行します。現在のbeta.34では477件のテストを確認しています。
+このスクリプトは依存関係を復元し、Release構成で全プロジェクトをビルドして、自動テストを実行します。現在のbeta.35では481件のテストを確認しています。
 
 配布物を作成する場合は次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.34
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.35
 ```
 
-フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.34\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
+フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.35\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
 
 ## 開発者向け資料
 

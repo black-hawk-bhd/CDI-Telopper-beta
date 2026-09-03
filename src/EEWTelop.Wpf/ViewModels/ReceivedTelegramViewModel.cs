@@ -5,15 +5,23 @@ namespace EEWTelop.Wpf.ViewModels;
 
 public sealed class ReceivedTelegramViewModel
 {
-    public ReceivedTelegramViewModel(DisasterEvent disasterEvent, DisplayProgram program)
+    public ReceivedTelegramViewModel(
+        DisasterEvent disasterEvent,
+        DisplayProgram program,
+        string displayResult = "表示済み")
     {
         Event = disasterEvent;
         Program = program;
+        DisplayResult = string.IsNullOrWhiteSpace(displayResult)
+            ? "表示済み"
+            : displayResult.Trim();
     }
 
     public DisasterEvent Event { get; }
 
     public DisplayProgram Program { get; }
+
+    public string DisplayResult { get; }
 
     public string TelegramType => Event switch
     {
@@ -35,7 +43,8 @@ public sealed class ReceivedTelegramViewModel
 
     public string DisplayText =>
         $"{Event.ReceivedAt.ToLocalTime():MM/dd HH:mm:ss}  {SourceText}  " +
-        $"{GetKindText(Event.Kind)}  {TelegramType}  {Program.Pages.Count}ページ";
+        $"{GetKindText(Event.Kind)}  {TelegramType}  {Program.Pages.Count}ページ" +
+        (DisplayResult == "表示済み" ? string.Empty : $"  [{DisplayResult}]");
 
     public string DetailText => string.Join(
         Environment.NewLine,
@@ -46,7 +55,8 @@ public sealed class ReceivedTelegramViewModel
         $"受信時刻: {Event.ReceivedAt.ToLocalTime():yyyy/MM/dd HH:mm:ss}",
         $"提供元: {Event.Provider}",
         $"イベントID: {Event.Id.Value}",
-        $"状態: {(Event.IsCancelled ? "解除・取消" : Event.IsCorrection ? "訂正" : "通常")}");
+        $"状態: {(Event.IsCancelled ? "解除・取消" : Event.IsCorrection ? "訂正" : "通常")}",
+        $"表示結果: {DisplayResult}");
 
     public IReadOnlyList<TelegramPageReviewViewModel> Pages => Program.Pages
         .Select((page, index) => new TelegramPageReviewViewModel(

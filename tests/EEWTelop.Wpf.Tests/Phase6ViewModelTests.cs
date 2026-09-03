@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Globalization;
 using EEWTelop.Application.Abstractions;
 using EEWTelop.Application.Audio;
 using EEWTelop.Application.Configuration;
@@ -636,6 +637,44 @@ public sealed class Phase6ViewModelTests
     }
 
     [TestMethod]
+    public async Task SavingDisplaySettingsDoesNotRestartActiveReceptionWithStoredCredentials()
+    {
+        AppSettings defaults = AppSettings.CreateDefault();
+        AppSettings settings = defaults with
+        {
+            Provider = defaults.Provider with
+            {
+                ReceptionProvider = ReceptionProvider.Axis,
+                Routing = ProviderRoutingSettings.AxisHybrid,
+                AxisProtectedAccessToken = AxisCredentialProtector.Protect("axis-token"),
+            },
+        };
+        var source = new FaultedActiveConfigurableEventSource();
+        AppServices services = CreateServices(
+            ProviderConnectionState.Stopped,
+            suppliedSettings: settings,
+            suppliedEventSource: source);
+        var viewModel = new ControlWindowViewModel(
+            services,
+            settings,
+            new FakeConfirmationService(),
+            new ImmediateUiDispatcher());
+
+        viewModel.ConnectCommand.Execute(null);
+        await WaitUntilAsync(() =>
+            source.IsReaderActive &&
+            viewModel.ConnectionState == ProviderConnectionState.Faulted);
+
+        viewModel.Settings.PageDurationSeconds += 1;
+        await viewModel.SaveSettingsAsync();
+
+        Assert.AreEqual(0, source.StopCount);
+        Assert.AreEqual(1, source.ReadCount);
+        Assert.IsTrue(source.IsReaderActive);
+        await viewModel.DisposeAsync();
+    }
+
+    [TestMethod]
     public async Task DmdataConnectionIsIdentifiedAsDmdataInsteadOfP2p()
     {
         AppSettings defaults = AppSettings.CreateDefault();
@@ -817,7 +856,8 @@ public sealed class Phase6ViewModelTests
     [TestMethod]
     public async Task PastTelegramsCanBeReviewedWithoutSendingUntilOperatorRedisplaysOne()
     {
-        var historyLoader = new FakeHistoryRehearsalLoader([CreateHistoryQuake()]);
+        QuakeEvent quake = CreateHistoryQuake();
+        var historyLoader = new FakeHistoryRehearsalLoader([quake]);
         AppServices services = CreateServices(
             ProviderConnectionState.Stopped,
             historyLoader: historyLoader);
@@ -841,11 +881,17 @@ public sealed class Phase6ViewModelTests
         Assert.IsFalse(obsStore.Read().HasProgram);
 
         viewModel.SelectedReceivedTelegram = item;
+        Assert.IsFalse(viewModel.CanUseProductionReplayMode);
+        Assert.IsTrue(viewModel.IsPastInformationReplayMode);
+        viewModel.IsProductionReplayMode = true;
+        Assert.IsTrue(viewModel.IsPastInformationReplayMode);
         viewModel.RedisplayReceivedTelegramCommand.Execute(null);
 
         Assert.IsTrue(viewModel.Overlay.HasProgram);
         Assert.IsTrue(obsStore.Read().HasProgram);
-        Assert.AreEqual("受信電文の再表示／訓練", viewModel.Overlay.RehearsalLabel);
+        Assert.AreEqual(
+            BuildExpectedReplayLabel("過去情報", quake.IssuedAt, services.Clock.UtcNow),
+            viewModel.Overlay.RehearsalLabel);
         await viewModel.DisposeAsync();
     }
 
@@ -1046,11 +1092,22 @@ public sealed class Phase6ViewModelTests
         Assert.IsFalse(obsStore.Read().HasProgram);
 
         viewModel.SelectedReceivedTelegram = viewModel.ReceivedTelegrams.Single();
+        Assert.IsTrue(viewModel.CanUseProductionReplayMode);
+        Assert.IsTrue(viewModel.IsProductionReplayMode);
         viewModel.RedisplayReceivedTelegramCommand.Execute(null);
 
         Assert.IsTrue(viewModel.Overlay.HasProgram);
         Assert.IsTrue(obsStore.Read().HasProgram);
-        Assert.AreEqual("受信電文の再表示／訓練", viewModel.Overlay.RehearsalLabel);
+        Assert.AreEqual(
+            BuildExpectedReplayLabel(string.Empty, quake.IssuedAt, services.Clock.UtcNow),
+            viewModel.Overlay.RehearsalLabel);
+
+        viewModel.IsTrainingReplayMode = true;
+        viewModel.RedisplayReceivedTelegramCommand.Execute(null);
+
+        Assert.AreEqual(
+            BuildExpectedReplayLabel("訓練", quake.IssuedAt, services.Clock.UtcNow),
+            viewModel.Overlay.RehearsalLabel);
         await viewModel.DisposeAsync();
     }
 
@@ -1427,6 +1484,21 @@ public sealed class Phase6ViewModelTests
 
     private static QuakeEvent CreateHistoryQuake()
         => CreateQuake(SourceMode.HistoryRehearsal, "history-quake");
+
+    private static string BuildExpectedReplayLabel(
+        string mode,
+        DateTimeOffset issuedAt,
+        DateTimeOffset nowUtc)
+    {
+        DateTimeOffset localIssuedAt = issuedAt.ToLocalTime();
+        DateTimeOffset localNow = nowUtc.ToLocalTime();
+        string issuedAtText = localIssuedAt.Year == localNow.Year
+            ? localIssuedAt.ToString("M月d日HH時mm分発表", CultureInfo.InvariantCulture)
+            : localIssuedAt.ToString("yyyy年M月d日HH時mm分発表", CultureInfo.InvariantCulture);
+        return string.IsNullOrEmpty(mode)
+            ? issuedAtText
+            : $"{mode}｜{issuedAtText}";
+    }
 
     private static QuakeEvent CreateQuake(SourceMode sourceMode, string eventId)
     {

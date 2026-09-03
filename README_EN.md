@@ -4,10 +4,10 @@ English | [日本語](README.md)
 
 **Comprehensive Disaster Information Telopper (CDI-Telopper)** is a Windows application that receives disaster information related to earthquakes, tsunamis, weather, volcanoes, and the Nankai Trough, then generates captions for OBS.
 
-The current public release is **2.0.0-beta.34**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.35**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.34](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.34)
-- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.34.txt)
+- [Download 2.0.0-beta.35](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.35)
+- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.35.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
@@ -18,7 +18,7 @@ The current public release is **2.0.0-beta.34**. This is a development beta. Bef
 - Handles updates, cancellations, lifted warnings and advisories, duplicates, and superseded reports for the same event
 - Shows the affected area and warning or advisory type when a warning is cleared
 - Provides a separate window for reviewing live and past telegrams
-- Supports rehearsal playback of past telegrams and built-in test scenarios
+- Redisplays a selected telegram in one of three modes: live-information repeat, past-information presentation, or operational training
 - Provides OBS Local View and automatic browser-source registration and URL updates through OBS WebSocket 5.x
 - Consolidates notification audio into a dedicated OBS source
 - Checks AXIS token expiration and attempts renewal before expiration
@@ -37,11 +37,17 @@ The current public release is **2.0.0-beta.34**. This is a development beta. Bef
 
 Not every message delivered by a provider is converted into a caption. Messages may be excluded when they come from an unselected provider, use an unsupported format, do not meet the EEW warning criteria, are disabled by display filters, are damaged, duplicate an existing message, or have been superseded.
 
+For weather warnings and advisories, CDI-Telopper does not replay the caption or audio when the post-filter page content is unchanged from the preceding revision in the same bulletin series. The message remains available in the received-message review with the status `No change to displayed information`.
+
+When redisplaying a telegram from the review window, choose one of three purposes. A live-information repeat badge shows only the telegram's issue time; past-information and training badges show both the purpose and issue time. Only telegrams actually received in production can use the live-information repeat mode; messages loaded from a history provider cannot be presented as live repeats.
+
 ## Reception providers
 
 ### P2PQuake API
 
 P2PQuake is primarily used for EEW, earthquake, and tsunami information. Production and Sandbox connections are available.
+
+The P2PQuake API is not an official API operated by JMA. Treat it as an external service carrying JMA-issued information, use official information alongside it, and review the provider's terms, rate limits, and secondary-use conditions.
 
 ### DMDATA.JP
 
@@ -53,7 +59,7 @@ AXIS is treated as an experimental provider. You must provide a valid access tok
 
 ### Wolfx
 
-Wolfx provides public WebSocket endpoints that require no authentication. It can be selected for EEW and earthquake information. CDI-Telopper accepts warning-level EEW messages and cancellations and ignores forecast-only EEW updates.
+Wolfx provides public WebSocket endpoints that require no authentication. It can be selected for EEW and earthquake information. CDI-Telopper accepts warning-level EEW messages and cancellations and ignores forecast-only EEW updates. Wolfx is not an official API operated by a government or meteorological agency; use official information alongside it and follow the provider's terms and connection limits.
 
 **Important: Wolfx earthquake information currently contains only “Hypocenter and seismic intensity information,” equivalent to VXSE53.** It does not provide VXSE51 seismic intensity prompt reports, VXSE52 hypocenter reports, VXSE62 long-period ground motion reports, or the other earthquake telegram types supported through other providers. CDI-Telopper normalizes the latest item in each Wolfx earthquake-list update. Wolfx is an unofficial source; use official JMA information alongside it and confirm the provider's current terms and connection limits.
 
@@ -112,15 +118,15 @@ Building requires Windows 10/11 x64, the .NET 8 SDK, and PowerShell. Visual Stud
 powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
-The script restores dependencies, builds every project in the Release configuration, and runs the automated tests. The beta.34 source currently has 477 verified tests.
+The script restores dependencies, builds every project in the Release configuration, and runs the automated tests. The beta.35 source currently has 481 verified tests.
 
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.34
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.35
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.34\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.35\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
 
 ## License and attribution
 

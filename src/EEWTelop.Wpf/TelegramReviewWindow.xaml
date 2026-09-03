@@ -21,10 +21,17 @@
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontFamily" Value="Yu Gothic UI, Meiryo" />
+            <Setter Property="Margin" Value="0,0,20,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
     </Window.Resources>
 
     <Grid Margin="18">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -42,9 +49,6 @@
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <Button Content="過去電文を取得"
                         Command="{Binding LoadHistoryForReviewCommand}" />
-                <Button Content="選択電文を訓練再表示"
-                        Command="{Binding RedisplayReceivedTelegramCommand}"
-                        Background="#FFEF5B35" />
                 <Button Content="閉じる" Click="OnCloseClicked" />
             </StackPanel>
         </Grid>
@@ -53,7 +57,37 @@
             <TextBlock Text="{Binding TelegramReviewStatusText}" TextWrapping="Wrap" />
         </Border>
 
-        <Grid Grid.Row="2">
+        <Border Grid.Row="2" Background="#FF18212B" CornerRadius="6" Padding="10" Margin="0,0,0,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="再表示方法" FontWeight="Bold" Margin="0,0,0,7" />
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton Content="本番情報の再掲"
+                                     GroupName="TelegramReplayMode"
+                                     IsChecked="{Binding IsProductionReplayMode}"
+                                     IsEnabled="{Binding CanUseProductionReplayMode}"
+                                     ToolTip="本番で受信した電文だけ選択できます。" />
+                        <RadioButton Content="過去情報として紹介"
+                                     GroupName="TelegramReplayMode"
+                                     IsChecked="{Binding IsPastInformationReplayMode}" />
+                        <RadioButton Content="動作訓練"
+                                     GroupName="TelegramReplayMode"
+                                     IsChecked="{Binding IsTrainingReplayMode}" />
+                    </StackPanel>
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Content="選択した方式で再表示"
+                        Command="{Binding RedisplayReceivedTelegramCommand}"
+                        Background="#FFEF5B35"
+                        VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="430" />
                 <ColumnDefinition Width="12" />
