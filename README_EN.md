@@ -109,7 +109,6 @@ For compatibility, settings, state, and logs are stored under `%LOCALAPPDATA%\QT
 ## Security notes
 
 - Never publish your AXIS token, DMDATA.JP API key, or OBS WebSocket password.
-- If an antivirus exclusion is required, limit it to the dedicated application directory.
 - Avoid excluding a broad parent directory containing projects, documents, or downloads.
 - Verify the Release page and SHA-256 values before extracting a package.
 - Confirm subscription, redistribution, and concurrent-connection terms with each external provider.
