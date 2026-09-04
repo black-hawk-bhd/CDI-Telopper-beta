@@ -41,6 +41,7 @@ public sealed record AppSettings(
             WeatherTornadoAdvisories = true,
             WeatherRecordShortRain = true,
             WeatherDisasterPreventionBulletins = true,
+            HideWeatherContinuationOnly = true,
             Volcano = true,
         },
         Display: new DisplaySettings(
@@ -275,6 +276,11 @@ public sealed record FilterSettings(
 
     public bool WeatherDisasterPreventionBulletins { get; init; } = true;
 
+    // Routine continuation reports are still received and logged. Suppress them
+    // only when every item remaining after the other weather filters is a
+    // continuation, so new announcements and releases are never hidden.
+    public bool HideWeatherContinuationOnly { get; init; } = true;
+
     public bool Volcano { get; init; } = true;
 }
 
@@ -465,11 +471,15 @@ public sealed record AudioSettings(
 
     public bool WeatherAdvisoryEnabled { get; init; }
 
+    public bool WeatherDisasterPreventionBulletinEnabled { get; init; }
+
     public string WeatherSpecialWarningFilePath { get; init; } = string.Empty;
 
     public string WeatherWarningFilePath { get; init; } = string.Empty;
 
     public string WeatherAdvisoryFilePath { get; init; } = string.Empty;
+
+    public string WeatherDisasterPreventionBulletinFilePath { get; init; } = string.Empty;
 
     // Weather telegrams for several warning levels can arrive within a fraction
     // of a second. Hold them briefly and play only the highest eligible cue.

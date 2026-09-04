@@ -4,10 +4,10 @@ English | [日本語](README.md)
 
 **Comprehensive Disaster Information Telopper (CDI-Telopper)** is a Windows application that receives disaster information related to earthquakes, tsunamis, weather, volcanoes, and the Nankai Trough, then generates captions for OBS.
 
-The current public release is **2.0.0-beta.35**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.36**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.35](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.35)
-- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.35.txt)
+- [Download 2.0.0-beta.36](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.36)
+- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.36.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
@@ -38,6 +38,10 @@ The current public release is **2.0.0-beta.35**. This is a development beta. Bef
 Not every message delivered by a provider is converted into a caption. Messages may be excluded when they come from an unselected provider, use an unsupported format, do not meet the EEW warning criteria, are disabled by display filters, are damaged, duplicate an existing message, or have been superseded.
 
 For weather warnings and advisories, CDI-Telopper does not replay the caption or audio when the post-filter page content is unchanged from the preceding revision in the same bulletin series. The message remains available in the received-message review with the status `No change to displayed information`.
+
+By default, CDI-Telopper also suppresses captions and audio when every item remaining after weather filters is marked as continuing. New announcements, updates, and releases are still displayed. This behavior can be changed with the `Do not display telegrams containing only continuing items` checkbox. Audio for weather disaster-prevention bulletins (VPBS50/51) can be enabled and assigned separately from ordinary weather warning and advisory audio.
+
+EEW audio has priority over all earthquake, tsunami, and weather audio. When an EEW arrives, pending weather audio is discarded and any currently playing affected sound is interrupted by the EEW sound. Earthquake, tsunami, and weather sounds received before the EEW sound finishes are not replayed later.
 
 When redisplaying a telegram from the review window, choose one of three purposes. A live-information repeat badge shows only the telegram's issue time; past-information and training badges show both the purpose and issue time. Only telegrams actually received in production can use the live-information repeat mode; messages loaded from a history provider cannot be presented as live repeats.
 
@@ -118,15 +122,15 @@ Building requires Windows 10/11 x64, the .NET 8 SDK, and PowerShell. Visual Stud
 powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
-The script restores dependencies, builds every project in the Release configuration, and runs the automated tests. The beta.35 source currently has 481 verified tests.
+The script restores dependencies, builds every project in the Release configuration, and runs the automated tests. The beta.36 source currently has 489 verified tests.
 
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.35
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.36
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.35\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.36\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
 
 ## License and attribution
 

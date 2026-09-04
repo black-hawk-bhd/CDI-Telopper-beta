@@ -431,6 +431,9 @@
                                                       IsChecked="{Binding Settings.FilterWeatherTornadoAdvisories}" />
                                             <CheckBox Content="その他の注意報（原則非表示）"
                                                       IsChecked="{Binding Settings.FilterWeatherAdvisories}" />
+                                            <CheckBox Content="継続中の項目しかない電文を表示しない"
+                                                      IsChecked="{Binding Settings.HideWeatherContinuationOnly}"
+                                                      ToolTip="表示対象地域・警戒レベルの項目がすべて「継続」の場合、字幕と音声を送出しません。発表・更新・解除を含む電文は表示します。" />
                                         </StackPanel>
                                         <TextBlock Text="非表示種別も受信ログと重複判定は継続します。" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
                                         <Button Content="表示フィルターを初期設定に戻す"
@@ -709,6 +712,19 @@
                                                 Command="{Binding BrowseAudioFileCommand}"
                                                 CommandParameter="{x:Static audio:AudioCueId.WeatherSpecialWarning}" />
                                         <TextBox Text="{Binding Settings.WeatherSpecialWarningAudioFilePath, UpdateSourceTrigger=PropertyChanged}"
+                                                 Margin="0,3,8,8" ToolTip="音声ファイルのパス" />
+                                    </DockPanel>
+
+                                    <CheckBox Content="気象防災速報"
+                                              IsChecked="{Binding Settings.WeatherDisasterPreventionBulletinAudioEnabled}" />
+                                    <DockPanel LastChildFill="True">
+                                        <Button Content="OBS試聴" Padding="10,5"
+                                                Command="{Binding TestAudioCommand}"
+                                                CommandParameter="{x:Static audio:AudioCueId.WeatherDisasterPreventionBulletin}" />
+                                        <Button Content="選択…" Padding="10,5"
+                                                Command="{Binding BrowseAudioFileCommand}"
+                                                CommandParameter="{x:Static audio:AudioCueId.WeatherDisasterPreventionBulletin}" />
+                                        <TextBox Text="{Binding Settings.WeatherDisasterPreventionBulletinAudioFilePath, UpdateSourceTrigger=PropertyChanged}"
                                                  Margin="0,3,8,8" ToolTip="音声ファイルのパス" />
                                     </DockPanel>
 

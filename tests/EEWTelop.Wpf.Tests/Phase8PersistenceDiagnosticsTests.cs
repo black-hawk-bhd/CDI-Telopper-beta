@@ -56,6 +56,7 @@ public sealed class Phase8PersistenceDiagnosticsTests
             Filter = AppSettings.CreateDefault().Filter with
             {
                 HideQuakeBelowIntensity3 = true,
+                HideWeatherContinuationOnly = false,
                 WeatherPrefectureCodes = ["01", "43"],
                 WeatherWarnings = false,
                 WeatherAdvisories = true,
@@ -94,9 +95,11 @@ public sealed class Phase8PersistenceDiagnosticsTests
                 WeatherSpecialWarningEnabled = true,
                 WeatherWarningEnabled = true,
                 WeatherAdvisoryEnabled = true,
+                WeatherDisasterPreventionBulletinEnabled = true,
                 WeatherSpecialWarningFilePath = "weather-level5.wav",
                 WeatherWarningFilePath = "weather-level4-3.mp3",
                 WeatherAdvisoryFilePath = "weather-level2.ogg",
+                WeatherDisasterPreventionBulletinFilePath = "weather-bulletin.wav",
                 TsunamiAdvisoryEnabled = true,
                 TsunamiWarningEnabled = true,
                 TsunamiMajorWarningEnabled = true,
@@ -146,11 +149,15 @@ public sealed class Phase8PersistenceDiagnosticsTests
         Assert.IsTrue(actual.Audio.WeatherSpecialWarningEnabled);
         Assert.IsTrue(actual.Audio.WeatherWarningEnabled);
         Assert.IsTrue(actual.Audio.WeatherAdvisoryEnabled);
+        Assert.IsTrue(actual.Audio.WeatherDisasterPreventionBulletinEnabled);
         Assert.AreEqual(
             "weather-level5.wav",
             actual.Audio.WeatherSpecialWarningFilePath);
         Assert.AreEqual("weather-level4-3.mp3", actual.Audio.WeatherWarningFilePath);
         Assert.AreEqual("weather-level2.ogg", actual.Audio.WeatherAdvisoryFilePath);
+        Assert.AreEqual(
+            "weather-bulletin.wav",
+            actual.Audio.WeatherDisasterPreventionBulletinFilePath);
         Assert.IsTrue(actual.Audio.TsunamiAdvisoryEnabled);
         Assert.IsTrue(actual.Audio.TsunamiWarningEnabled);
         Assert.IsTrue(actual.Audio.TsunamiMajorWarningEnabled);
@@ -158,6 +165,7 @@ public sealed class Phase8PersistenceDiagnosticsTests
         Assert.AreEqual("tsunami-warning.wav", actual.Audio.TsunamiWarningFilePath);
         Assert.AreEqual("tsunami-major.wav", actual.Audio.TsunamiMajorWarningFilePath);
         Assert.IsTrue(actual.Filter.HideQuakeBelowIntensity3);
+        Assert.IsFalse(actual.Filter.HideWeatherContinuationOnly);
         Assert.HasCount(2, actual.Filter.WeatherPrefectureCodes);
         Assert.AreEqual("01", actual.Filter.WeatherPrefectureCodes[0]);
         Assert.AreEqual("43", actual.Filter.WeatherPrefectureCodes[1]);
@@ -304,6 +312,7 @@ public sealed class Phase8PersistenceDiagnosticsTests
         legacyFilter.Remove("weatherTornadoAdvisories");
         legacyFilter.Remove("weatherRecordShortRain");
         legacyFilter.Remove("weatherDisasterPreventionBulletins");
+        legacyFilter.Remove("hideWeatherContinuationOnly");
         await File.WriteAllTextAsync(path, legacyDocument.ToJsonString());
 
         AppSettings actual = await store.LoadAsync();
@@ -315,6 +324,7 @@ public sealed class Phase8PersistenceDiagnosticsTests
         Assert.IsTrue(actual.Filter.WeatherTornadoAdvisories);
         Assert.IsTrue(actual.Filter.WeatherRecordShortRain);
         Assert.IsTrue(actual.Filter.WeatherDisasterPreventionBulletins);
+        Assert.IsTrue(actual.Filter.HideWeatherContinuationOnly);
     }
 
     [TestMethod]

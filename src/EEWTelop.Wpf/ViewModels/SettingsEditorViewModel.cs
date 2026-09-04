@@ -54,6 +54,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private bool _filterWeatherTornadoAdvisories;
     private bool _filterWeatherRecordShortRain;
     private bool _filterWeatherDisasterPreventionBulletins;
+    private bool _hideWeatherContinuationOnly;
     private bool _hideQuakeBelowIntensity3;
     private double _pageDurationSeconds;
     private bool _showPageIndicator;
@@ -115,6 +116,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private bool _weatherSpecialWarningAudioEnabled;
     private bool _weatherWarningAudioEnabled;
     private bool _weatherAdvisoryAudioEnabled;
+    private bool _weatherDisasterPreventionBulletinAudioEnabled;
     private double _weatherAudioCoalescingSeconds;
     private string _quakeAudioFilePath;
     private string _tsunamiAdvisoryAudioFilePath;
@@ -126,6 +128,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private string _weatherSpecialWarningAudioFilePath;
     private string _weatherWarningAudioFilePath;
     private string _weatherAdvisoryAudioFilePath;
+    private string _weatherDisasterPreventionBulletinAudioFilePath;
     private HistoryApi _historyApi;
     private int _historyLimit;
     private int _historyIntervalSeconds;
@@ -205,6 +208,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _filterWeatherRecordShortRain = settings.Filter.WeatherRecordShortRain;
         _filterWeatherDisasterPreventionBulletins =
             settings.Filter.WeatherDisasterPreventionBulletins;
+        _hideWeatherContinuationOnly = settings.Filter.HideWeatherContinuationOnly;
         _hideQuakeBelowIntensity3 = settings.Filter.HideQuakeBelowIntensity3;
         _pageDurationSeconds = settings.Display.PageDurationSeconds;
         _showPageIndicator = settings.Display.ShowPageIndicator;
@@ -289,6 +293,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
             settings.Audio.WeatherSpecialWarningEnabled;
         _weatherWarningAudioEnabled = settings.Audio.WeatherWarningEnabled;
         _weatherAdvisoryAudioEnabled = settings.Audio.WeatherAdvisoryEnabled;
+        _weatherDisasterPreventionBulletinAudioEnabled =
+            settings.Audio.WeatherDisasterPreventionBulletinEnabled;
         _weatherAudioCoalescingSeconds =
             settings.Audio.EffectiveWeatherCoalescingSeconds;
         _quakeAudioFilePath = settings.Audio.QuakeFilePath ?? string.Empty;
@@ -310,6 +316,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
             settings.Audio.WeatherWarningFilePath ?? string.Empty;
         _weatherAdvisoryAudioFilePath =
             settings.Audio.WeatherAdvisoryFilePath ?? string.Empty;
+        _weatherDisasterPreventionBulletinAudioFilePath =
+            settings.Audio.WeatherDisasterPreventionBulletinFilePath ?? string.Empty;
         QuakeAudioCues = CreateQuakeAudioCues(settings.Audio);
         TsunamiAudioCues = CreateTsunamiAudioCues(settings.Audio);
         _historyApi = settings.History.Api;
@@ -590,6 +598,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public bool FilterWeatherTornadoAdvisories { get => _filterWeatherTornadoAdvisories; set => SetProperty(ref _filterWeatherTornadoAdvisories, value); }
     public bool FilterWeatherRecordShortRain { get => _filterWeatherRecordShortRain; set => SetProperty(ref _filterWeatherRecordShortRain, value); }
     public bool FilterWeatherDisasterPreventionBulletins { get => _filterWeatherDisasterPreventionBulletins; set => SetProperty(ref _filterWeatherDisasterPreventionBulletins, value); }
+    public bool HideWeatherContinuationOnly { get => _hideWeatherContinuationOnly; set => SetProperty(ref _hideWeatherContinuationOnly, value); }
     public bool HideQuakeBelowIntensity3 { get => _hideQuakeBelowIntensity3; set => SetProperty(ref _hideQuakeBelowIntensity3, value); }
     public double PageDurationSeconds { get => _pageDurationSeconds; set => SetProperty(ref _pageDurationSeconds, value); }
     public bool ShowPageIndicator { get => _showPageIndicator; set => SetProperty(ref _showPageIndicator, value); }
@@ -680,6 +689,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public bool WeatherSpecialWarningAudioEnabled { get => _weatherSpecialWarningAudioEnabled; set => SetProperty(ref _weatherSpecialWarningAudioEnabled, value); }
     public bool WeatherWarningAudioEnabled { get => _weatherWarningAudioEnabled; set => SetProperty(ref _weatherWarningAudioEnabled, value); }
     public bool WeatherAdvisoryAudioEnabled { get => _weatherAdvisoryAudioEnabled; set => SetProperty(ref _weatherAdvisoryAudioEnabled, value); }
+    public bool WeatherDisasterPreventionBulletinAudioEnabled { get => _weatherDisasterPreventionBulletinAudioEnabled; set => SetProperty(ref _weatherDisasterPreventionBulletinAudioEnabled, value); }
     public double WeatherAudioCoalescingSeconds { get => _weatherAudioCoalescingSeconds; set => SetProperty(ref _weatherAudioCoalescingSeconds, value); }
     public string QuakeAudioFilePath { get => _quakeAudioFilePath; set => SetProperty(ref _quakeAudioFilePath, value); }
     public string TsunamiAdvisoryAudioFilePath { get => _tsunamiAdvisoryAudioFilePath; set => SetProperty(ref _tsunamiAdvisoryAudioFilePath, value); }
@@ -691,6 +701,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public string WeatherSpecialWarningAudioFilePath { get => _weatherSpecialWarningAudioFilePath; set => SetProperty(ref _weatherSpecialWarningAudioFilePath, value); }
     public string WeatherWarningAudioFilePath { get => _weatherWarningAudioFilePath; set => SetProperty(ref _weatherWarningAudioFilePath, value); }
     public string WeatherAdvisoryAudioFilePath { get => _weatherAdvisoryAudioFilePath; set => SetProperty(ref _weatherAdvisoryAudioFilePath, value); }
+    public string WeatherDisasterPreventionBulletinAudioFilePath { get => _weatherDisasterPreventionBulletinAudioFilePath; set => SetProperty(ref _weatherDisasterPreventionBulletinAudioFilePath, value); }
     public HistoryApi HistoryApi
     {
         get => _historyApi;
@@ -789,6 +800,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 WeatherRecordShortRain = FilterWeatherRecordShortRain,
                 WeatherDisasterPreventionBulletins =
                     FilterWeatherDisasterPreventionBulletins,
+                HideWeatherContinuationOnly = HideWeatherContinuationOnly,
                 Volcano = FilterVolcano,
             },
             Display = new DisplaySettings(
@@ -896,10 +908,14 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 WeatherSpecialWarningEnabled = WeatherSpecialWarningAudioEnabled,
                 WeatherWarningEnabled = WeatherWarningAudioEnabled,
                 WeatherAdvisoryEnabled = WeatherAdvisoryAudioEnabled,
+                WeatherDisasterPreventionBulletinEnabled =
+                    WeatherDisasterPreventionBulletinAudioEnabled,
                 WeatherSpecialWarningFilePath =
                     WeatherSpecialWarningAudioFilePath.Trim(),
                 WeatherWarningFilePath = WeatherWarningAudioFilePath.Trim(),
                 WeatherAdvisoryFilePath = WeatherAdvisoryAudioFilePath.Trim(),
+                WeatherDisasterPreventionBulletinFilePath =
+                    WeatherDisasterPreventionBulletinAudioFilePath.Trim(),
                 WeatherCoalescingSeconds = double.IsFinite(WeatherAudioCoalescingSeconds)
                     ? Math.Clamp(
                         WeatherAudioCoalescingSeconds,
@@ -1060,6 +1076,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
         AudioCueId.EewContinuation => EewContinuationAudioFilePath,
         AudioCueId.EewCancellation => EewCancellationAudioFilePath,
         AudioCueId.WeatherSpecialWarning => WeatherSpecialWarningAudioFilePath,
+        AudioCueId.WeatherDisasterPreventionBulletin =>
+            WeatherDisasterPreventionBulletinAudioFilePath,
         AudioCueId.WeatherWarning => WeatherWarningAudioFilePath,
         AudioCueId.WeatherAdvisory => WeatherAdvisoryAudioFilePath,
         _ => string.Empty,
@@ -1112,6 +1130,10 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 WeatherSpecialWarningAudioFilePath = filePath;
                 WeatherSpecialWarningAudioEnabled = true;
                 break;
+            case AudioCueId.WeatherDisasterPreventionBulletin:
+                WeatherDisasterPreventionBulletinAudioFilePath = filePath;
+                WeatherDisasterPreventionBulletinAudioEnabled = true;
+                break;
             case AudioCueId.WeatherWarning:
                 WeatherWarningAudioFilePath = filePath;
                 WeatherWarningAudioEnabled = true;
@@ -1163,9 +1185,13 @@ public sealed class SettingsEditorViewModel : ObservableObject
         WeatherSpecialWarningAudioEnabled = defaults.WeatherSpecialWarningEnabled;
         WeatherWarningAudioEnabled = defaults.WeatherWarningEnabled;
         WeatherAdvisoryAudioEnabled = defaults.WeatherAdvisoryEnabled;
+        WeatherDisasterPreventionBulletinAudioEnabled =
+            defaults.WeatherDisasterPreventionBulletinEnabled;
         WeatherSpecialWarningAudioFilePath = defaults.WeatherSpecialWarningFilePath;
         WeatherWarningAudioFilePath = defaults.WeatherWarningFilePath;
         WeatherAdvisoryAudioFilePath = defaults.WeatherAdvisoryFilePath;
+        WeatherDisasterPreventionBulletinAudioFilePath =
+            defaults.WeatherDisasterPreventionBulletinFilePath;
         WeatherAudioCoalescingSeconds = defaults.EffectiveWeatherCoalescingSeconds;
 
         // These legacy values are not exposed by the current UI, but clearing them
@@ -1220,6 +1246,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         FilterWeatherRecordShortRain = defaults.WeatherRecordShortRain;
         FilterWeatherDisasterPreventionBulletins =
             defaults.WeatherDisasterPreventionBulletins;
+        HideWeatherContinuationOnly = defaults.HideWeatherContinuationOnly;
     }
 
     public void ResetCompatibilityAndSafetySettings()

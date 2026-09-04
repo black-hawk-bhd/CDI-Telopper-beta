@@ -326,12 +326,14 @@ public sealed class Phase8PersistenceAndAudioTests
     }
 
     [TestMethod]
-    public void WeatherAudioIgnoresReleasesAndUsesTheLevelOfWeatherBulletins()
+    public void WeatherAudioIgnoresReleasesAndUsesDedicatedDisasterBulletinCue()
     {
         AudioSettings settings = AudioSettings.Disabled with
         {
             WeatherWarningEnabled = true,
             WeatherWarningFilePath = "weather-warning.wav",
+            WeatherDisasterPreventionBulletinEnabled = true,
+            WeatherDisasterPreventionBulletinFilePath = "weather-bulletin.wav",
         };
         var policy = new AudioPolicy();
 
@@ -350,7 +352,16 @@ public sealed class Phase8PersistenceAndAudioTests
 
         Assert.IsFalse(release.ShouldPlay);
         Assert.IsTrue(bulletin.ShouldPlay);
-        Assert.AreEqual(AudioCueId.WeatherWarning, bulletin.Cue);
+        Assert.AreEqual(AudioCueId.WeatherDisasterPreventionBulletin, bulletin.Cue);
+        Assert.AreEqual("weather-bulletin.wav", bulletin.FilePath);
+
+        AudioDecision disabledBulletin = new AudioPolicy().Evaluate(
+            CreateWeather(
+                WeatherWarningLevel.Warning,
+                "weather-bulletin-disabled",
+                informationType: WeatherInformationType.DisasterPreventionBulletin),
+            settings with { WeatherDisasterPreventionBulletinEnabled = false });
+        Assert.IsFalse(disabledBulletin.ShouldPlay);
     }
 
     [TestMethod]

@@ -206,6 +206,7 @@ public sealed class OperationalSelfCheckService(
         yield return ("EEW続報", audio.EewContinuationFilePath);
         yield return ("EEW取消", audio.EewCancellationFilePath);
         yield return ("気象レベル5", audio.WeatherSpecialWarningFilePath);
+        yield return ("気象防災速報", audio.WeatherDisasterPreventionBulletinFilePath);
         yield return ("気象レベル4～3", audio.WeatherWarningFilePath);
         yield return ("気象レベル2", audio.WeatherAdvisoryFilePath);
         foreach (var pair in audio.QuakeScaleCues) yield return ($"震度{pair.Key}", pair.Value.FilePath);

@@ -62,6 +62,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     private readonly SemaphoreSlim _obsLifecycle = new(1, 1);
     private readonly object _stateQueueGate = new();
     private readonly object _weatherAudioGate = new();
+    private readonly EewAudioPriorityGate _eewAudioPriority = new();
     private readonly ProductionReplayCatalog _productionReplayCatalog = new();
     private readonly bool _isE2ETestMode;
     private readonly string _applicationVersionText = BuildApplicationVersionText();
@@ -2310,11 +2311,12 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
     private async Task StopAudioAsync()
     {
+        _eewAudioPriority.Reset();
         await CancelPendingWeatherAudioAsync().ConfigureAwait(false);
         _obsSnapshotStore.PublishAudioStop(_services.Clock.UtcNow);
     }
 
-    private void PlayEventAudio(
+    internal void PlayEventAudio(
         DisasterEvent disasterEvent,
         AudioSettings settings,
         string traceId = "")
@@ -2324,20 +2326,45 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             return;
         }
 
+        long? eewGeneration = null;
+        if (disasterEvent is EewEvent)
+        {
+            eewGeneration = _eewAudioPriority.BeginEew();
+            _ = CancelPendingWeatherAudioAsync();
+            _obsSnapshotStore.PublishAudioStop(_services.Clock.UtcNow);
+        }
+
         AudioDecision decision = _services.AudioPolicy.Evaluate(disasterEvent, settings);
         if (!decision.ShouldPlay || decision.Cue is null)
         {
+            if (eewGeneration is { } silentEewGeneration)
+            {
+                _eewAudioPriority.CompleteEew(silentEewGeneration);
+            }
+            return;
+        }
+
+        var pending = new PendingAudioPlayback(decision, traceId);
+        if (eewGeneration is { } audibleEewGeneration)
+        {
+            _ = PlayEventAudioAsync(pending, audibleEewGeneration);
+            return;
+        }
+
+        if (IsEewAudioPriorityActive())
+        {
+            LogAudioSuppressedByEew(decision.Cue.Value);
             return;
         }
 
         if (disasterEvent is WeatherWarningEvent && IsWeatherAudioCue(decision.Cue.Value))
         {
-            QueueWeatherAudio(new PendingAudioPlayback(decision, traceId),
+            QueueWeatherAudio(pending,
                 settings.EffectiveWeatherCoalescingSeconds);
             return;
         }
 
-        _ = PlayEventAudioAsync(new PendingAudioPlayback(decision, traceId));
+        _ = PlayEventAudioAsync(pending);
     }
 
     private void QueueWeatherAudio(PendingAudioPlayback pending, double coalescingSeconds)
@@ -2445,20 +2472,36 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
     private static bool IsWeatherAudioCue(AudioCueId cue) => cue is
         AudioCueId.WeatherSpecialWarning or
+        AudioCueId.WeatherDisasterPreventionBulletin or
         AudioCueId.WeatherWarning or
         AudioCueId.WeatherAdvisory;
 
     private static int GetWeatherAudioPriority(AudioCueId? cue) => cue switch
     {
-        AudioCueId.WeatherSpecialWarning => 3,
+        AudioCueId.WeatherSpecialWarning => 4,
+        AudioCueId.WeatherDisasterPreventionBulletin => 3,
         AudioCueId.WeatherWarning => 2,
         AudioCueId.WeatherAdvisory => 1,
         _ => 0,
     };
 
-    private async Task PlayEventAudioAsync(PendingAudioPlayback pending)
+    private async Task PlayEventAudioAsync(
+        PendingAudioPlayback pending,
+        long? eewGeneration = null)
     {
         AudioDecision decision = pending.Decision;
+        bool isEew = eewGeneration.HasValue;
+        if (isEew && !_eewAudioPriority.IsCurrent(eewGeneration!.Value))
+        {
+            return;
+        }
+
+        if (!isEew && IsEewAudioPriorityActive())
+        {
+            LogAudioSuppressedByEew(decision.Cue!.Value);
+            return;
+        }
+
         try
         {
             bool queued = await PublishObsAudioAsync(
@@ -2485,7 +2528,24 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 "OBSブラウザーソースへ設定音声を送信できませんでした。表示処理は継続します。",
                 exception).ConfigureAwait(false);
         }
+        finally
+        {
+            if (eewGeneration is { } completedEewGeneration)
+            {
+                _eewAudioPriority.CompleteEew(completedEewGeneration);
+            }
+        }
     }
+
+    private bool IsEewAudioPriorityActive() => _eewAudioPriority.IsActive(
+        _obsSnapshotStore.ReadAudioDiagnostics(),
+        _services.Clock.UtcNow,
+        _obsServer?.ClientCount > 0);
+
+    private void LogAudioSuppressedByEew(AudioCueId cue) => FireAndForgetLog(
+        AppLogLevel.Information,
+        "AudioSuppressedByEew",
+        $"緊急地震速報の音声を優先しているため、ほかの音声を送信しませんでした。区分={cue}");
 
     private async Task<bool> PublishObsAudioAsync(
         AudioCueId cue,
@@ -2647,6 +2707,17 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             _productionReplayNextSwitchUtc = DateTimeOffset.MaxValue;
             return;
         }
+
+        // The regular coordinator may still retain the same production item,
+        // especially a tsunami program whose normal end policy is "until
+        // cancellation". Remove that source copy before rotating it. Otherwise
+        // it becomes visible again after the configured replay count is exhausted
+        // and makes a finite repeat setting behave like permanent display.
+        CoordinatorSnapshot sourceSnapshot =
+            _services.DisplayCoordinator is PriorityCoordinator mainCoordinator
+                ? mainCoordinator.Clear(selection.Event.Kind)
+                : _services.DisplayCoordinator.Clear();
+        QueueStateSave(sourceSnapshot, lastShutdownWasClean: false);
 
         var replayProgram = selection.Program with
         {

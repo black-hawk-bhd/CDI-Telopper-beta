@@ -27,6 +27,7 @@ public enum AudioCueId
     QuakeIntensity6Upper,
     QuakeIntensity7,
     TsunamiForecast,
+    WeatherDisasterPreventionBulletin,
 }
 
 public sealed record AudioDecision(
@@ -193,6 +194,14 @@ public sealed class AudioPolicy : IAudioPolicy
         if (weather.IsCancelled)
         {
             return null;
+        }
+
+        if (weather.InformationType == WeatherInformationType.DisasterPreventionBulletin)
+        {
+            return settings.WeatherDisasterPreventionBulletinEnabled
+                ? (AudioCueId.WeatherDisasterPreventionBulletin,
+                    settings.WeatherDisasterPreventionBulletinFilePath)
+                : null;
         }
 
         return weather.MaximumLevel switch

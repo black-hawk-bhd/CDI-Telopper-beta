@@ -4,10 +4,10 @@
 
 Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津波・気象・火山・南海トラフに関する防災情報を受信し、OBS向け字幕として出力するWindowsアプリです。
 
-現在の公開版は **2.0.0-beta.35** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
+現在の公開版は **2.0.0-beta.36** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
 
-- [2.0.0-beta.35をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.35)
-- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.35.txt)
+- [2.0.0-beta.36をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.36)
+- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.36.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
 - [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
 
@@ -39,6 +39,10 @@ Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津�
 配信元から届くすべての電文を字幕化するわけではありません。選択外の受信元、対応外電文、警報条件を満たさないEEW、表示フィルターで除外された情報、破損・重複・古い電文などは表示されない場合があります。
 
 気象警報・注意報では、表示フィルター適用後の内容が直前の同一電文系列と変わらない場合、字幕と音声を再実行しません。受信・過去電文確認には電文を保存し、「表示対象の変更なし」と表示します。
+
+また、表示フィルター適用後に残る項目がすべて「継続」の場合は、既定では字幕と音声を実行しません。新規発表・更新・解除は通常どおり表示され、この動作は「継続中の項目しかない電文を表示しない」チェックボックスで変更できます。気象防災速報（VPBS50/51）の音声は、通常の気象警報・注意報とは別に有効化して音源を指定できます。
+
+EEW音声はすべての地震・津波・気象音声より優先されます。EEW受信時は待機中の気象音を破棄し、再生中の対象音をEEW音で割り込みます。EEW音の再生が完了するまでに届いた地震・津波・気象音声は再生しません。
 
 受信・過去電文確認から再表示する際は、用途を3方式から選べます。「本番情報の再掲」の識別バッジは電文の発表日時のみを表示し、「過去情報」「動作訓練」では用途と発表日時を表示します。履歴元から取得した過去電文は「本番情報の再掲」を選べず、本番で受信した電文だけが本番再掲の対象です。
 
@@ -131,15 +135,15 @@ GitHub Releasesの配布物は.NET 8自己完結型です。通常利用ではVi
 powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
-このスクリプトは依存関係を復元し、Release構成で全プロジェクトをビルドして、自動テストを実行します。現在のbeta.35では481件のテストを確認しています。
+このスクリプトは依存関係を復元し、Release構成で全プロジェクトをビルドして、自動テストを実行します。現在のbeta.36では489件のテストを確認しています。
 
 配布物を作成する場合は次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.35
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.36
 ```
 
-フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.35\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
+フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.36\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
 
 ## 開発者向け資料
 

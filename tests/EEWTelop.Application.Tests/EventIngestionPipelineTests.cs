@@ -213,6 +213,72 @@ public sealed class EventIngestionPipelineTests
     }
 
     [TestMethod]
+    public void ContinuationOnlyWeatherCanBeHiddenAfterOtherDisplayFilters()
+    {
+        WeatherWarningEvent weather = CreateWeatherInformation(
+            WeatherInformationType.WarningAndAdvisory,
+            [
+                WeatherItem(
+                    "倉敷市",
+                    "3320200",
+                    "大雨警報",
+                    WeatherWarningLevel.Warning,
+                    "継続"),
+                WeatherItem(
+                    "岡山市",
+                    "3310000",
+                    "雷注意報",
+                    WeatherWarningLevel.Advisory,
+                    "発表"),
+            ]);
+        FilterSettings defaults = AppSettings.CreateDefault().Filter;
+
+        Assert.IsNull(EventDisplayFilter.Apply(defaults, weather));
+        Assert.AreEqual(
+            "継続情報のみ",
+            EventDisplayFilter.DescribeSuppression(defaults, weather));
+
+        WeatherWarningEvent shown = Assert.IsInstanceOfType<WeatherWarningEvent>(
+            EventDisplayFilter.Apply(
+                defaults with { HideWeatherContinuationOnly = false },
+                weather));
+        Assert.HasCount(1, shown.Items);
+        Assert.AreEqual("継続", shown.Items[0].Status);
+    }
+
+    [TestMethod]
+    public void ContinuationFilterNeverHidesNewAnnouncementsOrReleases()
+    {
+        WeatherWarningEvent mixed = CreateWeatherInformation(
+            WeatherInformationType.WarningAndAdvisory,
+            [
+                WeatherItem(
+                    "倉敷市",
+                    "3320200",
+                    "大雨警報",
+                    WeatherWarningLevel.Warning,
+                    "継続"),
+                WeatherItem(
+                    "岡山市",
+                    "3310000",
+                    "洪水警報",
+                    WeatherWarningLevel.Warning,
+                    "発表"),
+            ]);
+        WeatherWarningEvent release = CreateWeatherInformation(
+            WeatherInformationType.WarningAndAdvisory,
+            [WeatherItem(
+                "倉敷市",
+                "3320200",
+                "大雨警報",
+                WeatherWarningLevel.Warning,
+                "解除")]);
+
+        Assert.IsNotNull(EventDisplayFilter.Apply(AppSettings.CreateDefault().Filter, mixed));
+        Assert.IsNotNull(EventDisplayFilter.Apply(AppSettings.CreateDefault().Filter, release));
+    }
+
+    [TestMethod]
     public void WeatherPrefectureFilterUsesJmaAreaCodePrefix()
     {
         WeatherWarningEvent weather = CreateWeatherInformation(
@@ -340,6 +406,7 @@ public sealed class EventIngestionPipelineTests
         {
             WeatherWarnings = true,
             WeatherAdvisories = false,
+            HideWeatherContinuationOnly = false,
         };
         var clock = new FakeClock();
         var coordinator = new PriorityCoordinator(clock, DisplayEventFactory.Settings);
@@ -402,7 +469,10 @@ public sealed class EventIngestionPipelineTests
             new PageComposer(),
             new PriorityCoordinator(clock, DisplayEventFactory.Settings),
             DisplayEventFactory.Settings,
-            AppSettings.CreateDefault().Filter);
+            AppSettings.CreateDefault().Filter with
+            {
+                HideWeatherContinuationOnly = false,
+            });
 
         pipeline.Process(CreateRaw(clock, "first"));
         EventIngestionResult changed = pipeline.Process(CreateRaw(clock, "warning-changed"));

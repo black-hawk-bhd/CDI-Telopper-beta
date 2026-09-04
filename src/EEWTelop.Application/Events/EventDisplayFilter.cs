@@ -55,8 +55,25 @@ public static class EventDisplayFilter
             return weather;
         }
 
+        if (ShouldHideContinuationOnly(filter, weather, items))
+        {
+            return null;
+        }
+
         return items.Length == weather.Items.Count ? weather : weather.WithItems(items);
     }
+
+    private static bool ShouldHideContinuationOnly(
+        FilterSettings filter,
+        WeatherWarningEvent weather,
+        IReadOnlyCollection<WeatherWarningItem> visibleItems) =>
+        filter.HideWeatherContinuationOnly &&
+        !weather.IsCancelled &&
+        weather.InformationType == WeatherInformationType.WarningAndAdvisory &&
+        visibleItems.Count > 0 &&
+        visibleItems.All(static item =>
+            item.IsActive &&
+            item.Status.Trim().Contains("継続", StringComparison.Ordinal));
 
     private static bool IsWeatherInformationTypeEnabled(
         FilterSettings filter,
@@ -193,6 +210,14 @@ public static class EventDisplayFilter
         if (weather.Items.All(item => !IsWeatherItemEnabled(filter, weather, item)))
         {
             return "警戒レベルフィルター";
+        }
+
+        WeatherWarningItem[] visibleItems = weather.Items
+            .Where(item => IsWeatherItemEnabled(filter, weather, item))
+            .ToArray();
+        if (ShouldHideContinuationOnly(filter, weather, visibleItems))
+        {
+            return "継続情報のみ";
         }
 
         return "気象情報フィルター";

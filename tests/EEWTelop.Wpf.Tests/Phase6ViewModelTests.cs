@@ -218,6 +218,7 @@ public sealed class Phase6ViewModelTests
             LocalHistoryXmlFilePath = @" C:\test-data\sample.xml ",
             ConfirmTestInProduction = false,
             HideQuakeBelowIntensity3 = true,
+            HideWeatherContinuationOnly = false,
             AutoHideSeconds = -1,
             EewAutoHideSeconds = 9999,
             QuakeAutoHideSeconds = 9999,
@@ -266,6 +267,7 @@ public sealed class Phase6ViewModelTests
         Assert.IsTrue(result.History.Repeat);
         Assert.AreEqual(OutputTransformSettings.Default, result.Display.OutputTransform);
         Assert.IsTrue(result.Filter.HideQuakeBelowIntensity3);
+        Assert.IsFalse(result.Filter.HideWeatherContinuationOnly);
         Assert.IsTrue(result.Safety.ConfirmTestInProduction);
         Assert.IsFalse(result.Audio.EewEnabled);
         Assert.IsFalse(result.Audio.TsunamiEnabled);
@@ -330,9 +332,11 @@ public sealed class Phase6ViewModelTests
                 WeatherSpecialWarningEnabled = true,
                 WeatherWarningEnabled = true,
                 WeatherAdvisoryEnabled = true,
+                WeatherDisasterPreventionBulletinEnabled = true,
                 WeatherSpecialWarningFilePath = "weather-level5.wav",
                 WeatherWarningFilePath = "weather-level4-3.mp3",
                 WeatherAdvisoryFilePath = "weather-level2.ogg",
+                WeatherDisasterPreventionBulletinFilePath = "weather-bulletin.wav",
                 WeatherCoalescingSeconds = 2.75,
                 TsunamiAdvisoryEnabled = true,
                 TsunamiWarningEnabled = true,
@@ -350,6 +354,10 @@ public sealed class Phase6ViewModelTests
         Assert.AreEqual(configured.Audio.EewInitialFilePath, saved.Audio.EewInitialFilePath);
         Assert.AreEqual(configured.Audio.WeatherCoalescingSeconds,
             saved.Audio.WeatherCoalescingSeconds);
+        Assert.IsTrue(saved.Audio.WeatherDisasterPreventionBulletinEnabled);
+        Assert.AreEqual(
+            "weather-bulletin.wav",
+            saved.Audio.WeatherDisasterPreventionBulletinFilePath);
         Assert.HasCount(9, saved.Audio.QuakeScaleCues);
         Assert.IsFalse(saved.Audio.QuakeScaleCues[JmaScale.Four].Enabled);
         Assert.IsTrue(saved.Audio.QuakeScaleCues[JmaScale.FiveUpper].Enabled);
@@ -396,6 +404,8 @@ public sealed class Phase6ViewModelTests
                 EewInitialFilePath = "eew.wav",
                 WeatherSpecialWarningEnabled = true,
                 WeatherSpecialWarningFilePath = "weather.wav",
+                WeatherDisasterPreventionBulletinEnabled = true,
+                WeatherDisasterPreventionBulletinFilePath = "bulletin.wav",
                 WeatherCoalescingSeconds = 3,
                 QuakeScaleCues = new Dictionary<JmaScale, AudioCueSetting>
                 {
@@ -421,6 +431,7 @@ public sealed class Phase6ViewModelTests
         Assert.IsFalse(reset.Audio.WeatherSpecialWarningEnabled);
         Assert.IsFalse(reset.Audio.WeatherWarningEnabled);
         Assert.IsFalse(reset.Audio.WeatherAdvisoryEnabled);
+        Assert.IsFalse(reset.Audio.WeatherDisasterPreventionBulletinEnabled);
         Assert.AreEqual(
             AudioSettings.DefaultWeatherCoalescingSeconds,
             reset.Audio.WeatherCoalescingSeconds);
@@ -430,6 +441,8 @@ public sealed class Phase6ViewModelTests
             !cue.Enabled && string.IsNullOrEmpty(cue.FilePath)));
         Assert.IsTrue(string.IsNullOrEmpty(reset.Audio.EewInitialFilePath));
         Assert.IsTrue(string.IsNullOrEmpty(reset.Audio.WeatherSpecialWarningFilePath));
+        Assert.IsTrue(string.IsNullOrEmpty(
+            reset.Audio.WeatherDisasterPreventionBulletinFilePath));
         Assert.AreEqual(originalPageDuration, editor.PageDurationSeconds);
     }
 
@@ -923,6 +936,7 @@ public sealed class Phase6ViewModelTests
             {
                 WeatherWarnings = true,
                 WeatherAdvisories = false,
+                HideWeatherContinuationOnly = false,
             },
         };
         AppServices services = CreateServices(
@@ -1112,6 +1126,78 @@ public sealed class Phase6ViewModelTests
     }
 
     [TestMethod]
+    public async Task ProductionReplayCountDoesNotRestorePersistentTsunamiAfterFinalCycle()
+    {
+        var clock = new FakeClock();
+        AppSettings defaults = AppSettings.CreateDefault();
+        AppSettings settings = defaults with
+        {
+            Display = defaults.Display with
+            {
+                PageDurationSeconds = 1,
+                ProductionReplay = defaults.Display.ProductionReplay with
+                {
+                    RotationIntervalSeconds = 1,
+                    ResumeDelaySeconds = 0,
+                    Tsunami = new ProductionReplayPolicy(true, 2, false),
+                },
+            },
+        };
+        TsunamiEvent scenario = (TsunamiEvent)TestScenarioCatalog.Create(clock.UtcNow)
+            .Single(item => item.Id == "tsunami-watch")
+            .Event;
+        var tsunami = new TsunamiEvent(
+            scenario.Id,
+            scenario.Provider,
+            scenario.IssuedAt,
+            clock.UtcNow,
+            scenario.Signature,
+            SourceMode.Production,
+            scenario.Issue,
+            scenario.Areas,
+            scenario.IsCancelled,
+            clock.UtcNow.AddHours(1),
+            scenario.ObservationAsOf)
+        {
+            WarningStateChanged = scenario.WarningStateChanged,
+        };
+        AppServices services = CreateServices(
+            ProviderConnectionState.Stopped,
+            clock,
+            suppliedSettings: settings,
+            suppliedNormalizer: new StubNormalizer(tsunami));
+        var source = (FakeEventSource)services.EventSource;
+        source.Enqueue(new RawProviderMessage(
+            "p2pquake",
+            "{}",
+            SourceMode.Production,
+            clock.UtcNow));
+        var obsStore = new ObsSnapshotStore(settings.Display, clock.UtcNow);
+        var viewModel = new ControlWindowViewModel(
+            services,
+            settings,
+            new FakeConfirmationService(),
+            new ImmediateUiDispatcher(),
+            obsStore);
+
+        viewModel.ConnectCommand.Execute(null);
+        await WaitUntilAsync(() => viewModel.Logs.Any(entry =>
+            entry.EventName == "ProductionReplayAdvanced"));
+
+        clock.Advance(TimeSpan.FromSeconds(10));
+        await WaitUntilAsync(() => viewModel.Logs.Where(entry =>
+            entry.EventName == "ProductionReplayAdvanced").Skip(1).Any());
+
+        clock.Advance(TimeSpan.FromSeconds(10));
+        await WaitUntilAsync(() => !viewModel.Overlay.HasProgram);
+
+        Assert.IsFalse(viewModel.Overlay.HasProgram);
+        Assert.IsFalse(obsStore.Read().HasProgram);
+        Assert.IsNull(services.DisplayCoordinator.Evaluate().CurrentProgram);
+        await viewModel.DisposeAsync();
+    }
+
+    [TestMethod]
     public async Task CategoryClearRemovesOnlyTheRequestedKind()
     {
         var clock = new FakeClock();
@@ -1237,6 +1323,86 @@ public sealed class Phase6ViewModelTests
         Assert.AreEqual(audioSequenceBeforeTest, obsStore.Read().AudioSequence);
         Assert.IsFalse(viewModel.Logs.Any(entry => entry.EventName == "AudioTestQueued"));
         await viewModel.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task EewAudioCancelsPendingWeatherAndSuppressesLaterTsunamiAudio()
+    {
+        string audioPath = Path.Combine(
+            Path.GetTempPath(),
+            $"cdi-eew-priority-{Guid.NewGuid():N}.wav");
+        await File.WriteAllBytesAsync(audioPath, [0]);
+        try
+        {
+            AppSettings defaults = AppSettings.CreateDefault();
+            AudioSettings audio = AudioSettings.Disabled with
+            {
+                EewEnabled = true,
+                EewInitialEnabled = true,
+                EewContinuationEnabled = true,
+                EewInitialFilePath = audioPath,
+                EewContinuationFilePath = audioPath,
+                TestUsesProductionSound = true,
+                WeatherWarningEnabled = true,
+                WeatherWarningFilePath = audioPath,
+                WeatherCoalescingSeconds = 0.1,
+                TsunamiGradeCues = new Dictionary<TsunamiGrade, AudioCueSetting>
+                {
+                    [TsunamiGrade.Warning] = new(true, audioPath),
+                },
+            };
+            AppSettings settings = defaults with { Audio = audio };
+            AppServices services = CreateServices(
+                ProviderConnectionState.Stopped,
+                suppliedSettings: settings,
+                audioPolicy: new AudioPolicy());
+            var obsStore = new ObsSnapshotStore(settings.Display, services.Clock.UtcNow);
+            var obsServer = new FakeObsServer();
+            var viewModel = new ControlWindowViewModel(
+                services,
+                settings,
+                new FakeConfirmationService(),
+                new ImmediateUiDispatcher(),
+                obsStore,
+                obsServer);
+            await WaitUntilAsync(() => obsServer.StartCount == 1);
+            obsServer.SetClientCount(1);
+            IReadOnlyList<TestScenario> scenarios =
+                TestScenarioCatalog.Create(services.Clock.UtcNow);
+            DisasterEvent weather = scenarios.Single(item =>
+                item.Id == "weather-warning").Event;
+            DisasterEvent eew = scenarios.Single(item =>
+                item.Id == "eew-warning").Event;
+            DisasterEvent tsunami = scenarios.Single(item =>
+                item.Id == "tsunami-warning").Event;
+            AudioDecision expectedEew = new AudioPolicy().Evaluate(eew, audio);
+            Assert.IsTrue(expectedEew.ShouldPlay, expectedEew.Reason);
+            Assert.AreEqual(AudioCueId.EewContinuation, expectedEew.Cue);
+            Assert.AreEqual(1, obsServer.ClientCount);
+
+            viewModel.PlayEventAudio(weather, audio);
+            viewModel.PlayEventAudio(eew, audio);
+            await WaitUntilAsync(() =>
+                obsStore.Read().AudioCue == AudioCueId.EewContinuation.ToString());
+            long eewSequence = obsStore.Read().AudioSequence;
+
+            viewModel.PlayEventAudio(tsunami, audio);
+            await WaitUntilAsync(() => viewModel.Logs.Any(entry =>
+                entry.EventName == "AudioSuppressedByEew"));
+            await Task.Delay(250);
+
+            Assert.AreEqual(eewSequence, obsStore.Read().AudioSequence);
+            Assert.AreEqual(
+                AudioCueId.EewContinuation.ToString(),
+                obsStore.Read().AudioCue,
+                string.Join(" | ", viewModel.Logs.Select(static entry =>
+                    $"{entry.EventName}:{entry.Message}")));
+            await viewModel.DisposeAsync();
+        }
+        finally
+        {
+            File.Delete(audioPath);
+        }
     }
 
     [TestMethod]
@@ -1420,7 +1586,8 @@ public sealed class Phase6ViewModelTests
         IEventNormalizer? suppliedNormalizer = null,
         ITestCaseLibrary? testCaseLibrary = null,
         IAxisTokenRefreshService? axisTokenRefreshService = null,
-        IEventSource? suppliedEventSource = null)
+        IEventSource? suppliedEventSource = null,
+        IAudioPolicy? audioPolicy = null)
     {
         AppSettings settings = suppliedSettings ?? AppSettings.CreateDefault();
         FakeClock clock = suppliedClock ?? new FakeClock();
@@ -1450,6 +1617,7 @@ public sealed class Phase6ViewModelTests
             source,
             pipeline,
             new EventReceptionService(source, pipeline),
+            AudioPolicy: audioPolicy,
             HistoryRehearsalLoader: historyLoader,
             TestCaseLibrary: testCaseLibrary,
             AxisTokenRefreshService: axisTokenRefreshService);
