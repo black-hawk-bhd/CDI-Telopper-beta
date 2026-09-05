@@ -91,6 +91,21 @@ internal static class QuakePageComposer
         IReadOnlyList<IntensityRow> intensityRows,
         bool includeIntensity)
     {
+        // 大規模噴火の遠地情報もVXSE53で届く。地震の定型ページを付けず、
+        // 津波到達予想を含む実際の噴火情報を本文から表示する。
+        if (IsLargeScaleEruptionInformation(quake))
+        {
+            var eruptionPages = new List<PageDraft>();
+            AddCommentPage(eruptionPages, quake.FreeFormComment);
+            if (quake.IsCorrection && eruptionPages.Count > 0)
+            {
+                eruptionPages[0] = new PageDraft(
+                    CreateCorrectionPrefix(quake).Concat(eruptionPages[0].Blocks).ToArray());
+            }
+
+            return eruptionPages;
+        }
+
         (string primary, string secondary) = BuildEarthquakeSummary(quake.Earthquake);
         var pages = new List<PageDraft>
         {
@@ -112,6 +127,14 @@ internal static class QuakePageComposer
         AddCommentPage(pages, quake.FreeFormComment);
         return pages;
     }
+
+    private static bool IsLargeScaleEruptionInformation(QuakeEvent quake) =>
+        quake.Issue.RawType == "VXSE53" &&
+        quake.Earthquake.Hypocenter?.Magnitude is null &&
+        quake.Earthquake.MaximumScale == JmaScale.Unknown &&
+        quake.Points.Count == 0 &&
+        (quake.FreeFormComment.Contains("大規模な噴火が発生しました", StringComparison.Ordinal) ||
+         quake.FreeFormComment.Contains("大規模噴火が発生しました", StringComparison.Ordinal));
 
     private static List<PageDraft> ComposeForeign(QuakeEvent quake)
     {

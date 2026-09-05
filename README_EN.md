@@ -4,13 +4,15 @@ English | [日本語](README.md)
 
 **Comprehensive Disaster Information Telopper (CDI-Telopper)** is a Windows application that receives disaster information related to earthquakes, tsunamis, weather, volcanoes, and the Nankai Trough, then generates captions for OBS.
 
-The current public release is **2.0.0-beta.36**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.37**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.36](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.36)
-- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.36.txt)
+- [Download 2.0.0-beta.37](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.37)
+- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.37.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
+
+Beta.37 removes the three generic earthquake pages from large-scale eruption reports received as VXSE53 XML through AXIS and other XML sources. Captions begin with the eruption narrative and retain the full tide observations and tsunami arrival estimates. Antivirus exclusion instructions have also been removed from the distribution documentation.
 
 - Receives and generates captions for EEW, earthquake, tsunami, weather, volcano, and Nankai Trough information
 - Selects P2PQuake, DMDATA.JP, AXIS, Wolfx, or “Do not receive” separately for each supported information category
@@ -109,7 +111,6 @@ For compatibility, settings, state, and logs are stored under `%LOCALAPPDATA%\QT
 ## Security notes
 
 - Never publish your AXIS token, DMDATA.JP API key, or OBS WebSocket password.
-- Avoid excluding a broad parent directory containing projects, documents, or downloads.
 - Verify the Release page and SHA-256 values before extracting a package.
 - Confirm subscription, redistribution, and concurrent-connection terms with each external provider.
 
@@ -121,15 +122,15 @@ Building requires Windows 10/11 x64, the .NET 8 SDK, and PowerShell. Visual Stud
 powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
-The script restores dependencies, builds every project in the Release configuration, and runs the automated tests. The beta.36 source currently has 489 verified tests.
+The script restores dependencies, builds every project in the Release configuration, and runs the automated tests. The beta.37 source currently has 500 verified tests.
 
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.36
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.37
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.36\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.37\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
 
 ## License and attribution
 

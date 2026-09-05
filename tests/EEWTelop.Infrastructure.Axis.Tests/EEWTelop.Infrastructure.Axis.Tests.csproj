@@ -4,6 +4,7 @@
     <TestingExtensionsProfile>None</TestingExtensionsProfile>
   </PropertyGroup>
   <ItemGroup>
+    <None Update="Fixtures\vxse53-large-eruption.xml" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="..\..\src\EEWTelop.Infrastructure.Axis\EEWTelop.Infrastructure.Axis.csproj" />
     <ProjectReference Include="..\..\src\EEWTelop.Infrastructure.Dmdata\EEWTelop.Infrastructure.Dmdata.csproj" />
   </ItemGroup>
