@@ -1,6 +1,7 @@
 <Window x:Class="EEWTelop.Wpf.TelegramReviewWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:EEWTelop.Wpf.Controls"
         Title="CDI-Telopper 受信・過去電文確認"
         Icon="Assets/QTelopper.ico"
         Width="1180" Height="760" MinWidth="900" MinHeight="600"
@@ -127,7 +128,8 @@
                                         <StackPanel>
                                             <TextBlock Text="{Binding Header}" FontWeight="Bold"
                                                        Foreground="#FFFFC66D" Margin="0,0,0,6" />
-                                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="16" />
+                                            <controls:ReviewRubyText SourceText="{Binding Text}" TextWrapping="Wrap" FontSize="16"
+                                                                    FontFamily="Yu Gothic UI, Meiryo" Foreground="White" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>

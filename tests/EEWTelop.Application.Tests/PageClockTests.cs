@@ -8,6 +8,35 @@ namespace EEWTelop.Application.Tests;
 [TestClass]
 public sealed class PageClockTests
 {
+    [TestMethod]
+    [DataRow(EventKind.Quake)]
+    [DataRow(EventKind.Tsunami)]
+    [DataRow(EventKind.WeatherWarning)]
+    public void ProductionPassExpiresAfterAllPagesRegardlessOfPersistentEndPolicy(EventKind kind)
+    {
+        var program = CoordinatorTestSupport.Program("finite", kind, OverlayPriority.Quake, pageCount: 3) with
+        {
+            SourceMode = SourceMode.Production,
+            EndPolicy = EndPolicy.LoopUntilReplaced,
+        };
+        var policy = new EEWTelop.Application.Configuration.ProductionReplayPolicy(true, 2, false);
+        var settings = CoordinatorTestSupport.Settings(autoHideSeconds: 0);
+        settings = settings with
+        {
+            ProductionReplay = settings.ProductionReplay with
+            {
+                Quake = policy, Tsunami = policy, WeatherWarning = policy,
+                RotationIntervalSeconds = 300, ResumeDelaySeconds = 300,
+            },
+        };
+        Assert.IsFalse(_clock.Evaluate(program, settings, _startedAt, TimeSpan.FromSeconds(11.9)).IsExpired);
+        Assert.IsTrue(_clock.Evaluate(program, settings, _startedAt, TimeSpan.FromSeconds(12)).IsExpired);
+        Assert.IsTrue(_clock.Evaluate(program, settings, _startedAt, TimeSpan.FromDays(1)).IsExpired);
+        var boundedReplay = program with { MaximumDisplayCycles = 1 };
+        Assert.IsTrue(_clock.Evaluate(boundedReplay, CoordinatorTestSupport.Settings(autoHideSeconds: 0),
+            _startedAt, TimeSpan.FromSeconds(12)).IsExpired);
+    }
+
     private readonly PageClock _clock = new();
     private readonly DateTimeOffset _startedAt =
         new(2026, 7, 31, 12, 0, 0, TimeSpan.Zero);

@@ -690,7 +690,6 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         _productionReplayCatalog.Prune(
             updated.Display.ProductionReplay,
             _services.Clock.UtcNow);
-        _productionReplayNextSwitchUtc = _services.Clock.UtcNow;
         _services.RawMessageArchive?.Configure(updated.Log);
         _services.IngestionPipeline.UpdateSettings(updated.Display, updated.Filter);
         _previewCoordinator.UpdateSettings(updated.Display);
@@ -1578,7 +1577,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 nowUtc);
             _productionReplayCoordinator = null;
             _productionReplayResumeAfterUtc = nowUtc.AddSeconds(
-                _settings.Display.ProductionReplay.ResumeDelaySeconds);
+                GetProductionCycleSeconds(releasedProgram));
             _productionReplayNextSwitchUtc = _productionReplayResumeAfterUtc;
         }
 
@@ -2199,7 +2198,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 }
                 _productionReplayCoordinator = null;
                 _productionReplayResumeAfterUtc = nowUtc.AddSeconds(
-                    _settings.Display.ProductionReplay.ResumeDelaySeconds);
+                    GetProductionCycleSeconds(result.Program));
                 _productionReplayNextSwitchUtc = _productionReplayResumeAfterUtc;
             }
 
@@ -2724,18 +2723,14 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             ProgramId = $"{selection.Program.ProgramId}:live-repeat:{nowUtc.UtcTicks}",
             StartedAtUtc = nowUtc,
             EndPolicy = EndPolicy.LoopUntilReplaced,
+            MaximumDisplayCycles = 1,
         };
         var coordinator = new PriorityCoordinator(_services.Clock, _settings.Display);
         coordinator.Apply(replayProgram);
         _productionReplayCoordinator = coordinator;
         Volatile.Write(ref _activeCoordinator, coordinator);
 
-        double fullPageCycleSeconds = Math.Max(
-            _settings.Display.PageDurationSeconds,
-            _settings.Display.PageDurationSeconds * replayProgram.Pages.Count);
-        double dwellSeconds = Math.Max(
-            replaySettings.RotationIntervalSeconds,
-            fullPageCycleSeconds);
+        double dwellSeconds = GetProductionCycleSeconds(replayProgram);
         _productionReplayNextSwitchUtc = nowUtc.AddSeconds(dwellSeconds);
 
         _obsSnapshotStore.PublishProgram(
@@ -2753,6 +2748,10 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             "ProductionReplayAdvanced",
             $"本番情報の繰り返し表示を更新しました。種別={selection.Event.Kind} 有効件数={selection.ActiveItemCount} 音声={selection.PlayAudio}");
     }
+
+    private double GetProductionCycleSeconds(DisplayProgram? program) =>
+        PageClock.NormalizePageDuration(_settings.Display.PageDurationSeconds).TotalSeconds *
+        Math.Max(1, program?.Pages.Count ?? 1);
 
     private void ApplyDisplaySnapshot(CoordinatorSnapshot snapshot)
     {

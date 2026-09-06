@@ -35,7 +35,10 @@ public sealed record DisplayProgram(
     IReadOnlyList<DisplayPage> Pages,
     DateTimeOffset StartedAtUtc,
     EndPolicy EndPolicy,
-    string RehearsalLabel);
+    string RehearsalLabel)
+{
+    public int? MaximumDisplayCycles { get; init; }
+}
 
 public sealed record DisplayPage(
     int Index,

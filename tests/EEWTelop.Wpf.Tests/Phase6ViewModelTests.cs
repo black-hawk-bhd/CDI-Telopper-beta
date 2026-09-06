@@ -1126,7 +1126,9 @@ public sealed class Phase6ViewModelTests
     }
 
     [TestMethod]
-    public async Task ProductionReplayCountDoesNotRestorePersistentTsunamiAfterFinalCycle()
+    [DataRow(1)]
+    [DataRow(2)]
+    public async Task ProductionReplayCountDoesNotRestorePersistentTsunamiAfterFinalCycle(int repeatCount)
     {
         var clock = new FakeClock();
         AppSettings defaults = AppSettings.CreateDefault();
@@ -1137,9 +1139,9 @@ public sealed class Phase6ViewModelTests
                 PageDurationSeconds = 1,
                 ProductionReplay = defaults.Display.ProductionReplay with
                 {
-                    RotationIntervalSeconds = 1,
-                    ResumeDelaySeconds = 0,
-                    Tsunami = new ProductionReplayPolicy(true, 2, false),
+                    RotationIntervalSeconds = 300,
+                    ResumeDelaySeconds = 300,
+                    Tsunami = new ProductionReplayPolicy(true, repeatCount, false),
                 },
             },
         };
@@ -1181,18 +1183,24 @@ public sealed class Phase6ViewModelTests
             obsStore);
 
         viewModel.ConnectCommand.Execute(null);
-        await WaitUntilAsync(() => viewModel.Logs.Any(entry =>
-            entry.EventName == "ProductionReplayAdvanced"));
-
+        await WaitUntilAsync(() => viewModel.ReceivedTelegrams.Count == 1);
+        Assert.IsTrue(obsStore.Read(ObsViewChannel.Tsunami, clock.UtcNow).HasProgram);
         clock.Advance(TimeSpan.FromSeconds(10));
-        await WaitUntilAsync(() => viewModel.Logs.Where(entry =>
-            entry.EventName == "ProductionReplayAdvanced").Skip(1).Any());
+        if (repeatCount > 1)
+        {
+            await WaitUntilAsync(() => viewModel.Logs.Any(entry =>
+                entry.EventName == "ProductionReplayAdvanced"));
+        }
 
         clock.Advance(TimeSpan.FromSeconds(10));
         await WaitUntilAsync(() => !viewModel.Overlay.HasProgram);
 
         Assert.IsFalse(viewModel.Overlay.HasProgram);
         Assert.IsFalse(obsStore.Read().HasProgram);
+        Assert.IsFalse(obsStore.Read(ObsViewChannel.Tsunami, clock.UtcNow).HasProgram);
+        clock.Advance(TimeSpan.FromDays(1));
+        Assert.IsFalse(obsStore.Read(ObsViewChannel.Tsunami, clock.UtcNow).HasProgram);
+        Assert.AreEqual(repeatCount - 1, viewModel.Logs.Count(entry => entry.EventName == "ProductionReplayAdvanced"));
         Assert.IsNull(services.DisplayCoordinator.Evaluate().CurrentProgram);
         await viewModel.DisposeAsync();
     }

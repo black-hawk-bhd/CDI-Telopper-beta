@@ -81,6 +81,19 @@ public sealed class PageClock : IPageClock
         DisplaySettings settings,
         TimeSpan pageDuration)
     {
+        // Each production pass is finite even for a persistent tsunami or OBS copy.
+        // The replay catalog schedules the remaining passes, including no passes for count=1.
+        if (program.MaximumDisplayCycles is int maximumCycles)
+        {
+            return TimeSpan.FromTicks(pageDuration.Ticks * program.Pages.Count * Math.Clamp(maximumCycles, 1, 100));
+        }
+
+        if (program.SourceMode == SourceMode.Production &&
+            settings.ProductionReplay.GetPolicy(program.Kind).Enabled)
+        {
+            return TimeSpan.FromTicks(pageDuration.Ticks * program.Pages.Count);
+        }
+
         if (program.EndPolicy is EndPolicy.LoopUntilReplaced or EndPolicy.HoldUntilCancelled)
         {
             return null;

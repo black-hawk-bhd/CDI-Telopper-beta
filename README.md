@@ -4,14 +4,20 @@
 
 Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津波・気象・火山・南海トラフに関する防災情報を受信し、OBS向け字幕として出力するWindowsアプリです。
 
-現在の公開版は **2.0.0-beta.37** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
+現在の公開版は **2.0.0-beta.38** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
 
-- [2.0.0-beta.37をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.37)
-- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.37.txt)
+- [2.0.0-beta.38をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.38)
+- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.38.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
 - [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
 
 ## 主な機能
+
+beta.38では、電文確認画面だけに地名のフリガナ（ルビ）を追加し、本番繰り返し表示がOBS側に残る不具合を修正しました。表示回数は初回を含み、2回なら全ページを2周して消去します。旧巡回間隔・再開待ちは使用しません。
+
+### フリガナ機能の注意事項
+
+**フリガナは読み上げの補助であり、読みの正確性・網羅性を保証するものではありません。配信で読み上げる前に、自治体などの公式情報で正式な読みを確認してください。** 日本郵便の都道府県・市区町村データを用いるため、予報区・海域・海外地名・旧地名などは未対応の場合があります。同名地名の文脈や表記によっては誤った一致・読みが生じる可能性があります。読みを特定できない地名は原則としてルビを付けません。OBS字幕・再掲・音声には反映しません。
 
 beta.37では、AXISなどのXMLで届く大規模噴火の遠地情報について、不要な地震用定型3ページを省略し、噴火本文から表示するよう修正しました。潮位観測・津波到達予想は全文を保持します。配布文書からウイルス対策の除外設定に関する案内も削除しました。
 
@@ -135,15 +141,15 @@ GitHub Releasesの配布物は.NET 8自己完結型です。通常利用ではVi
 powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
-このスクリプトは依存関係を復元し、Release構成で全プロジェクトをビルドして、自動テストを実行します。現在のbeta.37では500件のテストを確認しています。
+このスクリプトは依存関係を復元し、Release構成で全プロジェクトをビルドして、自動テストを実行します。現在のbeta.38では500件のテストを確認しています。
 
 配布物を作成する場合は次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.37
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.38
 ```
 
-フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.37\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
+フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.38\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
 
 ## 開発者向け資料
 

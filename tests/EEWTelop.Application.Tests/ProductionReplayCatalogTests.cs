@@ -84,7 +84,7 @@ public sealed class ProductionReplayCatalogTests
             quake.IssuedAt.AddSeconds(1));
 
         Assert.IsNotNull(catalog.SelectNext(settings, quake.IssuedAt.AddSeconds(1)));
-        Assert.IsNotNull(catalog.SelectNext(settings, quake.IssuedAt.AddHours(1)));
+        Assert.IsNull(catalog.SelectNext(settings, quake.IssuedAt.AddHours(1)));
         Assert.IsNull(catalog.SelectNext(settings, quake.IssuedAt.AddHours(2)));
 
         catalog.Update(
@@ -126,7 +126,7 @@ public sealed class ProductionReplayCatalogTests
             CreateProgram(secondProvider, OverlayPriority.Quake),
             settings,
             now.AddSeconds(1));
-        Assert.IsNotNull(catalog.SelectNext(settings, now.AddSeconds(1)));
+        Assert.IsNull(catalog.SelectNext(settings, now.AddSeconds(1)));
         Assert.IsNull(catalog.SelectNext(settings, now.AddSeconds(2)));
     }
 
@@ -153,7 +153,7 @@ public sealed class ProductionReplayCatalogTests
             CreateProgram(firstProvider, OverlayPriority.Quake),
             settings,
             now);
-        Assert.IsNotNull(catalog.SelectNext(settings, now));
+        Assert.IsNull(catalog.SelectNext(settings, now));
         Assert.IsNull(catalog.SelectNext(settings, now.AddSeconds(1)));
 
         catalog.Update(
@@ -171,7 +171,7 @@ public sealed class ProductionReplayCatalogTests
         var catalog = new ProductionReplayCatalog();
         ProductionReplaySettings settings = Enable(EventKind.Tsunami) with
         {
-            Tsunami = new ProductionReplayPolicy(true, 1, true),
+            Tsunami = new ProductionReplayPolicy(true, 2, true),
         };
         TsunamiEvent tsunami = DisplayEventFactory.CreateTsunami(
             [DisplayEventFactory.TsunamiArea(1, TsunamiGrade.Warning)]);

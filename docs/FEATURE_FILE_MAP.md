@@ -41,6 +41,7 @@
 | OBSブラウザーソース登録 | `Wpf/Obs/ObsBrowserSourceSynchronizer.cs` | `Wpf.Tests/Phase7ObsLocalViewTests.cs` |
 | プレビューと字幕編集 | `Wpf/PreviewWindow*`、`SubtitleEditor*` | `Wpf.Tests/SubtitleEditorViewModelTests.cs` |
 | 受信・過去電文確認 | `Wpf/TelegramReviewWindow*`、`ViewModels/ReceivedTelegramViewModel.cs` | `Wpf.Tests/Phase6ViewModelTests.cs` |
+| 電文確認だけの地名ルビ | `Wpf/Controls/ReviewRubyText.cs`、`PlaceNameReadings.cs`、`Wpf/Assets/place-readings.tsv`（更新は `scripts/update-place-readings.ps1`） | `Wpf.Tests/PlaceNameReadingsTests.cs` |
 | 音声判定 | `Application/Audio/AudioPolicy.cs`と`ControlWindowViewModel`の音声処理 | `Application.Tests/Phase8PersistenceAndAudioTests.cs`、`Wpf.Tests/Phase6ViewModelTests.cs` |
 
 ## 設定、保存、診断

@@ -4,13 +4,19 @@ English | [日本語](README.md)
 
 **Comprehensive Disaster Information Telopper (CDI-Telopper)** is a Windows application that receives disaster information related to earthquakes, tsunamis, weather, volcanoes, and the Nankai Trough, then generates captions for OBS.
 
-The current public release is **2.0.0-beta.37**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.38**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.37](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.37)
-- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.37.txt)
+- [Download 2.0.0-beta.38](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.38)
+- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.38.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
+
+Beta.38 adds place-name furigana only to the telegram review window and fixes endlessly repeating OBS captions. The count includes the first pass: 2 means two complete page cycles, followed by removal. Legacy rotation/resume delays are no longer used.
+
+### Furigana caution
+
+**Furigana is a reading aid, not a guarantee of accuracy or completeness. Verify official pronunciations with municipal or other authoritative sources before reading names on air.** The bundled Japan Post dataset covers prefectures and municipalities; forecast regions, offshore areas, foreign places and historical names may be unsupported. Context and spelling can cause incorrect matches or readings. Unresolved names normally remain without ruby. OBS captions, replay output and audio are unchanged.
 
 Beta.37 removes the three generic earthquake pages from large-scale eruption reports received as VXSE53 XML through AXIS and other XML sources. Captions begin with the eruption narrative and retain the full tide observations and tsunami arrival estimates. Antivirus exclusion instructions have also been removed from the distribution documentation.
 
@@ -122,15 +128,15 @@ Building requires Windows 10/11 x64, the .NET 8 SDK, and PowerShell. Visual Stud
 powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
-The script restores dependencies, builds every project in the Release configuration, and runs the automated tests. The beta.37 source currently has 500 verified tests.
+The script restores dependencies, builds every project in the Release configuration, and runs the automated tests. The beta.38 source currently has 500 verified tests.
 
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.37
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.38
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.37\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.38\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
 
 ## License and attribution
 

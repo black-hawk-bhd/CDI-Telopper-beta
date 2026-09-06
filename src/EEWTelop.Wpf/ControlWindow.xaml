@@ -492,13 +492,9 @@
                                 </GroupBox>
                                 <GroupBox Header="本番情報の繰り返し表示">
                                     <StackPanel>
-                                        <TextBlock Text="有効な最新情報だけを巡回します。新着は即時表示し、更新報は旧報を置換、取消・解除・期限切れは除外します。"
+                                        <TextBlock Text="表示回数は初回を含みます。全ページを1周して1回と数え、設定回数で必ず消去します。新しい更新報は別に数えます。"
                                                    Foreground="{StaticResource MutedBrush}"
                                                    TextWrapping="Wrap" />
-                                        <TextBlock Text="巡回間隔秒（1〜300）" Foreground="{StaticResource MutedBrush}" />
-                                        <TextBox Text="{Binding Settings.ProductionReplayRotationIntervalSeconds}" />
-                                        <TextBlock Text="新着表示後に巡回を再開するまでの秒数（0〜300）" Foreground="{StaticResource MutedBrush}" />
-                                        <TextBox Text="{Binding Settings.ProductionReplayResumeDelaySeconds}" />
 
                                         <TextBlock Margin="0,6,0,2" Text="地震情報" FontWeight="Bold" />
                                         <CheckBox Content="繰り返す" IsChecked="{Binding Settings.ProductionReplayQuakeEnabled}" />

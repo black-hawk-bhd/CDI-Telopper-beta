@@ -93,7 +93,7 @@ public sealed class ProductionReplayCatalog
             int replayCount = existing is not null &&
                 disasterEvent.IssuedAt <= existing.Event.IssuedAt
                     ? existing.ReplayCount
-                    : 0;
+                    : 1;
             _entries[key] = new Entry(
                 key,
                 disasterEvent,

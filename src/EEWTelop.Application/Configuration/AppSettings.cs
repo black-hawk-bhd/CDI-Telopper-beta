@@ -354,6 +354,7 @@ public sealed record ProductionReplayPolicy(
 }
 
 public sealed record ProductionReplaySettings(
+    // Retained for saved-settings compatibility; timing now follows one complete page cycle.
     int RotationIntervalSeconds,
     int ResumeDelaySeconds,
     ProductionReplayPolicy Eew,
