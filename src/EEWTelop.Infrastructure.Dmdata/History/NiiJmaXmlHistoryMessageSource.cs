@@ -31,10 +31,9 @@ public sealed partial class NiiJmaXmlHistoryMessageSource : IHistoryMessageSourc
     private static readonly HashSet<string> TsunamiCodes =
         new(StringComparer.Ordinal) { "VTSE41", "VTSE51", "VTSE52" };
     private static readonly HashSet<string> WeatherWarningCodes =
-        new(StringComparer.Ordinal)
-        {
+        new(new[] {
             "VPWW55", "VPWW56", "VPWW57", "VPWW58", "VPWW59", "VPWW60", "VPWW61",
-        };
+        }.Concat(Enumerable.Range(50, 40).Select(i => $"VXKO{i}")), StringComparer.Ordinal);
 
     private readonly HttpClient _httpClient;
     private readonly string _cacheDirectory;

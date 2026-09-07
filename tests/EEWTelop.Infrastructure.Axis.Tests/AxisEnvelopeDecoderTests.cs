@@ -16,6 +16,35 @@ namespace EEWTelop.Infrastructure.Axis.Tests;
 public sealed class AxisEnvelopeDecoderTests
 {
     [TestMethod]
+    public void RiverFloodJsonReachesWeatherComposerAndRecovery()
+    {
+        const string json = """
+            {"channel":"jmx-meteorology","message":{"Report":{
+              "Control":{"Title":"指定河川洪水予報","Status":"通常","Type":"VXKO76"},
+              "Head":{"Title":"試験川氾濫危険情報","EventID":"river-test","InfoType":"発表",
+                "Headline":{"Text":"試験川で氾濫のおそれ",
+                  "Information":{"type_":"指定河川洪水予報（予報区域）","Item":{
+                    "Kind":{"Name":"氾濫危険情報","Code":"41"},
+                    "Areas":{"Area":{"Name":"試験川","Code":"river-test"}}}}}},
+              "Body":{}}}}
+            """;
+        AxisDecodedFrame frame = AxisEnvelopeDecoder.Decode(json, AxisProviderOptions.MeteorologyChannel);
+        Assert.AreEqual(AxisFrameKind.Data, frame.Kind);
+        Assert.AreEqual("VXKO76", frame.TelegramType);
+        Assert.IsTrue(AxisWeatherTelegramPolicy.IsAssignedToAxis(frame.Channel, frame.TelegramType));
+        foreach (int suffix in Enumerable.Range(50, 40))
+            Assert.IsTrue(AxisWeatherTelegramPolicy.IsAssignedRecoveryTelegram($"VXKO{suffix}"));
+        Assert.IsFalse(AxisWeatherTelegramPolicy.IsAssignedRecoveryTelegram("VXKO90"));
+        var result = new JmaXmlEventNormalizer(new EventSignatureBuilder()).Normalize(new RawProviderMessage(
+            "axis", frame.Xml!, SourceMode.Production, DateTimeOffset.UtcNow)
+            { ContentFormat = RawProviderContentFormat.JmaXml });
+        WeatherWarningEvent weather = Assert.IsInstanceOfType<WeatherWarningEvent>(result.Event);
+        Assert.AreEqual(WeatherInformationType.RiverFlood, weather.InformationType);
+        Assert.AreEqual(4, weather.RiverFlood!.AlertLevel);
+        Assert.IsGreaterThan(0, new PageComposer().Compose(weather, AppSettings.CreateDefault().Display).Pages.Count);
+    }
+
+    [TestMethod]
     public void PlainTextControlFramesAreRecognized()
     {
         Assert.AreEqual(

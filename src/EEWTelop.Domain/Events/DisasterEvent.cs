@@ -246,6 +246,8 @@ public sealed record WeatherWarningEvent : DisasterEvent
 
     public DateTimeOffset? ValidUntil { get; }
 
+    public RiverFloodInfo? RiverFlood { get; init; }
+
     public WeatherWarningLevel MaximumLevel => Items
         .Where(static item => item.IsActive)
         .Select(static item => item.Level)
@@ -264,7 +266,7 @@ public sealed record WeatherWarningEvent : DisasterEvent
         items,
         IsCancelled,
         InformationType,
-        ValidUntil);
+        ValidUntil) { RiverFlood = RiverFlood };
 }
 
 public sealed record VolcanoEvent : DisasterEvent

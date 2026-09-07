@@ -4,13 +4,15 @@ English | [日本語](README.md)
 
 **Comprehensive Disaster Information Telopper (CDI-Telopper)** is a Windows application that receives disaster information related to earthquakes, tsunamis, weather, volcanoes, and the Nankai Trough, then generates captions for OBS.
 
-The current public release is **2.0.0-beta.38**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.39**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.38](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.38)
-- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.38.txt)
+- [Download 2.0.0-beta.39](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.39)
+- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.39.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
+
+Beta.39 adds designated-river flood forecasts (VXKO50–89): river headlines, station-grouped inundation districts, and two-line pagination of the main narrative for levels 4–5. Warning-to-advisory downgrades are distinguished from all-clear and telegram cancellations.
 
 Beta.38 adds place-name furigana only to the telegram review window and fixes endlessly repeating OBS captions. The count includes the first pass: 2 means two complete page cycles, followed by removal. Legacy rotation/resume delays are no longer used.
 
@@ -81,6 +83,8 @@ DMDATA.JP and AXIS credentials are encrypted using Windows DPAPI CurrentUser. Th
 
 ## OBS output
 
+Designated-river flood forecasts (VXKO50–89) use the weather provider and output. Captions show the river headline, station-grouped potential inundation districts, then the telegram's main narrative for levels 4–5, split into two visual lines per page. Level 2 uses advisory settings, levels 3–4 warning settings, and level 5 special-warning settings. Disabling advisories also hides level 2 flood forecasts.
+
 Create the following four browser sources in OBS. Each source is designed for a 1920×1080 canvas.
 
 - CDI-Telopper 地震字幕・全ての音声 (earthquake captions and all audio)
@@ -128,15 +132,15 @@ Building requires Windows 10/11 x64, the .NET 8 SDK, and PowerShell. Visual Stud
 powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
-The script restores dependencies, builds every project in the Release configuration, and runs the automated tests. The beta.38 source currently has 500 verified tests.
+The script restores dependencies, builds every project in the Release configuration, and runs the automated tests. The beta.39 source currently has 526 verified tests.
 
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.38
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.39
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.38\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.39\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
 
 ## License and attribution
 

@@ -60,7 +60,9 @@ internal static class AxisWeatherTelegramPolicy
         string type = telegramType?.Trim() ?? string.Empty;
         return SeismologyTelegrams.Contains(type) ||
             type is "VFVO50" or "VFVO56" ||
-            type.StartsWith("VP", StringComparison.OrdinalIgnoreCase);
+            type.StartsWith("VP", StringComparison.OrdinalIgnoreCase) ||
+            (type.Length == 6 && type.StartsWith("VXKO", StringComparison.OrdinalIgnoreCase) &&
+             int.TryParse(type.AsSpan(4), out int number) && number is >= 50 and <= 89);
     }
 
     public static string ReadTelegramType(string xml)

@@ -39,6 +39,13 @@ DMDATA.JP、NII履歴、ローカルXML、テストライブラリ、AXISの `jm
 | VPBS51 | 気象防災速報（潮位） | `WeatherWarningEvent` | 専用InformationType |
 | VPHW50 | 竜巻注意情報 | `WeatherWarningEvent` | 専用InformationType |
 | VPHW51 | 竜巻注意情報・目撃情報付き | `WeatherWarningEvent` | 専用InformationType |
+| VXKO50～89 | 指定河川洪水予報 | `WeatherWarningEvent` / `RiverFlood` | 河川見出し、観測所別浸水想定地区、レベル4・5の主文を2行分ずつ表示 |
+
+指定河川洪水予報は「気象情報」の受信元を使用します。DMDATAの気象購読（旧体系選択時も含む）とAXISの `jmx-meteorology`、復旧、NII・ローカルXMLに対応します。レベル2は注意報、レベル3・4は警報、レベル5は特別警報の既存フィルター・音声設定に従います。地域フィルターは対象府県で判定し、浸水想定地区一覧も対象府県に限定します。河川全体の見出しと主文は意味を変えないため原文を維持します。
+
+Kindコード10は注意報解除、22は警報解除後も注意報が残る切替として扱い、電文取消とは区別します。Bodyや浸水想定地区が省略されている場合は情報を推測して追加しません。コードを含まない素のXMLはControl.Titleで識別し、未判明の送信区分番号を捏造せずRawTypeを `VXKO` とします。
+
+実装は `JmaXmlEventNormalizer.RiverFlood.cs` と `WeatherWarningPageComposer.RiverFlood.cs`、回帰テストは `RiverFloodTests`。資料: [DMDATA電文解説](https://dmdata.jp/docs/telegrams/we02810/)、[XML技術資料](https://dmdata.jp/docs/jma/manual/0281-0281.pdf)、[気象庁仕様No.10301](https://www.data.jma.go.jp/suishin/shiyou/pdf/no10301)。テストXMLは仕様に基づく合成データです。
 
 対応外の `jmx-meteorology` 電文は、壊れた入力ではなく表示対象外として静かに無視します。対応電文を追加する場合は、検出、正規化、受信元選択、字幕生成、テストのすべてを更新します。
 

@@ -96,7 +96,14 @@ public enum WeatherInformationType
     RecordShortDurationHeavyRain,
     DisasterPreventionBulletin,
     TornadoAdvisory,
+    RiverFlood,
 }
+
+public sealed record RiverFloodDistrict(string Station, string Prefecture, string PrefectureCode,
+    string City, string CityCode, string SubCities);
+
+public sealed record RiverFloodInfo(string RiverName, string Badge, int AlertLevel,
+    IReadOnlyList<RiverFloodDistrict> Districts, IReadOnlyList<string> MainTexts);
 
 public sealed record WeatherWarningItem(
     string AreaName,

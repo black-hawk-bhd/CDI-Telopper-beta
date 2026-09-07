@@ -153,6 +153,11 @@ public sealed class EventSignatureBuilder : IEventSignatureBuilder
         WriteIssue(writer, weather.Issue);
         writer.WriteString("informationType", weather.InformationType.ToString());
         writer.WriteString("headline", weather.Headline);
+        if (weather.RiverFlood is not null)
+        {
+            writer.WritePropertyName("riverFlood");
+            JsonSerializer.Serialize(writer, weather.RiverFlood);
+        }
         WriteNullableDateTime(writer, "validUntil", weather.ValidUntil);
         writer.WriteStartArray("items");
         foreach (WeatherWarningItem item in weather.Items

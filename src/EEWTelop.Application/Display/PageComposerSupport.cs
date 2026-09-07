@@ -97,6 +97,7 @@ internal static class PageComposerSupport
             WeatherInformationType.RecordShortDurationHeavyRain => "記録的短時間大雨情報",
             WeatherInformationType.DisasterPreventionBulletin => "気象防災速報",
             WeatherInformationType.TornadoAdvisory => "竜巻注意情報",
+            WeatherInformationType.RiverFlood => $"{weather.RiverFlood?.RiverName}の指定河川洪水予報",
             _ => "気象警報・注意報",
         };
 

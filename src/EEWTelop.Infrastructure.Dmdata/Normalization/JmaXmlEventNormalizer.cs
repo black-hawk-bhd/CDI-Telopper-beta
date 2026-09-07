@@ -49,6 +49,8 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
             string telegramType = DetectTelegramType(document);
             return telegramType switch
             {
+                var type when IsRiverFloodTelegram(type) || type == "VXKO" =>
+                    NormalizeRiverFlood(raw, document, telegramType),
                 "VXSE43" or "VXSE45" => NormalizeEew(raw, document, telegramType),
                 "VXSE51" or "VXSE52" or "VXSE53" or "VXSE62" or
                     "VYSE50" or "VYSE60" =>
@@ -1543,6 +1545,12 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
 
     private static string DetectTelegramType(XContainer document)
     {
+        string controlType = Text(Descendant(Descendant(document, "Control"), "Type"));
+        if (controlType.Length == 6 && TryExtractTelegramType(controlType, out string explicitType))
+        {
+            return explicitType;
+        }
+
         // AXIS normally exposes the telegram type in the message UUID.  Some
         // converters preserve it as a root attribute, while others emit a
         // nested metadata element.  Accept both shapes before falling back to
@@ -1554,6 +1562,11 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
         }
 
         string title = Text(Descendant(Descendant(document, "Control"), "Title"));
+        if (title == "指定河川洪水予報")
+        {
+            // Bare XML has no routing suffix. Do not invent a transmitting office code.
+            return "VXKO";
+        }
         if (title.Contains("記録的短時間大雨情報", StringComparison.Ordinal))
         {
             return "VPOA50";

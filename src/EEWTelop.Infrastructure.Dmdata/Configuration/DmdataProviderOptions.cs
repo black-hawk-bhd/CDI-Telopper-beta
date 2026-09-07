@@ -87,6 +87,7 @@ public sealed record DmdataProviderOptions(
                 : CurrentWeatherWarningTelegramTypes
             : [])
         .Concat(ReceiveVolcanoTelegrams ? VolcanoTelegramTypes : [])
+        .Concat(ReceiveWeatherWarnings ? Enumerable.Range(50, 40).Select(i => $"VXKO{i}") : [])
         .ToArray();
 
     public static DmdataProviderOptions FromSettings(

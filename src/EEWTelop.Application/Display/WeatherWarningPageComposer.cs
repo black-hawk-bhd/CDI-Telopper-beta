@@ -5,7 +5,7 @@ using EEWTelop.Domain.Events;
 
 namespace EEWTelop.Application.Display;
 
-internal static class WeatherWarningPageComposer
+internal static partial class WeatherWarningPageComposer
 {
     private const int ReleaseRowsPerPage = 2;
     private const int ReleaseAreasPerRow = 6;
@@ -42,6 +42,11 @@ internal static class WeatherWarningPageComposer
                 OverlayPriority.WeatherAdvisory,
                 EndPolicy.AutoHide,
                 [new PageDraft([telegramCancel])]);
+        }
+
+        if (weather.RiverFlood is not null)
+        {
+            return ComposeRiverFlood(weather, settings);
         }
 
         if (!weather.IsCancelled &&
