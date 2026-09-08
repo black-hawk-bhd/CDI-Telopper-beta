@@ -61,7 +61,13 @@ public sealed class ReceivedTelegramViewModel
     public IReadOnlyList<TelegramPageReviewViewModel> Pages => Program.Pages
         .Select((page, index) => new TelegramPageReviewViewModel(
             $"ページ {index + 1} / {Program.Pages.Count}",
-            page.AccessibleText))
+            Event is WeatherWarningEvent
+                ? string.Join(Environment.NewLine, page.Blocks.Where(b => b.StyleToken != DisplayStyleTokens.PageIndicator)
+                    .Select(b => b.PrimaryText + (b.SecondaryText.Length > 0 ? Environment.NewLine + b.SecondaryText : string.Empty)))
+                : page.AccessibleText,
+            Event is WeatherWarningEvent
+                ? string.Join(" ／ ", page.Blocks.Select(b => b.Badge).Where(b => b.Length > 0).Distinct())
+                : string.Empty))
         .ToArray();
 
     private static string GetKindText(EventKind kind) => kind switch
@@ -75,4 +81,4 @@ public sealed class ReceivedTelegramViewModel
     };
 }
 
-public sealed record TelegramPageReviewViewModel(string Header, string Text);
+public sealed record TelegramPageReviewViewModel(string Header, string Text, string Title = "");

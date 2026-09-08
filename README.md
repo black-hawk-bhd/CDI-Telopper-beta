@@ -4,16 +4,16 @@
 
 Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津波・気象・火山・南海トラフに関する防災情報を受信し、OBS向け字幕として出力するWindowsアプリです。
 
-現在の公開版は **2.0.0-beta.39** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
+現在の公開版は **2.0.0-beta.40** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
 
-- [2.0.0-beta.39をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.39)
-- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.39.txt)
+- [2.0.0-beta.40をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.40)
+- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.40.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
 - [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
 
 ## 主な機能
 
-beta.39では指定河川洪水予報（VXKO50～89）に対応しました。河川見出し、観測所別の浸水想定地区、レベル4・5の主文を表示し、主文を2行分ずつに分割します。警報から注意報への切替と解除・取消を区別します。
+beta.40では気象字幕を上段見出し＋全幅本文へ刷新しました。地名・括弧内を保護し、地域一覧は表示幅で分割します。指定河川洪水予報（VXKO50～89）に対応しました。河川見出し、観測所別の浸水想定地区、レベル4・5の主文を表示し、一文を優先し、長文のみ分割します。警報から注意報への切替と解除・取消を区別します。
 
 beta.38では、電文確認画面だけに地名のフリガナ（ルビ）を追加し、本番繰り返し表示がOBS側に残る不具合を修正しました。表示回数は初回を含み、2回なら全ページを2周して消去します。旧巡回間隔・再開待ちは使用しません。
 
@@ -96,7 +96,7 @@ DMDATA.JPとAXISの認証情報はWindows DPAPI CurrentUserで暗号化して保
 
 ## OBS出力
 
-指定河川洪水予報（VXKO50～89）は「気象情報」で受信・表示します。河川の見出し、観測所別の浸水想定地区、レベル4・5の主文を順に表示し、主文は2行分ずつに分割します。レベル2は注意報、3・4は警報、5は特別警報の表示・音声設定を使用するため、注意報を非表示にしている場合はレベル2も表示されません。
+指定河川洪水予報（VXKO50～89）は「気象情報」で受信・表示します。河川の見出し、観測所別の浸水想定地区、レベル4・5の主文を順に表示し、2行固定を廃止し、見出しと本文を分離します。レベル2は注意報、3・4は警報、5は特別警報の表示・音声設定を使用するため、注意報を非表示にしている場合はレベル2も表示されません。
 
 OBSへは次の4つのブラウザーソースを登録します。各ソースは1920×1080を前提とします。
 
@@ -145,15 +145,15 @@ GitHub Releasesの配布物は.NET 8自己完結型です。通常利用ではVi
 powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
-このスクリプトは依存関係を復元し、Release構成で全プロジェクトをビルドして、自動テストを実行します。現在のbeta.39では526件のテストを確認しています。
+このスクリプトは依存関係を復元し、Release構成で全プロジェクトをビルドして、自動テストを実行します。現在のbeta.40では530件のテストを確認しています。
 
 配布物を作成する場合は次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.39
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.40
 ```
 
-フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.39\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
+フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.40\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
 
 ## 開発者向け資料
 

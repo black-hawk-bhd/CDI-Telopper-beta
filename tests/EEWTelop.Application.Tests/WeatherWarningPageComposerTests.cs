@@ -8,6 +8,41 @@ namespace EEWTelop.Application.Tests;
 [TestClass]
 public sealed class WeatherWarningPageComposerTests
 {
+    [TestMethod]
+    public void LongBulletinPreservesNamesParenthesesAndContinuationContext()
+    {
+        string name = "試験市長い地区名";
+        string bracket = "（北側、河川沿いの地区）";
+        string text = new string('あ', 68) + name + bracket + new string('い', 80);
+        var weather = new WeatherWarningEvent(EventId.Create("protected-weather"), "axis", IssuedAt,
+            IssuedAt, "protected", SourceMode.HistoryRehearsal,
+            new IssueInfo("試験", IssuedAt, "VPBS50", CorrectionType.None), text,
+            [ActiveWithLevel(name, "120000", "大雨警報", WeatherWarningLevel.Warning)],
+            isCancelled: false, WeatherInformationType.DisasterPreventionBulletin);
+        DisplayProgram program = new PageComposer().Compose(weather, AppSettings.CreateDefault().Display);
+        var blocks = program.Pages.SelectMany(WeatherBlocks).ToArray();
+        Assert.AreEqual(text, string.Concat(blocks.Select(b => b.PrimaryText)));
+        Assert.IsTrue(blocks.Any(b => b.PrimaryText.Contains(name)));
+        Assert.IsTrue(blocks.Any(b => b.PrimaryText.Contains(bracket)));
+        Assert.IsTrue(program.Pages.Skip(1).All(p => WeatherBlocks(p)[0].Badge.Contains("千葉県")));
+    }
+
+    [TestMethod]
+    public void LongReleaseNamesAreGroupedByWidthWithoutCuttingNames()
+    {
+        string[] names = ["とても長い名前の試験市北部", "とても長い名前の試験市南部", "とても長い名前の試験市東部"];
+        var weather = new WeatherWarningEvent(EventId.Create("wide-release"), "axis", IssuedAt,
+            IssuedAt, "wide", SourceMode.HistoryRehearsal,
+            new IssueInfo("試験", IssuedAt, "VPWW61", CorrectionType.None), "解除",
+            names.Select(n => Released(n, "120000", "大雨注意報", WeatherWarningLevel.Advisory)).ToArray(),
+            isCancelled: true);
+        var blocks = new PageComposer().Compose(weather, AppSettings.CreateDefault().Display)
+            .Pages.SelectMany(p => p.Blocks).Where(b => b.StyleToken != DisplayStyleTokens.PageIndicator).ToArray();
+        Assert.IsGreaterThan(1, blocks.Length);
+        foreach (string name in names) Assert.IsTrue(blocks.Any(b => b.PrimaryText.Contains(name)));
+        Assert.IsTrue(blocks.All(b => b.PrimaryText.StartsWith("千葉県", StringComparison.Ordinal) && b.PrimaryText.Length <= 48));
+    }
+
     private static readonly DateTimeOffset IssuedAt =
         new(2026, 8, 11, 0, 0, 0, TimeSpan.FromHours(9));
 
@@ -103,11 +138,11 @@ public sealed class WeatherWarningPageComposerTests
             .Where(static block => block.StyleToken == DisplayStyleTokens.WeatherCancel)
             .ToArray();
 
-        Assert.HasCount(4, program.Pages);
+        Assert.HasCount(3, program.Pages);
         Assert.HasCount(7, releaseBlocks);
         Assert.IsTrue(program.Pages.All(static page =>
             page.Blocks.Count(static block =>
-                block.StyleToken == DisplayStyleTokens.WeatherCancel) <= 2));
+                block.StyleToken == DisplayStyleTokens.WeatherCancel) <= 3));
         Assert.AreEqual(
             "奈良県地域01、地域02、地域03、地域04、地域05、地域06の雷注意報は解除されました",
             releaseBlocks[0].PrimaryText);
@@ -348,7 +383,7 @@ public sealed class WeatherWarningPageComposerTests
             weather,
             AppSettings.CreateDefault().Display);
 
-        Assert.HasCount(3, program.Pages);
+        Assert.HasCount(2, program.Pages);
         Assert.IsTrue(program.Pages[0].Blocks[0].PrimaryText.EndsWith(
             "新たに発表",
             StringComparison.Ordinal));
@@ -362,7 +397,7 @@ public sealed class WeatherWarningPageComposerTests
                 block.PrimaryText.EndsWith("継続中", StringComparison.Ordinal)));
         Assert.IsTrue(program.Pages.All(static page =>
             page.Blocks.Count(static block =>
-                block.StyleToken != DisplayStyleTokens.PageIndicator) <= 2));
+                block.StyleToken != DisplayStyleTokens.PageIndicator) <= 3));
     }
 
     [TestMethod]
@@ -419,13 +454,13 @@ public sealed class WeatherWarningPageComposerTests
         DisplayBlock secondHeadline = program.Pages[1].Blocks
             .Single(static block => block.StyleToken != DisplayStyleTokens.PageIndicator);
 
-        Assert.AreEqual("レベル５大雨特別警報", firstHeadline.Badge);
+        Assert.AreEqual("千葉県　レベル５大雨特別警報", firstHeadline.Badge);
         Assert.AreEqual(
-            "千葉県　北西部、山武・長生に\nレベル５大雨特別警報を発表しています",
+            "千葉県　北西部、山武・長生にレベル５大雨特別警報を発表しています",
             firstHeadline.PrimaryText);
-        Assert.AreEqual("最大級の警戒", secondHeadline.Badge);
+        Assert.AreEqual("千葉県　最大級の警戒", secondHeadline.Badge);
         Assert.AreEqual(
-            "低い土地の浸水や河川の増水に\n最大級の警戒をしてください",
+            "低い土地の浸水や河川の増水に最大級の警戒をしてください",
             secondHeadline.PrimaryText);
         Assert.IsTrue(program.Pages.Take(2).All(static page =>
             page.Blocks

@@ -128,6 +128,8 @@
                                         <StackPanel>
                                             <TextBlock Text="{Binding Header}" FontWeight="Bold"
                                                        Foreground="#FFFFC66D" Margin="0,0,0,6" />
+                                            <controls:ReviewRubyText SourceText="{Binding Title}" TextWrapping="Wrap" FontSize="18"
+                                                                    FontWeight="Bold" Foreground="#FFFFC66D" />
                                             <controls:ReviewRubyText SourceText="{Binding Text}" TextWrapping="Wrap" FontSize="16"
                                                                     FontFamily="Yu Gothic UI, Meiryo" Foreground="White" />
                                         </StackPanel>

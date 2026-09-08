@@ -285,6 +285,7 @@ public sealed record OverlayBlockViewModel(
     public double BadgeOpacity => IsBadgeVisible ? 1 : 0;
 
     public bool IsTsunami => StyleToken == DisplayStyleTokens.Tsunami;
+    public bool IsWeather => StyleToken.StartsWith("weather-", StringComparison.Ordinal);
 
     public string BadgeBackground => Badge switch
     {

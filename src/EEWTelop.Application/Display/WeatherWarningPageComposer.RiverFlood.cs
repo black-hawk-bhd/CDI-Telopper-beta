@@ -19,8 +19,10 @@ internal static partial class WeatherWarningPageComposer
         var pages = new List<PageDraft>();
         void AddText(string badge, IEnumerable<string> lines)
         {
-            foreach (IReadOnlyList<string> page in NarrativeTextPaginator.Paginate(lines, 2))
-                pages.Add(CreateTextPage(badge, page.ToArray(), style));
+            foreach (string line in lines)
+                foreach (string fragment in WeatherTextPagination.Split(line,
+                    flood.Districts.SelectMany(d => new[] { d.City, d.Prefecture }).Append(flood.RiverName), 78))
+                    pages.Add(CreateTextPage($"{flood.RiverName}｜{badge}", [fragment], style));
         }
         if (weather.IsCancelled)
         {
@@ -38,13 +40,26 @@ internal static partial class WeatherWarningPageComposer
             if (districts.Length > 0)
             {
                 AddText(string.Empty, ["氾濫による浸水が想定される地区は次の通りです"]);
-                var lines = districts.GroupBy(d => (Station: d.Station == d.Prefecture + d.City ||
-                        d.Station == d.Prefecture ? string.Empty : d.Station, d.Prefecture))
-                    .Select(g => string.Join("　", new[] { g.Key.Station, g.Key.Prefecture }
-                        .Where(s => s.Length > 0)
-                        .Concat(g.Select(d => d.City + (d.SubCities.Length > 0 && d.SubCities != "-" ? $"（{d.SubCities}）" : ""))
-                            .Distinct(StringComparer.Ordinal))));
-                AddText(string.Empty, lines);
+                // Keep each municipality attached to its district details, including on continuation pages.
+                foreach (RiverFloodDistrict district in districts.Distinct())
+                {
+                    string station = district.Station == district.Prefecture + district.City ||
+                        district.Station == district.Prefecture ? string.Empty : district.Station;
+                    string heading = string.Join("　", new[] { station, district.Prefecture, district.City }
+                        .Where(s => s.Length > 0));
+                    if (string.IsNullOrWhiteSpace(district.SubCities) || district.SubCities == "-")
+                    {
+                        pages.Add(CreateTextPage($"{flood.RiverName}｜浸水想定地区", [heading], style));
+                        continue;
+                    }
+
+                    // Whitespace separates district names in the XML. Do not join them into an
+                    // oversized parenthesis that can be cut across unrelated municipalities.
+                    foreach (string detail in WeatherTextPagination.Split(district.SubCities.Trim(),
+                        Regex.Split(district.SubCities.Trim(), @"\s+"), 78))
+                        pages.Add(CreateTextPage($"{flood.RiverName}｜浸水想定地区｜{heading}",
+                            [detail], style));
+                }
             }
             if (flood.AlertLevel >= 4)
             {

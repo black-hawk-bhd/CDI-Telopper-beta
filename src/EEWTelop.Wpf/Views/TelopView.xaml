@@ -141,6 +141,10 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Grid Margin="0,0,0,20">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
@@ -154,6 +158,17 @@
                                         BorderThickness="{Binding BadgeBorderThickness}"
                                         Opacity="{Binding BadgeOpacity}"
                                         Visibility="{Binding HasBadgeColumn, Converter={StaticResource BoolVisibility}}">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsWeather}" Value="True">
+                                                    <Setter Property="Grid.ColumnSpan" Value="2" />
+                                                    <Setter Property="HorizontalAlignment" Value="Left" />
+                                                    <Setter Property="Margin" Value="0,0,0,18" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <Border.Effect>
                                         <DropShadowEffect Color="Black" BlurRadius="7" ShadowDepth="3" Opacity="0.8" />
                                     </Border.Effect>
@@ -166,11 +181,18 @@
                                                LineStackingStrategy="BlockLineHeight"
                                                LineHeight="{Binding DataContext.BadgeFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                                 </Border>
-                                <Grid Grid.Column="1">
+                                <Grid>
                                     <Grid.Style>
                                         <Style TargetType="Grid">
+                                            <Setter Property="Grid.Column" Value="1" />
                                             <Setter Property="Margin" Value="22,0,0,0" />
                                             <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsWeather}" Value="True">
+                                                    <Setter Property="Grid.Column" Value="0" />
+                                                    <Setter Property="Grid.ColumnSpan" Value="2" />
+                                                    <Setter Property="Grid.Row" Value="1" />
+                                                    <Setter Property="Margin" Value="0" />
+                                                </DataTrigger>
                                                 <DataTrigger Binding="{Binding HasBadgeColumn}" Value="False">
                                                     <Setter Property="Margin" Value="0" />
                                                 </DataTrigger>

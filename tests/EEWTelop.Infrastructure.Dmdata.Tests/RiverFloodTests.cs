@@ -124,20 +124,50 @@ public sealed class RiverFloodTests
     }
 
     [TestMethod]
+    public void LongHeadlineRetainsRiverOnEveryPageAndAllOriginalText()
+    {
+        string headline = "【警戒レベル２から３相当に切替】善福寺川では、避難判断水位に到達し、今後、氾濫危険水位に到達する見込みです。水位の上昇に注意してください。";
+        DisplayProgram program = Compose(Weather(Xml().Replace("善福寺川今後氾濫するおそれ", headline)));
+        var pages = program.Pages.TakeWhile(p => !p.Blocks[0].PrimaryText.Contains("浸水が想定される地区")).ToArray();
+        Assert.AreEqual(1, pages.Length);
+        foreach (var page in pages)
+        {
+            StringAssert.Contains(page.Blocks[0].Badge, "善福寺川");
+            Assert.AreEqual(1, page.Blocks.Count);
+        }
+        Assert.AreEqual(headline[(headline.IndexOf('】') + 1)..],
+            string.Concat(pages.Select(p => p.Blocks[0].PrimaryText)));
+    }
+
+    [TestMethod]
     public void LayoutGroupsStationsAndAppendsTwoLineMainTextPages()
     {
         DisplayProgram program = Compose(Weather(Xml()));
         Assert.AreEqual("善福寺川今後氾濫するおそれ", program.Pages[0].Blocks[0].PrimaryText);
         StringAssert.Contains(program.Pages[1].Blocks[0].PrimaryText, "浸水が想定される地区");
         string text = AllText(program);
-        StringAssert.Contains(text, "白山前橋　東京都　中野区　杉並区");
-        StringAssert.Contains(text, "松見橋　東京都　中野区　杉並区");
+        StringAssert.Contains(text, "白山前橋　東京都　中野区");
+        StringAssert.Contains(text, "白山前橋　東京都　杉並区");
+        StringAssert.Contains(text, "松見橋　東京都　中野区");
+        StringAssert.Contains(text, "松見橋　東京都　杉並区");
         StringAssert.Contains(text, "適切な避難行動をとってください。");
         foreach (var page in program.Pages)
         {
             Assert.IsLessThanOrEqualTo(2, page.Blocks.Count);
-            Assert.IsLessThanOrEqualTo(48, page.Blocks.Sum(b => b.PrimaryText.Length));
+            Assert.IsLessThanOrEqualTo(78, page.Blocks.Sum(b => b.PrimaryText.Length));
         }
+    }
+
+    [TestMethod]
+    public void DistrictContinuationRepeatsMunicipalityAndDoesNotMixCities()
+    {
+        string xml = Xml().Replace("<SubCityList>試験地区</SubCityList>",
+            "<SubCityList>守山区一部 西区ほぼ全域 北区庄内川・矢田川の左岸一部 北区庄内川・矢田川右岸ほぼ全域</SubCityList>");
+        DisplayProgram program = Compose(Weather(xml));
+        var districtPages = program.Pages.Where(p => p.Blocks[0].Badge.Contains("試験橋　埼玉県　試験市")).ToArray();
+        Assert.AreEqual(1, districtPages.Length);
+        string[] expected = ["守山区一部", "西区ほぼ全域", "北区庄内川・矢田川の左岸一部", "北区庄内川・矢田川右岸ほぼ全域"];
+        Assert.AreEqual(string.Join(" ", expected), districtPages[0].Blocks[0].PrimaryText);
     }
 
     [TestMethod]

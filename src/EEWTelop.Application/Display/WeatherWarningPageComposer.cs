@@ -7,9 +7,9 @@ namespace EEWTelop.Application.Display;
 
 internal static partial class WeatherWarningPageComposer
 {
-    private const int ReleaseRowsPerPage = 2;
+    private const int ReleaseRowsPerPage = 3;
     private const int ReleaseAreasPerRow = 6;
-    private const int ActiveWarningRowsPerPage = 2;
+    private const int ActiveWarningRowsPerPage = 3;
     private const int AreasPerWarningRow = 3;
     private const int HeadlineLinesPerPage = 2;
     private const int HeadlineCharactersPerLine = 24;
@@ -222,17 +222,10 @@ internal static partial class WeatherWarningPageComposer
             yield break;
         }
 
-        for (int offset = 0; offset < areaNames.Length; offset += AreasPerWarningRow)
-        {
-            string areas = string.Join(
-                "　",
-                areaNames.Skip(offset).Take(AreasPerWarningRow));
-            yield return new ActiveWeatherWarningRow(
-                JoinWeatherRowParts(
-                    group.Key.PrefectureName,
-                    areas,
-                    FormatStatus(group.Key.Status)));
-        }
+        foreach (string row in WeatherTextPagination.Group(areaNames, AreasPerWarningRow,
+                     names => JoinWeatherRowParts(group.Key.PrefectureName, string.Join("　", names),
+                         FormatStatus(group.Key.Status))))
+            yield return new ActiveWeatherWarningRow(row);
     }
 
     private static string GetPrefectureName(WeatherWarningItem item)
@@ -296,18 +289,22 @@ internal static partial class WeatherWarningPageComposer
             .ToArray();
         foreach (string sentence in sentences)
         {
-            string[] lines = WrapHeadlineSentence(sentence);
+            string[] lines = WeatherTextPagination.Split(sentence,
+                active.SelectMany(i => new[] { i.AreaName, GetPrefectureName(i) }),
+                78).ToArray();
             string badge = sentence.Contains("最大級の警戒", StringComparison.Ordinal)
                 ? "最大級の警戒"
                 : defaultBadge;
-            for (int offset = 0; offset < lines.Length; offset += HeadlineLinesPerPage)
+            for (int offset = 0; offset < lines.Length; offset++)
             {
                 string primaryText = string.Join(
                     '\n',
-                    lines.Skip(offset).Take(HeadlineLinesPerPage));
+                    lines.Skip(offset).Take(1));
                 yield return new PageDraft(
                 [
-                    new DisplayBlock(badge, primaryText, string.Empty, style),
+                    new DisplayBlock(
+                        string.Join("・", active.Select(GetPrefectureName).Where(s => s.Length > 0).Distinct()) + "　" + badge,
+                        primaryText, string.Empty, style),
                 ]);
             }
         }
@@ -439,7 +436,7 @@ internal static partial class WeatherWarningPageComposer
             .Where((sentence, index) =>
                 index != occurrenceIndex && IsRecordRainfallLine(sentence))
             .ToArray();
-        pages.AddRange(CreateTextPages(badge, rainfallLines, style));
+        pages.AddRange(CreateTextPages(badge, rainfallLines, style, weather));
 
         string[] warningLines = sentences
             .Where((sentence, index) =>
@@ -448,7 +445,7 @@ internal static partial class WeatherWarningPageComposer
         // 「猛烈な雨が…」などの警戒文は、発生地域や雨量のページへ
         // 詰め込まず、必ず次ページ以降へ1文ずつ送る。
         pages.AddRange(warningLines.SelectMany(line =>
-            CreateTextPages(badge, [line], style)));
+            CreateTextPages(badge, [line], style, weather)));
         return pages.ToArray();
     }
 
@@ -479,7 +476,7 @@ internal static partial class WeatherWarningPageComposer
             .SelectMany(line => CreateTextPages(
                 badge,
                 [line],
-                DisplayStyleTokens.WeatherWarning))
+                DisplayStyleTokens.WeatherWarning, weather))
             .ToArray();
     }
 
@@ -504,7 +501,7 @@ internal static partial class WeatherWarningPageComposer
         // 竜巻注意情報は一文が長く、安全行動を含むため、通常の注警報と同じ
         // 3項目詰め込みにはしない。1ページ1要点にして自然な折り返しに任せる。
         var pages = headlineLines
-            .SelectMany(line => CreateTextPages(badge, [line], style))
+            .SelectMany(line => CreateTextPages(badge, [line], style, weather))
             .ToList();
         if (weather.ValidUntil is DateTimeOffset validUntil)
         {
@@ -581,15 +578,32 @@ internal static partial class WeatherWarningPageComposer
     private static IEnumerable<PageDraft> CreateTextPages(
         string badge,
         string[] lines,
-        string style)
+        string style,
+        WeatherWarningEvent? weather = null)
     {
-        foreach (IReadOnlyList<string> pageLines in NarrativeTextPaginator.Paginate(lines))
+        string[] names = weather?.Items.SelectMany(i => new[] { i.AreaName, GetPrefectureName(i) })
+            .Where(s => s.Length > 0).Distinct().ToArray() ?? [];
+        string context = weather is null ? string.Empty : string.Join("・",
+            weather.Items.Select(GetPrefectureName).Where(s => s.Length > 0).Distinct());
+        var pending = new List<string>();
+        int visualLines = 0;
+        int pageIndex = 0;
+        foreach (string fragment in lines.SelectMany(line => WeatherTextPagination.Split(line, names, 72)))
         {
-            yield return CreateTextPage(
-                badge,
-                pageLines.ToArray(),
-                style);
+            int height = NarrativeTextPaginator.EstimateVisualLineCount(fragment);
+            if (pending.Count > 0 && visualLines + height > 3)
+            {
+                yield return CreateTextPage(pageIndex++ > 0 && context.Length > 0 && !badge.Contains(context, StringComparison.Ordinal)
+                    ? context + "　" + badge : badge, pending.ToArray(), style);
+                pending.Clear();
+                visualLines = 0;
+            }
+            pending.Add(fragment);
+            visualLines += height;
         }
+        if (pending.Count > 0)
+            yield return CreateTextPage(pageIndex > 0 && context.Length > 0 && !badge.Contains(context, StringComparison.Ordinal)
+                ? context + "　" + badge : badge, pending.ToArray(), style);
     }
 
     private static PageDraft CreateTextPage(
@@ -673,17 +687,9 @@ internal static partial class WeatherWarningPageComposer
             yield break;
         }
 
-        for (int offset = 0; offset < areaNames.Length; offset += ReleaseAreasPerRow)
-        {
-            string areas = string.Join(
-                "、",
-                areaNames.Skip(offset).Take(ReleaseAreasPerRow));
-            string target = string.IsNullOrWhiteSpace(group.Key.PrefectureName)
-                ? areas
-                : $"{group.Key.PrefectureName}{areas}";
-            yield return new ReleasedWarningRow(
-                $"{target}の{group.Key.KindName}は解除されました");
-        }
+        foreach (string row in WeatherTextPagination.Group(areaNames, ReleaseAreasPerRow,
+                     names => $"{group.Key.PrefectureName}{string.Join("、", names)}の{group.Key.KindName}は解除されました"))
+            yield return new ReleasedWarningRow(row);
     }
 
     private static string FormatStatus(string status) => status switch

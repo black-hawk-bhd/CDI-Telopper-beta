@@ -69,6 +69,11 @@
       line-height: 1.1; text-align: center; white-space: nowrap;
       box-shadow: 3px 3px 7px rgba(0,0,0,.8); }
     #content.subtitle .badge.placeholder { visibility: hidden; }
+    #content.subtitle .block[class*="weather-"] { flex-direction: column; align-items: stretch; }
+    #content.subtitle .block[class*="weather-"] .badge { align-self: flex-start;
+      margin: 0 0 18px; max-width: 100%; white-space: normal; }
+    #content.subtitle .block[class*="weather-"] .badge.placeholder { display: none; }
+    #content.subtitle .block[class*="weather-"] .primary { white-space: pre-line; }
     #content.subtitle .primary, #content.subtitle .secondary {
       margin: 0; color: #fff; font-size: calc(58px * var(--font-scale, 1));
       line-height: calc(1.25 * var(--line-spacing, 1));
