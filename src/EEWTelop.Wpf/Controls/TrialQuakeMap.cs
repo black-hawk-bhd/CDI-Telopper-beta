@@ -15,8 +15,8 @@ internal static class TrialQuakeMap
         public Point Project(Point p)
         {
             double cosine = Math.Cos((North + South) / 2 * Math.PI / 180);
-            double scale = Math.Min(1200 / ((East - West) * cosine), 650 / (North - South));
-            return new Point(640 + (p.X - (East + West) / 2) * cosine * scale, 445 - (p.Y - (North + South) / 2) * scale);
+            double scale = Math.Min(860 / ((East - West) * cosine), 650 / (North - South));
+            return new Point(460 + (p.X - (East + West) / 2) * cosine * scale, 445 - (p.Y - (North + South) / 2) * scale);
         }
     }
     internal static readonly Extent[] Extents =
@@ -35,13 +35,39 @@ internal static class TrialQuakeMap
         ? Regions.FirstOrDefault(r => r.Code == p.SeismicAreaCode)
         : Regions.FirstOrDefault(r => r.Name == (p.IsArea ? p.Address : p.SeismicAreaName));
     internal static string? ResolveAreaCode(QuakePoint p) => Match(p)?.Code;
+    internal sealed record RegionRow(string Code, string Name, JmaScale Scale, bool Mapped)
+    {
+        public string DisplayText => $"{(Scale == JmaScale.Unknown ? "不明" : ScaleLabel(Scale))}　{Name}{(Mapped ? "" : "（地図未対応）")}";
+    }
+    internal static RegionRow[] GetRegionRows(QuakeEvent quake) => quake.IsCancelled ? [] : quake.Points
+        .Select(p => Match(p) is { } r ? new RegionRow(r.Code, r.Name, p.Scale, true)
+            : new RegionRow("", p.DisplayName, p.Scale, false))
+        .GroupBy(r => (r.Code, r.Name, r.Mapped))
+        .Select(g => g.First() with { Scale = g.Max(r => r.Scale) })
+        .OrderByDescending(r => r.Scale).ThenBy(r => r.Name, StringComparer.Ordinal).ToArray();
+
+    internal sealed record LabelCandidate(string Code, JmaScale Scale, Point Center);
+    internal static LabelCandidate[] PlaceLabels(IEnumerable<LabelCandidate> candidates, Rect bounds, Rect? reserved, string? selected)
+    {
+        var placed = new List<LabelCandidate>();
+        var occupied = new List<Rect>();
+        if (reserved is Rect obstacle) occupied.Add(obstacle);
+        foreach (var candidate in candidates.OrderByDescending(c => c.Code == selected)
+            .ThenByDescending(c => c.Scale).ThenBy(c => c.Code, StringComparer.Ordinal))
+        {
+            var box = new Rect(candidate.Center.X - 20, candidate.Center.Y - 18, 40, 36);
+            if (!bounds.Contains(box) || occupied.Any(r => r.IntersectsWith(box))) continue;
+            occupied.Add(box); placed.Add(candidate);
+        }
+        return placed.ToArray();
+    }
     internal static Extent SelectExtent(IEnumerable<Point> points)
     {
         var all = points.ToArray();
         return all.Length == 0 ? Extents[0] : Extents.Where(e => all.All(e.Contains))
             .OrderBy(e => (e.East - e.West) * (e.North - e.South)).FirstOrDefault() ?? Extents[0];
     }
-    public static DrawingImage Render(QuakeEvent quake, string? extentName = null, TrialMapPalette? colors = null)
+    public static DrawingImage Render(QuakeEvent quake, string? extentName = null, TrialMapPalette? colors = null, string? selectedRegionCode = null)
     {
         var palette = TrialMapPalette.Normalize(colors);
         var text = palette.Brush("Text");
@@ -53,6 +79,11 @@ internal static class TrialQuakeMap
         Point? epicenter = !quake.IsCancelled && hypo?.Longitude is double lon && hypo.Latitude is double lat && InBounds(lon, lat) ? new Point(lon, lat) : null;
         if (epicenter is Point ep) locations.Add(ep);
         Extent extent = Extents.FirstOrDefault(e => e.Name == extentName) ?? SelectExtent(locations);
+        var candidates = Regions.Where(r => scales.ContainsKey(r.Code) && extent.Contains(r.Center))
+            .Select(r => new LabelCandidate(r.Code, scales[r.Code], extent.Project(r.Center))).ToArray();
+        Rect? reserved = epicenter is Point epic && extent.Contains(epic)
+            ? new Rect(extent.Project(epic).X - 18, extent.Project(epic).Y - 18, 36, 36) : null;
+        var labels = PlaceLabels(candidates, new Rect(20, 110, 880, 675), reserved, selectedRegionCode);
         var drawing = new DrawingGroup();
         using (DrawingContext dc = drawing.Open())
         {
@@ -61,7 +92,9 @@ internal static class TrialQuakeMap
             Text(dc, $"{quake.IssuedAt.ToLocalTime():yyyy年M月d日 HH:mm:ss} 発表　{hypo?.Name}　［{extent.Name}］", 25, 58, 23, text);
             if (!quake.IsCancelled && (epicenter is null || !extent.Contains(epicenter.Value)))
                 Text(dc, "震央：座標不明または選択範囲外（推測表示しません）", 25, 88, 16, palette.Brush("Accent"));
-            dc.PushClip(new RectangleGeometry(new Rect(20, 110, 1240, 675)));
+            else if (!quake.IsCancelled)
+                Text(dc, "×：震央　一覧で地域を選択するとラベルを優先表示します", 25, 88, 16, text);
+            dc.PushClip(new RectangleGeometry(new Rect(20, 110, 880, 675)));
             var grid = new Pen(palette.Brush("Grid"), 1);
             if (palette.ShowGrid)
             {
@@ -85,29 +118,14 @@ internal static class TrialQuakeMap
                     var background = palette.Brush("Land").Color;
                     fill = new SolidColorBrush(Color.FromRgb((byte)(c.R * .65 + background.R * .35), (byte)(c.G * .65 + background.G * .35), (byte)(c.B * .65 + background.B * .35)));
                 }
-                dc.DrawGeometry(fill, new Pen(palette.Brush("Boundary"), .8), geometry);
+                dc.DrawGeometry(fill, new Pen(region.Code == selectedRegionCode ? palette.Brush("Accent") : palette.Brush("Boundary"), region.Code == selectedRegionCode ? 2.5 : .8), geometry);
             }
-            var occupied = new List<Point>();
-            if (epicenter is Point epic) occupied.Add(extent.Project(epic));
-            foreach (var region in Regions.Where(r => scales.ContainsKey(r.Code) && extent.Contains(r.Center)))
+            foreach (var label in labels)
             {
-                Point origin = extent.Project(region.Center), marker = origin;
-                // Displaced labels retain a leader: these are region maxima, not station positions.
-                for (int attempt = 0; attempt < 96 && occupied.Any(p => (p - marker).Length < 36); attempt++)
-                {
-                    double a = attempt * Math.PI / 4, radius = 37 * (1 + attempt / 8);
-                    marker = new Point(Math.Clamp(origin.X + Math.Cos(a) * radius, 40, 1240), Math.Clamp(origin.Y + Math.Sin(a) * radius, 135, 760));
-                }
-                if (occupied.Any(p => (p - marker).Length < 36))
-                    marker = (from y in Enumerable.Range(0, 17) from x in Enumerable.Range(0, 33)
-                              let candidate = new Point(40 + x * 36, 140 + y * 36)
-                              where occupied.All(p => (p - candidate).Length >= 36)
-                              orderby (candidate - origin).Length select candidate).First();
-                occupied.Add(marker);
-                if ((marker - origin).Length > 1) dc.DrawLine(new Pen(text, 1), origin, marker);
-                var markerBrush = palette.Scale(scales[region.Code]);
+                Point marker = label.Center;
+                var markerBrush = palette.Scale(label.Scale);
                 dc.DrawRectangle(markerBrush, new Pen(text, 1), new Rect(marker.X - 16, marker.Y - 14, 32, 28));
-                Text(dc, ScaleLabel(scales[region.Code]), marker.X - 13, marker.Y - 12, 17, TrialMapPalette.Contrast(markerBrush.Color));
+                Text(dc, ScaleLabel(label.Scale), marker.X - 13, marker.Y - 12, 17, TrialMapPalette.Contrast(markerBrush.Color));
             }
             if (epicenter is Point point && extent.Contains(point))
             {
@@ -115,15 +133,47 @@ internal static class TrialQuakeMap
                 var pen = new Pen(palette.Brush("Epicenter"), 5);
                 dc.DrawLine(pen, new(p.X - 10, p.Y - 10), new(p.X + 10, p.Y + 10));
                 dc.DrawLine(pen, new(p.X - 10, p.Y + 10), new(p.X + 10, p.Y - 10));
-                Text(dc, hypo?.Magnitude is double m ? $"M{m:0.0}" : "M不明", p.X + 15, p.Y + 10, 20, text);
             }
             dc.Pop();
+            DrawSummary(dc, quake, palette);
             Text(dc, quake.IsCancelled ? "取消電文：震央・震度を表示しません" : $"地域内最大震度（観測点の位置ではありません）　対応地域 {scales.Count}　未対応・震度不明 {quake.Points.Count - matched.Length}項目", 25, 798, 19, text);
-            Text(dc, "5−=5弱  5+=5強  5?=5弱以上未入電  6−=6弱  6+=6強　数字なし：情報なし　×：震央", 25, 829, 18, text);
+            Text(dc, $"重なり等でラベル省略：{candidates.Length - labels.Length}地域　範囲外：{scales.Count - candidates.Length}地域　全地域の震度は右側の一覧で確認できます", 25, 829, 18, text);
             Text(dc, "気象庁GIS（地震情報／細分区域）を簡略化・加工。着色は受信値であり、面的な震度推定ではありません。", 25, 859, 17, text);
         }
         drawing.Freeze();
         var image = new DrawingImage(drawing); image.Freeze(); return image;
+    }
+    private static void DrawSummary(DrawingContext dc, QuakeEvent quake, TrialMapPalette palette)
+    {
+        var summary = MapEarthquakeSummary.Create(quake);
+        var group = new DrawingGroup();
+        double y = 137;
+        using (var content = group.Open())
+        {
+            void Line(string value, double size, Brush color, int maxLines = 4)
+            {
+                var formatted = new FormattedText(value, CultureInfo.GetCultureInfo("ja-JP"), FlowDirection.LeftToRight,
+                    new Typeface("Yu Gothic UI"), size, color, 1)
+                { MaxTextWidth = 300, MaxLineCount = maxLines, Trimming = maxLines == int.MaxValue ? TextTrimming.None : TextTrimming.CharacterEllipsis };
+                content.DrawText(formatted, new Point(940, y)); y += formatted.Height + 9;
+            }
+            Line("選択電文の地震情報", 23, palette.Brush("Accent"));
+            Line("震源地", 16, palette.Brush("Accent"));
+            Line(summary.Hypocenter, 26, palette.Brush("Text"));
+            Line("マグニチュード", 16, palette.Brush("Accent"));
+            Line(summary.Magnitude, 30, palette.Brush("Text"));
+            Line("最大震度", 16, palette.Brush("Accent"));
+            Line(summary.MaximumIntensity, 28, palette.Brush("Text"));
+            Line("津波情報", 16, palette.Brush("Accent"));
+            Line(summary.Tsunami, 19, palette.Brush("Text"), int.MaxValue);
+            Line("発表時点の情報です。\n最新の津波情報を確認してください。", 14, palette.Brush("Accent"));
+        }
+        double height = y - 110;
+        dc.DrawRoundedRectangle(palette.Brush("Background"), new Pen(palette.Brush("Boundary"), 1.5), new Rect(925, 120, 330, Math.Min(650, height)), 8, 8);
+        double fit = Math.Min(1, 650 / height);
+        dc.PushTransform(new ScaleTransform(fit, fit, 925, 120));
+        dc.DrawDrawing(group);
+        dc.Pop();
     }
     private static void Text(DrawingContext dc, string text, double x, double y, double size, Brush brush)
     {

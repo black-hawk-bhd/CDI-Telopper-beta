@@ -29,6 +29,21 @@ public sealed class MapReviewWindowTests
                 Assert.IsNull(window.SelectedQuake);
                 window.Reload();
                 Assert.AreSame(quake, window.SelectedQuake);
+                string? output = Environment.GetEnvironmentVariable("EEWTELOP_RENDER_OUTPUT");
+                if (output is not null)
+                {
+                    var content = (System.Windows.FrameworkElement)window.Content;
+                    content.Measure(new System.Windows.Size(1400, 850));
+                    content.Arrange(new System.Windows.Rect(0, 0, 1400, 850));
+                    content.UpdateLayout();
+                    var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(1400, 850, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+                    bitmap.Render(content);
+                    var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                    encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+                    Directory.CreateDirectory(output);
+                    using var file = File.Create(Path.Combine(output, "map-review-list.png"));
+                    encoder.Save(file);
+                }
                 items.Clear();
                 window.Reload(quake);
                 Assert.AreSame(quake, window.SelectedQuake);

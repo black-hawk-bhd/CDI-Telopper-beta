@@ -13,6 +13,20 @@ namespace EEWTelop.Wpf.Tests;
 public sealed class TrialQuakeMapTests
 {
     [TestMethod]
+    public void CrowdedLabelsStayAtOriginAndRespectPriorityAndEpicenter()
+    {
+        TrialQuakeMap.LabelCandidate[] candidates = [new("low", JmaScale.One, new Point(100, 100)), new("high", JmaScale.Seven, new Point(105, 100)), new("epic", JmaScale.SixUpper, new Point(200, 200))];
+        var bounds = new Rect(0, 0, 400, 400);
+        var obstacle = new Rect(182, 182, 36, 36);
+        var placed = TrialQuakeMap.PlaceLabels(candidates, bounds, obstacle, null);
+        Assert.HasCount(1, placed); Assert.AreEqual("high", placed[0].Code);
+        Assert.AreEqual(candidates[1].Center, placed[0].Center);
+        placed = TrialQuakeMap.PlaceLabels(candidates.Reverse(), bounds, obstacle, "low");
+        Assert.HasCount(1, placed); Assert.AreEqual("low", placed[0].Code);
+        Assert.IsEmpty(TrialQuakeMap.PlaceLabels([new("edge", JmaScale.Seven, new Point(0, 0))], bounds, null, null));
+    }
+
+    [TestMethod]
     public void RegionMatchingUsesCodeFirstAndNeverGuessesMunicipality()
     {
         var p = new QuakePoint("石川県", "珠洲市", false, JmaScale.Four, "石川県珠洲市");
@@ -54,6 +68,14 @@ public sealed class TrialQuakeMapTests
                      new QuakePoint("神奈川県", "神奈川県東部", true, JmaScale.Four, "神奈川県東部"),
                      new QuakePoint("千葉県", "千葉県北西部", true, JmaScale.SixLower, "千葉県北西部")], "");
                 DrawingImage image = TrialQuakeMap.Render(quake);
+                var rows = TrialQuakeMap.GetRegionRows(quake);
+                Assert.HasCount(3, rows);
+                Assert.AreEqual(JmaScale.SixLower, rows[0].Scale);
+                Assert.AreEqual("千葉県北西部", rows[0].Name);
+                Assert.AreEqual(JmaScale.Four, rows[2].Scale);
+                var cancelled = new QuakeEvent(quake.Id, quake.Provider, quake.IssuedAt, quake.ReceivedAt, quake.Signature, quake.SourceMode,
+                    quake.Issue, quake.IssueType, quake.Earthquake, quake.Points, "", isCancelled: true);
+                Assert.IsEmpty(TrialQuakeMap.GetRegionRows(cancelled));
                 Assert.IsTrue(image.IsFrozen);
                 Assert.AreEqual(1280d, image.Width);
                 Assert.AreEqual(900d, image.Height);
