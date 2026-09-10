@@ -43,6 +43,10 @@ public sealed class Phase6ViewModelTests
         }
         expectedProviders.Add(ReceptionProvider.Disabled);
         expectedProviders.Add(ReceptionProvider.Wolfx);
+        if (BuildFeatures.DmdataProviderEnabled) expectedProviders.Add(ReceptionProvider.JmaXml);
+        Assert.IsFalse(editor.EewAndQuakeProviderOptions.Any(option => option.Value == ReceptionProvider.JmaXml));
+        Assert.AreEqual(BuildFeatures.DmdataProviderEnabled,
+            editor.EarthquakeProviderOptions.Any(option => option.Value == ReceptionProvider.JmaXml));
         CollectionAssert.AreEqual(expectedProviders, editor.ReceptionProviders.ToArray());
         Assert.IsTrue(editor.EewAndQuakeProviderOptions.Any(option =>
             option.Value == ReceptionProvider.Wolfx));

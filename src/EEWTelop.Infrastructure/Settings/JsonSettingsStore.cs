@@ -614,6 +614,7 @@ public sealed class JsonSettingsStore : ISettingsStore
     }
 
     private static bool IsValidProviderRouting(ProviderRoutingSettings routing) =>
+        routing.Eew != ReceptionProvider.JmaXml &&
         Enum.IsDefined(routing.Eew) &&
         Enum.IsDefined(routing.Quake) &&
         Enum.IsDefined(routing.Tsunami) &&

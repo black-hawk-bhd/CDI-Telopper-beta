@@ -88,6 +88,7 @@ public static class AppComposition
         // The isolated test library parses JMA XML in every build flavour,
         // even when a commercial provider is compiled out.
         liveNormalizers.Add(new(FileTestCaseLibrary.JmaXmlTestProviderName, jmaXmlNormalizer));
+        liveNormalizers.Add(new("jma-xml", jmaXmlNormalizer));
         if (BuildFeatures.DmdataProviderEnabled)
         {
             liveNormalizers.Add(new("dmdata.jp", jmaXmlNormalizer));
@@ -126,6 +127,9 @@ public static class AppComposition
                 clock,
                 logWriter),
         };
+        #if QTELOPPER_DMDATA_PROVIDER
+        eventSources[ReceptionProvider.JmaXml] = new JmaPullEventSource(settings.Provider, clock);
+        #endif
         if (BuildFeatures.DmdataProviderEnabled)
         {
 #if QTELOPPER_DMDATA_PROVIDER
@@ -227,6 +231,7 @@ public static class AppComposition
                 ReceptionProvider.Dmdata,
             ReceptionProvider.P2pQuake => ReceptionProvider.P2pQuake,
             ReceptionProvider.Wolfx => ReceptionProvider.Wolfx,
+            ReceptionProvider.JmaXml when BuildFeatures.DmdataProviderEnabled => ReceptionProvider.JmaXml,
             _ => ReceptionProvider.P2pQuake,
         };
 

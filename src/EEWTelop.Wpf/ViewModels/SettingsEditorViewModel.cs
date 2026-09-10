@@ -348,6 +348,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 ReceptionProvider.Dmdata => BuildFeatures.DmdataProviderEnabled,
                 ReceptionProvider.Axis => BuildFeatures.AxisProviderEnabled,
                 ReceptionProvider.Wolfx => true,
+                ReceptionProvider.JmaXml => BuildFeatures.DmdataProviderEnabled,
                 _ => false,
             })
             .ToArray();
@@ -355,14 +356,14 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public IReadOnlyList<ReceptionProviderOption> EewAndQuakeProviderOptions { get; } =
         CreateReceptionProviderOptions(includeP2p: true, includeWolfx: true);
 
-    public IReadOnlyList<ReceptionProviderOption> EarthquakeProviderOptions =>
-        EewAndQuakeProviderOptions;
+    public IReadOnlyList<ReceptionProviderOption> EarthquakeProviderOptions { get; } =
+        CreateReceptionProviderOptions(includeP2p: true, includeWolfx: true, includeJma: true);
 
     public IReadOnlyList<ReceptionProviderOption> TsunamiProviderOptions { get; } =
-        CreateReceptionProviderOptions(includeP2p: true, includeWolfx: false);
+        CreateReceptionProviderOptions(includeP2p: true, includeWolfx: false, includeJma: true);
 
     public IReadOnlyList<ReceptionProviderOption> CommercialProviderOptions { get; } =
-        CreateReceptionProviderOptions(includeP2p: false, includeWolfx: false);
+        CreateReceptionProviderOptions(includeP2p: false, includeWolfx: false, includeJma: true);
 
     public bool HasCommercialProviderOptions => CommercialProviderOptions.Any(
         static option => option.Value != ReceptionProvider.Disabled);
@@ -735,7 +736,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
             MidpointRounding.AwayFromZero) / 2;
         ProviderMode providerMode = routing.Uses(ReceptionProvider.Axis) ||
             routing.Uses(ReceptionProvider.Dmdata) ||
-            routing.Uses(ReceptionProvider.Wolfx)
+            routing.Uses(ReceptionProvider.Wolfx) || routing.Uses(ReceptionProvider.JmaXml)
             ? ProviderMode.Production
             : ProviderMode == ProviderMode.Sandbox
             ? ProviderMode.Sandbox
@@ -1512,7 +1513,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
 
     private static List<ReceptionProviderOption> CreateReceptionProviderOptions(
         bool includeP2p,
-        bool includeWolfx)
+        bool includeWolfx,
+        bool includeJma = false)
     {
         var options = new List<ReceptionProviderOption>(4)
         {
@@ -1538,6 +1540,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
             options.Add(new ReceptionProviderOption(ReceptionProvider.Dmdata, "DMDATA.JP"));
         }
 
+        if (includeJma && BuildFeatures.DmdataProviderEnabled) options.Add(new ReceptionProviderOption(ReceptionProvider.JmaXml, "気象庁XML（60秒巡回・遅延あり）"));
         return options;
     }
 
@@ -1550,6 +1553,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
             ReceptionProvider.Axis when BuildFeatures.AxisProviderEnabled =>
                 ReceptionProvider.Axis,
             ReceptionProvider.Wolfx => ReceptionProvider.Wolfx,
+            ReceptionProvider.JmaXml when BuildFeatures.DmdataProviderEnabled => ReceptionProvider.JmaXml,
             _ => ReceptionProvider.P2pQuake,
         };
 

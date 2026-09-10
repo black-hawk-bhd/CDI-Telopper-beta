@@ -21,6 +21,7 @@ public partial class ControlWindow : Window, IAsyncDisposable
     private readonly E2ETestPipeServer? _e2eTestPipeServer;
     private PreviewWindow? _previewWindow;
     private TelegramReviewWindow? _telegramReviewWindow;
+    private MapReviewWindow? _mapReviewWindow;
     private bool _disposed;
 
     public ControlWindow()
@@ -54,6 +55,7 @@ public partial class ControlWindow : Window, IAsyncDisposable
         _viewModel.Settings.PropertyChanged += OnSettingsPropertyChanged;
         _viewModel.ShowPreviewRequested += OnShowPreviewRequested;
         _viewModel.ShowTelegramReviewRequested += OnShowTelegramReviewRequested;
+        _viewModel.ShowMapReviewRequested += ShowMapReview;
         _viewModel.EditSubtitleRequested += OnEditSubtitleRequested;
         _viewModel.EditPendingSubtitleRequested += OnEditPendingSubtitleRequested;
         _viewModel.EditPreDisplaySubtitleRequested += OnEditPreDisplaySubtitleRequested;
@@ -99,6 +101,7 @@ public partial class ControlWindow : Window, IAsyncDisposable
         _disposed = true;
         _viewModel.ShowPreviewRequested -= OnShowPreviewRequested;
         _viewModel.ShowTelegramReviewRequested -= OnShowTelegramReviewRequested;
+        _viewModel.ShowMapReviewRequested -= ShowMapReview;
         _viewModel.EditSubtitleRequested -= OnEditSubtitleRequested;
         _viewModel.EditPendingSubtitleRequested -= OnEditPendingSubtitleRequested;
         _viewModel.EditPreDisplaySubtitleRequested -= OnEditPreDisplaySubtitleRequested;
@@ -118,6 +121,7 @@ public partial class ControlWindow : Window, IAsyncDisposable
         _viewModel.Settings.PropertyChanged -= OnSettingsPropertyChanged;
         _previewWindow?.Close();
         _telegramReviewWindow?.Close();
+        _mapReviewWindow?.Close();
         if (_e2eTestPipeServer is not null)
         {
             await _e2eTestPipeServer.DisposeAsync().ConfigureAwait(false);
@@ -136,6 +140,23 @@ public partial class ControlWindow : Window, IAsyncDisposable
 
         _previewWindow.Show();
         _previewWindow.Activate();
+    }
+
+    private void OnOpenMapReview(object sender, RoutedEventArgs e) => ShowMapReview(null);
+
+    private void ShowMapReview(QuakeEvent? selected)
+    {
+        if (!BuildFeatures.TrialMapEnabled) return;
+        if (_mapReviewWindow is null)
+        {
+            // No owner: minimizing the operation window must not hide this independent view.
+            _mapReviewWindow = new MapReviewWindow(() => _viewModel.ReceivedTelegrams, selected);
+            _mapReviewWindow.Closed += (_, _) => _mapReviewWindow = null;
+        }
+        else if (selected is not null) _mapReviewWindow.Reload(selected);
+        _mapReviewWindow.Show();
+        if (_mapReviewWindow.WindowState == WindowState.Minimized) _mapReviewWindow.WindowState = WindowState.Normal;
+        _mapReviewWindow.Activate();
     }
 
     private void OnShowTelegramReviewRequested()

@@ -306,6 +306,7 @@ public sealed class RoutedProviderEventSource : IEventSource,
         ReceptionProvider.Dmdata => "DMDATA.JP",
         ReceptionProvider.Axis => "AXIS",
         ReceptionProvider.Wolfx => "Wolfx",
+        ReceptionProvider.JmaXml => "気象庁XML",
         _ => provider.ToString(),
     };
 }

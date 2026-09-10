@@ -1,6 +1,7 @@
 <Window x:Class="EEWTelop.Wpf.TelegramReviewWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:EEWTelop.Wpf"
         xmlns:controls="clr-namespace:EEWTelop.Wpf.Controls"
         Title="CDI-Telopper 受信・過去電文確認"
         Icon="Assets/QTelopper.ico"
@@ -51,6 +52,7 @@
                 <Button Content="過去電文を取得"
                         Command="{Binding LoadHistoryForReviewCommand}" />
                 <Button Content="閉じる" Click="OnCloseClicked" />
+                <Button Content="試験地図（開発中）" Click="OnTrialMapClicked" IsEnabled="{x:Static local:BuildFeatures.TrialMapEnabled}" ToolTipService.ShowOnDisabled="True" ToolTip="地図機能は配布版では無効です。" />
             </StackPanel>
         </Grid>
 
@@ -128,9 +130,9 @@
                                         <StackPanel>
                                             <TextBlock Text="{Binding Header}" FontWeight="Bold"
                                                        Foreground="#FFFFC66D" Margin="0,0,0,6" />
-                                            <controls:ReviewRubyText SourceText="{Binding Title}" TextWrapping="Wrap" FontSize="18"
+                                            <controls:ReviewRubyText SourceText="{Binding Title}" Places="{Binding Places}" TextWrapping="Wrap" FontSize="18"
                                                                     FontWeight="Bold" Foreground="#FFFFC66D" />
-                                            <controls:ReviewRubyText SourceText="{Binding Text}" TextWrapping="Wrap" FontSize="16"
+                                            <controls:ReviewRubyText SourceText="{Binding Text}" Places="{Binding Places}" TextWrapping="Wrap" FontSize="16"
                                                                     FontFamily="Yu Gothic UI, Meiryo" Foreground="White" />
                                         </StackPanel>
                                     </Border>

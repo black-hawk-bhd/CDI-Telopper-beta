@@ -962,7 +962,11 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
                     address,
                     isArea,
                     scale,
-                    PlaceNormalizer.BuildDisplayName(prefecture, address, isArea));
+                    PlaceNormalizer.BuildDisplayName(prefecture, address, isArea))
+                {
+                    SeismicAreaCode = Text(element.AncestorsAndSelf().FirstOrDefault(a => a.Name.LocalName == "Area")?.Elements().FirstOrDefault(a => a.Name.LocalName == "Code")),
+                    SeismicAreaName = Text(element.AncestorsAndSelf().FirstOrDefault(a => a.Name.LocalName == "Area")?.Elements().FirstOrDefault(a => a.Name.LocalName == "Name")),
+                };
             })
             .Where(static point => !string.IsNullOrWhiteSpace(point.Address) &&
                 point.Scale != JmaScale.Unknown)

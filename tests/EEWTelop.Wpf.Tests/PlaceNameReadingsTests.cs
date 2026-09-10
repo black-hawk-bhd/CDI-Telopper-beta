@@ -42,6 +42,36 @@ public sealed class PlaceNameReadingsTests
     }
 
     [TestMethod]
+    public void RegionCodeResolvesNameAndConflictingCodesRemainPlain()
+    {
+        Assert.AreEqual("あさひまち", PlaceNameReadings.Split("朝日町", [new("朝日町", "0632300")]).Single().Reading);
+        Assert.AreEqual("あさひちょう", PlaceNameReadings.Split("朝日町", [new("朝日町", "2434300")]).Single().Reading);
+        Assert.IsNull(PlaceNameReadings.Split("朝日町", [new("朝日町", "0632300"), new("朝日町", "2434300")]).Single().Reading);
+        Assert.IsNull(PlaceNameReadings.Split("朝日町", [new("朝日町", "invalid")]).Single().Reading);
+        Assert.IsNull(PlaceNameReadings.Split("三重県 朝日町", [new("朝日町", "0632300")])[^1].Reading);
+    }
+
+    [TestMethod]
+    public void DoesNotDecorateFragmentsOfUnknownLongerNames()
+    {
+        const string text = "新下呂市 下呂市役所 市町村 町内";
+        var segments = PlaceNameReadings.Split(text);
+        Assert.AreEqual(text, string.Concat(segments.Select(s => s.Text)));
+        Assert.IsTrue(segments.All(s => s.Reading is null));
+        Assert.IsTrue(PlaceNameReadings.Split("千葉県市原市では注意").Any(s => s.Text == "市原市" && s.Reading == "いちはらし"));
+    }
+
+    [TestMethod]
+    public void GenericMunicipalWordsAreNotDecoratedAsKamigori()
+    {
+        const string text = "市町村からの避難情報。市 町 村。下呂市では注意してください。";
+        var segments = PlaceNameReadings.Split(text);
+        Assert.AreEqual(text, string.Concat(segments.Select(s => s.Text)));
+        Assert.IsTrue(segments.Where(s => s.Reading is not null).All(s => s.Text == "下呂市"));
+        Assert.AreEqual("かみごおりちょう", PlaceNameReadings.Split("兵庫県 上郡町")[^1].Reading);
+    }
+
+    [TestMethod]
     public void LongestNameWinsWithoutDecoratingItsSuffixAgain()
     {
         var segments = PlaceNameReadings.Split("千葉県 長生郡睦沢町");

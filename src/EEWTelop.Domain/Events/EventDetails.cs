@@ -31,7 +31,11 @@ public sealed record QuakePoint(
     string Address,
     bool IsArea,
     JmaScale Scale,
-    string DisplayName);
+    string DisplayName)
+{
+    public string SeismicAreaCode { get; init; } = string.Empty;
+    public string SeismicAreaName { get; init; } = string.Empty;
+}
 
 public sealed record LongPeriodIntensityArea(
     string Prefecture,

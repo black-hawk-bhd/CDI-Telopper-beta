@@ -84,6 +84,12 @@ public sealed class ProviderSelectionEventNormalizer :
             return true;
         }
 
+        if (string.Equals(provider, "jma-xml", StringComparison.OrdinalIgnoreCase))
+        {
+            receptionProvider = ReceptionProvider.JmaXml;
+            return true;
+        }
+
         receptionProvider = default;
         return false;
     }

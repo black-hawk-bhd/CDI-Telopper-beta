@@ -178,7 +178,7 @@ public sealed class EventIngestionPipeline
             CountItems(displayEvent));
     }
 
-    private static EventIngestionResult CreateResult(
+    private EventIngestionResult CreateResult(
         RawProviderMessage raw,
         EventIngestionStatus status,
         DisasterEvent? disasterEvent,
@@ -195,7 +195,7 @@ public sealed class EventIngestionPipeline
             null,
             program is null ? 0 : CountItems(disasterEvent));
 
-    private static EventIngestionResult CreateResult(
+    private EventIngestionResult CreateResult(
         RawProviderMessage raw,
         EventIngestionStatus status,
         DisasterEvent? disasterEvent,
@@ -224,7 +224,8 @@ public sealed class EventIngestionPipeline
                 disasterEvent is WeatherWarningEvent warning
                     ? warning.Items.Count(static item =>
                         item.Level == WeatherWarningLevel.Unknown)
-                    : 0),
+                    : 0,
+                _filter),
         };
 
     private static int CountItems(DisasterEvent? disasterEvent) => disasterEvent switch

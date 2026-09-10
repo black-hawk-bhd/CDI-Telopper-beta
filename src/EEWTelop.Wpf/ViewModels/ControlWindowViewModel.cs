@@ -294,6 +294,12 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     public event EventHandler? ShowPreviewRequested;
 
     public event Action? ShowTelegramReviewRequested;
+    public event Action<QuakeEvent?>? ShowMapReviewRequested;
+
+    public void RequestMapReview(QuakeEvent? selected = null)
+    {
+        if (BuildFeatures.TrialMapEnabled) ShowMapReviewRequested?.Invoke(selected);
+    }
 
     public event Action<DisplayProgram, DisplayProgram>? EditSubtitleRequested;
 

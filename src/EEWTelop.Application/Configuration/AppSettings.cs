@@ -192,6 +192,9 @@ public sealed record ProviderRoutingSettings(
                 ReceptionProvider.Disabled,
                 ReceptionProvider.Disabled),
             ReceptionProvider.Axis => AxisHybrid,
+            ReceptionProvider.JmaXml => new ProviderRoutingSettings(
+                ReceptionProvider.Disabled, ReceptionProvider.JmaXml, ReceptionProvider.JmaXml,
+                ReceptionProvider.JmaXml, ReceptionProvider.JmaXml, ReceptionProvider.JmaXml),
             ReceptionProvider.Dmdata => new ProviderRoutingSettings(
                 ReceptionProvider.Dmdata,
                 ReceptionProvider.Dmdata,
@@ -226,7 +229,9 @@ public sealed record ProviderRoutingSettings(
             .ToArray();
 
     public ReceptionProvider GetCompatibilityProvider() =>
-        Uses(ReceptionProvider.Axis)
+        Uses(ReceptionProvider.JmaXml)
+            ? ReceptionProvider.JmaXml
+            : Uses(ReceptionProvider.Axis)
             ? ReceptionProvider.Axis
             : Uses(ReceptionProvider.Dmdata)
                 ? ReceptionProvider.Dmdata
@@ -587,6 +592,7 @@ public enum ReceptionProvider
     Axis = 2,
     Disabled = 3,
     Wolfx = 4,
+    JmaXml = 5,
 }
 
 public enum DmdataAuthenticationMode

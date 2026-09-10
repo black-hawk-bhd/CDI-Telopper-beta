@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using EEWTelop.Application.Configuration;
 using EEWTelop.Domain.Events;
 
 namespace EEWTelop.Application.Events;
@@ -24,7 +25,8 @@ public sealed record ReceptionLogSummary(
         string? suppressionReason = null,
         int normalizedItemCount = 0,
         int displayedItemCount = 0,
-        int unknownWeatherItemCount = 0)
+        int unknownWeatherItemCount = 0,
+        FilterSettings? filter = null)
     {
         ArgumentNullException.ThrowIfNull(raw);
 
@@ -48,6 +50,8 @@ public sealed record ReceptionLogSummary(
             NormalizedItemCount = normalizedItemCount,
             DisplayedItemCount = displayedItemCount,
             UnknownWeatherItemCount = unknownWeatherItemCount,
+            WeatherDiagnostics = disasterEvent is WeatherWarningEvent weather
+                ? DescribeWeather(weather, filter) : string.Empty,
         };
     }
 
@@ -56,11 +60,26 @@ public sealed record ReceptionLogSummary(
     public int DisplayedItemCount { get; init; }
 
     public int UnknownWeatherItemCount { get; init; }
+    public string WeatherDiagnostics { get; init; } = string.Empty;
+
+    private static string DescribeWeather(WeatherWarningEvent weather, FilterSettings? filter)
+    {
+        var items = weather.Items;
+        int released = items.Count(i => !i.IsActive);
+        int continued = items.Count(i => i.IsActive && i.Status.Contains("継続", StringComparison.Ordinal));
+        int announced = items.Count(i => i.IsActive && !i.Status.Contains("継続", StringComparison.Ordinal) &&
+            (i.Status.Contains("発表", StringComparison.Ordinal) || i.Status.Contains("切替", StringComparison.Ordinal)));
+        string statuses = $" 気象状態件数[発表・切替={announced},継続={continued},解除・なし={released},その他={items.Count - released - continued - announced}]";
+        if (filter is null) return statuses;
+        // Item-filter exclusions only; duplicates and continuation-only suppression are not item exclusions.
+        var excluded = items.Where(i => !filter.WeatherWarning || !EventDisplayFilter.IsWeatherItemEnabled(filter, weather, i)).ToArray();
+        return statuses + $" 項目フィルター除外件数[特別警報={excluded.Count(i => i.Level == WeatherWarningLevel.SpecialWarning)},警報={excluded.Count(i => i.Level == WeatherWarningLevel.Warning)},注意報={excluded.Count(i => i.Level == WeatherWarningLevel.Advisory)},不明={excluded.Count(i => i.Level == WeatherWarningLevel.Unknown)}]";
+    }
 
     public string ToLogMessage()
     {
         DateTimeOffset localReceivedAt = ReceivedAt.ToLocalTime();
-        return string.Create(CultureInfo.InvariantCulture, $"受信時刻={localReceivedAt:yyyy-MM-dd HH:mm:ss.fff zzz} コード={ProviderCode?.ToString(CultureInfo.InvariantCulture) ?? MissingValue} イベントID={EventId} 種別={EventType} 処理結果={ProcessingResult} 報番号={ReportNumber} 正規化項目数={NormalizedItemCount} 表示項目数={DisplayedItemCount} 未知警報項目数={UnknownWeatherItemCount}");
+        return string.Create(CultureInfo.InvariantCulture, $"受信時刻={localReceivedAt:yyyy-MM-dd HH:mm:ss.fff zzz} コード={ProviderCode?.ToString(CultureInfo.InvariantCulture) ?? MissingValue} イベントID={EventId} 種別={EventType} 処理結果={ProcessingResult} 報番号={ReportNumber} 正規化項目数={NormalizedItemCount} 表示項目数={DisplayedItemCount} 未知警報項目数={UnknownWeatherItemCount}") + WeatherDiagnostics;
     }
 
     private static SafeEnvelope ReadSafeEnvelope(string json)

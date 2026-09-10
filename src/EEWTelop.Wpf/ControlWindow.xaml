@@ -1,6 +1,7 @@
 <Window x:Class="EEWTelop.Wpf.ControlWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:EEWTelop.Wpf"
         xmlns:audio="clr-namespace:EEWTelop.Application.Audio;assembly=EEWTelop.Application"
         Title="CDI-Telopper 操作画面"
         Icon="Assets/QTelopper.ico"
@@ -194,6 +195,7 @@
                     <StackPanel>
                         <TextBlock Text="出力" FontSize="18" FontWeight="Bold" Margin="0,0,0,12" />
                         <Button Content="プレビューを表示" Style="{StaticResource PrimaryButton}" Command="{Binding ShowPreviewCommand}" />
+                        <Button Content="地図確認ウインドウ（開発中）" Click="OnOpenMapReview" IsEnabled="{x:Static local:BuildFeatures.TrialMapEnabled}" ToolTipService.ShowOnDisabled="True" ToolTip="地図機能は配布版では無効です。コードは開発用に保持しています。" />
                         <Button Content="表示中の字幕を編集"
                                 ToolTip="バッジ・本文・補足文をページごとに編集します。新着・更新情報の受信時に元の表示へ戻ります。"
                                 Command="{Binding EditSubtitleCommand}" />
@@ -279,7 +281,7 @@
                                                   SelectedValue="{Binding Settings.EewProvider}" />
                                         <TextBlock Grid.Row="1" Text="地震情報" VerticalAlignment="Center" />
                                         <ComboBox Grid.Row="1" Grid.Column="1"
-                                                  ItemsSource="{Binding Settings.EewAndQuakeProviderOptions}"
+                                                  ItemsSource="{Binding Settings.EarthquakeProviderOptions}"
                                                   DisplayMemberPath="Label" SelectedValuePath="Value"
                                                   SelectedValue="{Binding Settings.QuakeProvider}" />
                                         <TextBlock Grid.Row="2" Text="津波情報" VerticalAlignment="Center" />
@@ -309,6 +311,7 @@
                                                   SelectedValue="{Binding Settings.NankaiTroughProvider}"
                                                   Visibility="{Binding Settings.HasCommercialProviderOptions, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                     </Grid>
+                                    <TextBlock Text="気象庁XML：手動切替・60秒巡回。EEWは対象外です。公開の遅延・停止や、長時間の停止中の取りこぼしがあり、即時配信は保証されません。接続前の電文は新着表示しません。" TextWrapping="Wrap" Foreground="Orange" Margin="0,8,0,8" />
                                     <StackPanel Visibility="{Binding Settings.IsP2pProvider, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <TextBlock Text="P2P地震情報 API" FontWeight="Bold" />
                                         <TextBlock Text="運用モード（接続先プリセット）" Foreground="{StaticResource MutedBrush}" />

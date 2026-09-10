@@ -13,6 +13,40 @@ namespace EEWTelop.Infrastructure.Dmdata.Tests;
 public sealed class JmaXmlEventNormalizerTests
 {
     [TestMethod]
+    public void WarningReleaseRemainsVisibleWhenAdvisoriesAreDisabled()
+    {
+        const string xml = """
+            <Report><Control><Title>気象警報・注意報（Ｒ０６）（大雨）</Title><Status>通常</Status><PublishingOffice>気象台</PublishingOffice></Control>
+            <Head><ReportDateTime>2026-09-09T15:14:00+09:00</ReportDateTime><InfoType>発表</InfoType><Headline><Text>警報・注意報を解除します。</Text></Headline></Head>
+            <Body><Warning type="気象警報・注意報（市町村等）">
+            <Item><Kind><Status>解除</Status><Name>レベル３大雨警報</Name><Code>03</Code><LastKind><Name>レベル３大雨警報</Name><Code>03</Code></LastKind></Kind><Area><Name>和歌山市</Name><Code>3020100</Code></Area></Item>
+            <Item><Kind><Status>解除</Status><Name>レベル２大雨注意報</Name><Code>10</Code><LastKind><Name>レベル２大雨注意報</Name><Code>10</Code></LastKind></Kind><Area><Name>海南市</Name><Code>3020200</Code></Area></Item>
+            </Warning></Body></Report>
+            """;
+        var normalizer = new JmaXmlEventNormalizer(new EventSignatureBuilder());
+        var raw = new RawProviderMessage("axis", xml, SourceMode.Production, DateTimeOffset.UtcNow) { ContentFormat = RawProviderContentFormat.JmaXml };
+        var weather = Assert.IsInstanceOfType<WeatherWarningEvent>(normalizer.Normalize(raw).Event);
+        var filter = AppSettings.CreateDefault().Filter with { WeatherAdvisories = false, WeatherWarnings = true, HideWeatherContinuationOnly = true };
+        var visible = Assert.IsInstanceOfType<WeatherWarningEvent>(EventDisplayFilter.Apply(filter, weather));
+        Assert.HasCount(1, visible.Items);
+        Assert.AreEqual(WeatherWarningLevel.Warning, visible.Items[0].Level);
+        string caption = string.Join(" ", new PageComposer().Compose(visible, AppSettings.CreateDefault().Display).Pages.Select(p => p.AccessibleText));
+        Assert.Contains("解除されました", caption);
+        Assert.DoesNotContain("海南市", caption);
+
+        // Optional local evidence is never checked in with the test suite.
+        string? sample = Environment.GetEnvironmentVariable("EEWTELOP_WARNING_RELEASE_SAMPLE");
+        if (!string.IsNullOrEmpty(sample))
+        {
+            var actual = Assert.IsInstanceOfType<WeatherWarningEvent>(normalizer.Normalize(raw with { Json = File.ReadAllText(sample) }).Event);
+            var actualVisible = Assert.IsInstanceOfType<WeatherWarningEvent>(EventDisplayFilter.Apply(filter, actual));
+            Assert.IsTrue(actualVisible.Items.Any(i => !i.IsActive && i.Level == WeatherWarningLevel.Warning));
+            Assert.IsFalse(actualVisible.Items.Any(i => i.Level == WeatherWarningLevel.Advisory));
+            Assert.Contains("解除されました", string.Join(" ", new PageComposer().Compose(actualVisible, AppSettings.CreateDefault().Display).Pages.Select(p => p.AccessibleText)));
+        }
+    }
+
+    [TestMethod]
     public void TestLibraryJmaXmlProviderIsNormalizedForDisconnectedRehearsal()
     {
         const string xml = """
@@ -560,7 +594,7 @@ public sealed class JmaXmlEventNormalizerTests
                 <Intensity>
                   <Observation>
                     <MaxInt>4</MaxInt>
-                    <Pref><Name>石川県</Name><Area><Name>能登</Name><City><Name>珠洲市</Name><MaxInt>4</MaxInt></City></Area></Pref>
+                    <Pref><Name>石川県</Name><Area><Name>石川県能登</Name><Code>390</Code><City><Name>珠洲市</Name><MaxInt>4</MaxInt></City></Area></Pref>
                   </Observation>
                 </Intensity>
                 <Comments>
@@ -587,6 +621,8 @@ public sealed class JmaXmlEventNormalizerTests
         Assert.AreEqual(DomesticTsunami.None, quake.Earthquake.DomesticTsunami);
         Assert.HasCount(1, quake.Points);
         Assert.AreEqual("石川県珠洲市", quake.Points[0].DisplayName);
+        Assert.AreEqual("390", quake.Points[0].SeismicAreaCode);
+        Assert.AreEqual("石川県能登", quake.Points[0].SeismicAreaName);
     }
 
     [TestMethod]

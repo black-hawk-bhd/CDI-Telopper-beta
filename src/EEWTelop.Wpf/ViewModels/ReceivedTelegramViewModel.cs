@@ -1,5 +1,6 @@
 using EEWTelop.Application.Display;
 using EEWTelop.Domain.Events;
+using EEWTelop.Wpf.Controls;
 
 namespace EEWTelop.Wpf.ViewModels;
 
@@ -67,8 +68,17 @@ public sealed class ReceivedTelegramViewModel
                 : page.AccessibleText,
             Event is WeatherWarningEvent
                 ? string.Join(" ／ ", page.Blocks.Select(b => b.Badge).Where(b => b.Length > 0).Distinct())
-                : string.Empty))
+                : string.Empty) { Places = GetReviewPlaces() })
         .ToArray();
+
+    private ReviewPlace[] GetReviewPlaces() => Event switch
+    {
+        WeatherWarningEvent weather => weather.Items.Select(i => new ReviewPlace(i.AreaName, i.AreaCode))
+            .Concat(weather.RiverFlood?.Districts.Select(d => new ReviewPlace(d.City, d.CityCode)) ?? [])
+            .Distinct().ToArray(),
+        VolcanoEvent volcano => volcano.TargetAreas.Select(a => new ReviewPlace(a.Name, a.Code)).Distinct().ToArray(),
+        _ => [],
+    };
 
     private static string GetKindText(EventKind kind) => kind switch
     {
@@ -81,4 +91,7 @@ public sealed class ReceivedTelegramViewModel
     };
 }
 
-public sealed record TelegramPageReviewViewModel(string Header, string Text, string Title = "");
+public sealed record TelegramPageReviewViewModel(string Header, string Text, string Title = "")
+{
+    public IReadOnlyList<ReviewPlace> Places { get; init; } = [];
+}

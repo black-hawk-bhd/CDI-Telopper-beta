@@ -668,6 +668,23 @@ public sealed class EventIngestionPipelineTests
             block.StyleToken == DisplayStyleTokens.EewHeader));
     }
 
+    [TestMethod]
+    public void ReceptionDiagnosticsCountReleasedAdvisoriesWithoutChangingFilter()
+    {
+        var weather = CreateWeatherInformation(WeatherInformationType.WarningAndAdvisory,
+        [
+            WeatherItem("熊本市", "43100", "大雨警報", WeatherWarningLevel.Warning),
+            WeatherItem("熊本市", "43100", "暴風警報", WeatherWarningLevel.Warning, "継続"),
+            WeatherItem("熊本市", "43100", "雷注意報", WeatherWarningLevel.Advisory, "解除") with { IsActive = false },
+        ]);
+        var summary = ReceptionLogSummary.Create(
+            new RawProviderMessage("axis", "{}", SourceMode.Production, weather.ReceivedAt),
+            weather, EventIngestionStatus.Accepted,
+            filter: new FilterSettings(true, true, true) { WeatherWarnings = true, WeatherAdvisories = false });
+        Assert.Contains("発表・切替=1,継続=1,解除・なし=1,その他=0", summary.ToLogMessage());
+        Assert.Contains("特別警報=0,警報=0,注意報=1,不明=0", summary.ToLogMessage());
+    }
+
     private static RawProviderMessage CreateRaw(FakeClock clock, string payload) => new(
         "p2pquake",
         payload,

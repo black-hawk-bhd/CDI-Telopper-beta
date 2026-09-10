@@ -51,6 +51,7 @@ $msbuildProperties = @(
     "-p:AxisProviderEnabled=$AxisProviderEnabled",
     "-p:DmdataProviderEnabled=$DmdataProviderEnabled",
     "-p:ExtendedFeaturesEnabled=$ExtendedFeaturesEnabled",
+    '-p:TrialMapEnabled=false',
     '-p:NuGetAudit=false'
 )
 $enabledProviders = @('P2PQuake', 'Wolfx')

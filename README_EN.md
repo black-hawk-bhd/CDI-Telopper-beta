@@ -1,6 +1,10 @@
 # CDI-Telopper
 
+The experimental map is disabled in normal and distribution builds. Its buttons remain disabled; source, geographic data and tests are retained for development. This source-only update does not replace the published release binaries.
+
 English | [日本語](README.md)
+
+Unreleased: “気象庁XML” is a manually selected, unauthenticated JMA XML pull provider for existing supported non-EEW categories. Select it in reception settings and save. Polling occurs at intervals of at least 60 seconds. Telegrams predating the initial connection are not displayed as new alerts. Publication may be delayed or interrupted; long outages may cause missed messages. There is no automatic AXIS failover. This feature is not included in published beta.40. See [JMA's usage notes](https://xml.kishou.go.jp/xmlpull.html).
 
 **Comprehensive Disaster Information Telopper (CDI-Telopper)** is a Windows application that receives disaster information related to earthquakes, tsunamis, weather, volcanoes, and the Nankai Trough, then generates captions for OBS.
 

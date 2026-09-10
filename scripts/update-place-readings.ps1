@@ -11,9 +11,13 @@ function Convert-ToHiragana([string]$value) {
 foreach ($row in $rows) {
     [void]$entries.Add("$($row.Pref)`t$($row.Pref)`t$(Convert-ToHiragana $row.PrefKana)")
     [void]$entries.Add("$($row.Pref)`t$($row.City)`t$(Convert-ToHiragana $row.CityKana)")
-    if ($row.City -match '^.+郡(.+)$' -and $row.CityKana -match '^.+グン(.+)$') {
-        $shortName = $row.City.Substring($row.City.LastIndexOf('郡') + 1)
-        $shortKana = $Matches[1]
+    # Split at the county suffix, not a later 郡 inside the municipality (上郡町).
+    $countyName = [regex]::Match($row.City, '^.+?郡(.+[町村])$')
+    $countyKana = [regex]::Match($row.CityKana, '^.+?グン(.+)$')
+    if ($countyName.Success -and $countyKana.Success) {
+        $shortName = $countyName.Groups[1].Value
+        $shortKana = $countyKana.Groups[1].Value
+        if ($shortName.Length -lt 2) { continue }
         [void]$entries.Add("$($row.Pref)`t$shortName`t$(Convert-ToHiragana $shortKana)")
     }
 }

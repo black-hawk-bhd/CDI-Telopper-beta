@@ -88,7 +88,7 @@ public static class EventDisplayFilter
             _ => true,
         };
 
-    private static bool IsWeatherItemEnabled(
+    internal static bool IsWeatherItemEnabled(
         FilterSettings filter,
         WeatherWarningEvent weather,
         WeatherWarningItem item)

@@ -17,12 +17,22 @@ public sealed class ReviewRubyText : TextBlock
         set => SetValue(SourceTextProperty, value);
     }
 
+    public static readonly DependencyProperty PlacesProperty = DependencyProperty.Register(
+        nameof(Places), typeof(IReadOnlyList<ReviewPlace>), typeof(ReviewRubyText),
+        new PropertyMetadata(null, OnSourceTextChanged));
+
+    public IReadOnlyList<ReviewPlace>? Places
+    {
+        get => (IReadOnlyList<ReviewPlace>?)GetValue(PlacesProperty);
+        set => SetValue(PlacesProperty, value);
+    }
+
     private static void OnSourceTextChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
     {
         var control = (ReviewRubyText)sender;
         control.Inlines.Clear();
-        AutomationProperties.SetName(control, args.NewValue as string ?? string.Empty);
-        foreach (var segment in PlaceNameReadings.Split(args.NewValue as string))
+        AutomationProperties.SetName(control, control.SourceText ?? string.Empty);
+        foreach (var segment in PlaceNameReadings.Split(control.SourceText, control.Places))
         {
             if (segment.Reading is null)
             {
