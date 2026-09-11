@@ -1,17 +1,17 @@
 # CDI-Telopper
 
-The experimental map is disabled in normal and distribution builds. Its buttons remain disabled; source, geographic data and tests are retained for development. This source-only update does not replace the published release binaries.
+The experimental map is disabled in normal and distribution builds. Its buttons remain disabled; source, geographic data and tests are retained for development. Beta.41 distribution packages also disable the map.
 
 English | [日本語](README.md)
 
-Unreleased: “気象庁XML” is a manually selected, unauthenticated JMA XML pull provider for existing supported non-EEW categories. Select it in reception settings and save. Polling occurs at intervals of at least 60 seconds. Telegrams predating the initial connection are not displayed as new alerts. Publication may be delayed or interrupted; long outages may cause missed messages. There is no automatic AXIS failover. This feature is not included in published beta.40. See [JMA's usage notes](https://xml.kishou.go.jp/xmlpull.html).
+Beta.41 fixes JMA XML telegrams being rejected before normalization. “気象庁XML” is a manually selected, unauthenticated JMA XML pull provider for existing supported non-EEW categories. Select it in reception settings and save. Polling occurs at intervals of at least 60 seconds. Telegrams predating the initial connection are not displayed as new alerts. Publication may be delayed or interrupted; long outages may cause missed messages. There is no automatic AXIS failover. See [JMA's usage notes](https://xml.kishou.go.jp/xmlpull.html).
 
 **Comprehensive Disaster Information Telopper (CDI-Telopper)** is a Windows application that receives disaster information related to earthquakes, tsunamis, weather, volcanoes, and the Nankai Trough, then generates captions for OBS.
 
-The current public release is **2.0.0-beta.40**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.41**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.40](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.40)
-- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.40.txt)
+- [Download 2.0.0-beta.41](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.41)
+- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.41.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
@@ -136,15 +136,15 @@ Building requires Windows 10/11 x64, the .NET 8 SDK, and PowerShell. Visual Stud
 powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
-The script restores dependencies, builds every project in the Release configuration, and runs the automated tests. The beta.40 source currently has 530 verified tests.
+The script restores dependencies, builds every project in the Release configuration, and runs the automated tests. The beta.41 source currently has 548 verified tests.
 
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.40
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.41
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.40\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.41\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
 
 ## License and attribution
 

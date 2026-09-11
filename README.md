@@ -4,18 +4,18 @@
 
 Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津波・気象・火山・南海トラフに関する防災情報を受信し、OBS向け字幕として出力するWindowsアプリです。
 
-現在の公開版は **2.0.0-beta.40** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
+現在の公開版は **2.0.0-beta.41** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
 
-- [2.0.0-beta.40をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.40)
-- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.40.txt)
+- [2.0.0-beta.41をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.41)
+- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.41.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
 - [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
 
 ## 主な機能
 
-地図は開発途中のため、通常ビルド・配布ビルドでは無効です。関連ボタンはグレー表示され、地図コード・境界データ・テストのみ保持しています。[開発用の説明](docs/trial-seismic-map.md)。今回の更新はソースのみで、公開済みReleasesの実行ファイルは更新していません。
+地図は開発途中のため、通常ビルド・配布ビルドでは無効です。関連ボタンはグレー表示され、地図コード・境界データ・テストのみ保持しています。[開発用の説明](docs/trial-seismic-map.md)。beta.41の配布版も地図機能は無効です。
 
-開発版では受信元に「気象庁XML」を追加しています（公開済みbeta.40には未収録）。設定の受信元で手動選択し「保存して反映」を押してください。EEW以外の既存対応情報を、公式の高頻度フィードから60秒以上の間隔で取得します。認証は不要です。接続前の電文は新着として表示しません。掲載遅延・停止があり、長時間の受信停止中の電文をすべて補完する機能ではありません。AXIS障害の自動判定・自動切替は行いません。[気象庁の利用上の注意](https://xml.kishou.go.jp/xmlpull.html)も確認してください。
+beta.41では気象庁XMLの受信電文が解析前に除外される不具合を修正しました。受信元に「気象庁XML」を選択できます。設定の受信元で手動選択し「保存して反映」を押してください。EEW以外の既存対応情報を、公式の高頻度フィードから60秒以上の間隔で取得します。認証は不要です。接続前の電文は新着として表示しません。掲載遅延・停止があり、長時間の受信停止中の電文をすべて補完する機能ではありません。AXIS障害の自動判定・自動切替は行いません。[気象庁の利用上の注意](https://xml.kishou.go.jp/xmlpull.html)も確認してください。
 
 beta.40では気象字幕を上段見出し＋全幅本文へ刷新しました。地名・括弧内を保護し、地域一覧は表示幅で分割します。指定河川洪水予報（VXKO50～89）に対応しました。河川見出し、観測所別の浸水想定地区、レベル4・5の主文を表示し、一文を優先し、長文のみ分割します。警報から注意報への切替と解除・取消を区別します。
 
@@ -149,15 +149,15 @@ GitHub Releasesの配布物は.NET 8自己完結型です。通常利用ではVi
 powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
-このスクリプトは依存関係を復元し、Release構成で全プロジェクトをビルドして、自動テストを実行します。現在のbeta.40では530件のテストを確認しています。
+このスクリプトは依存関係を復元し、Release構成で全プロジェクトをビルドして、自動テストを実行します。現在のbeta.41では548件のテストを確認しています。
 
 配布物を作成する場合は次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.40
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.41
 ```
 
-フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.40\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
+フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.41\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
 
 ## 開発者向け資料
 

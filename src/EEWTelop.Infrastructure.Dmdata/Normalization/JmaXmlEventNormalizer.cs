@@ -22,6 +22,7 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
     {
         ArgumentNullException.ThrowIfNull(raw);
         if (!string.Equals(raw.Provider, "dmdata.jp", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(raw.Provider, "jma-xml", StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(raw.Provider, "nii-jma-xml", StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(raw.Provider, "local-jma-xml", StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(raw.Provider, "test-library-jma-xml", StringComparison.OrdinalIgnoreCase) &&

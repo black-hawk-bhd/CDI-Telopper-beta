@@ -1,6 +1,10 @@
 using System.Net;
 using EEWTelop.Application.Abstractions;
 using EEWTelop.Application.Configuration;
+using EEWTelop.Application.Display;
+using EEWTelop.Application.Events;
+using EEWTelop.Domain.Events;
+using EEWTelop.Infrastructure.Dmdata.Normalization;
 using EEWTelop.Infrastructure.Dmdata.Transport;
 
 namespace EEWTelop.Infrastructure.Dmdata.Tests;
@@ -39,7 +43,18 @@ public sealed class JmaPullEventSourceTests
             Routing = ProviderRoutingSettings.Default with { Weather = ReceptionProvider.JmaXml },
         }, clock, new HttpClient(handler));
         Assert.AreEqual(0, (await source.PollAsync(clock.UtcNow, default)).Count);
-        Assert.AreEqual(1, (await source.PollAsync(clock.UtcNow, default)).Count);
+        var received = await source.PollAsync(clock.UtcNow, default);
+        Assert.AreEqual(1, received.Count);
+        Assert.AreEqual("jma-xml", received[0].Provider);
+        var normalizer = new JmaXmlEventNormalizer(new EventSignatureBuilder());
+        var result = normalizer.Normalize(received[0]);
+        Assert.AreEqual(NormalizeStatus.Success, result.Status);
+        var weather = Assert.IsInstanceOfType<WeatherWarningEvent>(result.Event);
+        var settings = AppSettings.CreateDefault();
+        var visible = Assert.IsInstanceOfType<WeatherWarningEvent>(EventDisplayFilter.Apply(settings.Filter, weather));
+        string caption = string.Join(" ", new PageComposer().Compose(visible, settings.Display).Pages.Select(p => p.AccessibleText));
+        Assert.Contains("大雨", caption);
+        Assert.Contains("和歌山市", caption);
         Assert.AreEqual(0, (await source.PollAsync(clock.UtcNow, default)).Count);
         Assert.AreEqual(2, handler.XmlRequests);
     }
@@ -58,7 +73,13 @@ public sealed class JmaPullEventSourceTests
                     </feed>
                     """) });
             XmlRequests++;
-            return Task.FromResult(new HttpResponseMessage(XmlRequests == 1 ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.OK) { Content = new StringContent("<Report/>") });
+            return Task.FromResult(new HttpResponseMessage(XmlRequests == 1 ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.OK) { Content = new StringContent("""
+                <Report><Control><Title>気象警報・注意報（Ｒ０６）（大雨）</Title><Status>通常</Status><PublishingOffice>和歌山地方気象台</PublishingOffice></Control>
+                <Head><ReportDateTime>2026-09-09T09:01:00+09:00</ReportDateTime><InfoType>発表</InfoType></Head>
+                <Body><Warning type="気象警報・注意報（市町村等）">
+                <Item><Kind><Status>発表</Status><Name>レベル３大雨警報</Name><Code>03</Code></Kind><Area><Name>和歌山市</Name><Code>3020100</Code></Area></Item>
+                </Warning></Body></Report>
+                """) });
         }
     }
     private sealed class FakeClock : IClock
