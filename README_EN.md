@@ -29,7 +29,7 @@ Beta.38 adds place-name furigana only to the telegram review window and fixes en
 Beta.37 removes the three generic earthquake pages from large-scale eruption reports received as VXSE53 XML through AXIS and other XML sources. Captions begin with the eruption narrative and retain the full tide observations and tsunami arrival estimates. Antivirus exclusion instructions have also been removed from the distribution documentation.
 
 - Receives and generates captions for EEW, earthquake, tsunami, weather, volcano, and Nankai Trough information
-- Selects P2PQuake, DMDATA.JP, AXIS, Wolfx, or “Do not receive” separately for each supported information category
+- Selects P2PQuake, DMDATA.JP, AXIS, Wolfx, JMA XML (non-EEW), or “Do not receive” separately for each supported information category
 - Does not connect to a provider API when none of the selected categories require it
 - Handles updates, cancellations, lifted warnings and advisories, duplicates, and superseded reports for the same event
 - Shows the affected area and warning or advisory type when a warning is cleared
@@ -47,9 +47,11 @@ Beta.37 removes the three generic earthquake pages from large-scale eruption rep
 | EEW | P2P EEW, VXSE43, VXSE45 containing a warning, AXIS `eew`, Wolfx JMA EEW |
 | Earthquake | VXSE51, VXSE52, VXSE53, VXSE62, VYSE60, P2P and Wolfx JMA earthquake information |
 | Tsunami | VTSE41, VTSE51, VTSE52, P2P tsunami information |
-| Weather | VPWW55–61, VPOA50, VPBS50/51, VPHW50/51 |
+| Weather | VPWW55–61, VPWS50, VPBS50/51, VPHW50/51, VXKO50–89 (provider-dependent) |
 | Volcano | VFVO50, VFVO56 |
 | Nankai Trough | VYSE50 |
+
+VPOA50 parsing remains available for past telegrams, but JMA XML and AXIS exclude it from new reception. DMDATA settings are unchanged.
 
 Not every message delivered by a provider is converted into a caption. Messages may be excluded when they come from an unselected provider, use an unsupported format, do not meet the EEW warning criteria, are disabled by display filters, are damaged, duplicate an existing message, or have been superseded.
 
@@ -62,6 +64,18 @@ EEW audio has priority over all earthquake, tsunami, and weather audio. When an 
 When redisplaying a telegram from the review window, choose one of three purposes. A live-information repeat badge shows only the telegram's issue time; past-information and training badges show both the purpose and issue time. Only telegrams actually received in production can use the live-information repeat mode; messages loaded from a history provider cannot be presented as live repeats.
 
 ## Reception providers
+
+### JMA XML (direct PULL feed)
+
+An unauthenticated provider that retrieves XML directly from JMA's public feeds. CDI-Telopper is not an official JMA application.
+
+- Supports the application's existing earthquake, tsunami, weather (including designated-river floods), volcano and Nankai Trough categories. **EEW is excluded.**
+- Select “気象庁XML（60秒巡回・遅延あり）” per category and save. There is no automatic failover.
+- Waits 60 seconds after each polling cycle. Weather uses `extra.xml`; earthquake, tsunami, volcano and Nankai Trough share `eqvol.xml`. Each required feed is checked once per cycle, regardless of how many categories select it. New telegram bodies require separate requests.
+- Excludes `VPWW53`, `VPWW54` and `VPOA50`. Downloaded URLs are deduplicated within the retained history; failed downloads are retried on a later cycle.
+- Publication can be delayed or interrupted. Pre-connection telegrams are not presented as new alerts, and long outages are not fully backfilled. “Connected” indicates successful polling, not a guarantee of new messages or captions.
+
+[JMA feed documentation and usage notes](https://xml.kishou.go.jp/xmlpull.html)
 
 ### P2PQuake API
 
@@ -100,7 +114,7 @@ Create the following four browser sources in OBS. Each source is designed for a 
 
 Only **CDI-Telopper 地震字幕・全ての音声** should appear as an audio source in the OBS mixer. Disable audio control for the other three sources. OBS WebSocket synchronization can create missing sources, update the URLs that change at each application start, and migrate legacy source names.
 
-Earthquake and tsunami maps and the always-on desktop overlay have been removed. Use the preview and the live/past telegram review window for on-PC confirmation.
+Legacy OBS map output and the always-on desktop overlay have been removed. Experimental map code is retained but disabled in distribution builds. Use the preview and the live/past telegram review window for on-PC confirmation.
 
 ## System requirements
 

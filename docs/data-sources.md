@@ -1,5 +1,19 @@
 # Data sources and attribution
 
+## JMA XML (direct PULL feed)
+
+An unauthenticated provider that retrieves XML directly from JMA's public feeds. CDI-Telopper is not an official JMA application.
+
+- Supports the application's existing earthquake, tsunami, weather (including designated-river floods), volcano and Nankai Trough categories. **EEW is excluded.**
+- Select “気象庁XML（60秒巡回・遅延あり）” per category and save. There is no automatic failover.
+- Waits 60 seconds after each polling cycle. Weather uses `extra.xml`; earthquake, tsunami, volcano and Nankai Trough share `eqvol.xml`. Each required feed is checked once per cycle, regardless of how many categories select it. New telegram bodies require separate requests.
+- Excludes `VPWW53`, `VPWW54` and `VPOA50`. Downloaded URLs are deduplicated within the retained history; failed downloads are retried on a later cycle.
+- Publication can be delayed or interrupted. Pre-connection telegrams are not presented as new alerts, and long outages are not fully backfilled. “Connected” indicates successful polling, not a guarantee of new messages or captions.
+
+[JMA feed documentation and usage notes](https://xml.kishou.go.jp/xmlpull.html)
+
+
+
 ## Place-name ruby in telegram review
 
 The telegram review window uses bundled prefecture and municipality readings
