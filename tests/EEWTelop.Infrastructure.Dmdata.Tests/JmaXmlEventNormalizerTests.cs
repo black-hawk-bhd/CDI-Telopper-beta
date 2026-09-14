@@ -31,7 +31,7 @@ public sealed class JmaXmlEventNormalizerTests
         Assert.HasCount(1, visible.Items);
         Assert.AreEqual(WeatherWarningLevel.Warning, visible.Items[0].Level);
         string caption = string.Join(" ", new PageComposer().Compose(visible, AppSettings.CreateDefault().Display).Pages.Select(p => p.AccessibleText));
-        Assert.Contains("解除されました", caption);
+        Assert.Contains("｜解除", caption);
         Assert.DoesNotContain("海南市", caption);
 
         // Optional local evidence is never checked in with the test suite.
@@ -42,7 +42,7 @@ public sealed class JmaXmlEventNormalizerTests
             var actualVisible = Assert.IsInstanceOfType<WeatherWarningEvent>(EventDisplayFilter.Apply(filter, actual));
             Assert.IsTrue(actualVisible.Items.Any(i => !i.IsActive && i.Level == WeatherWarningLevel.Warning));
             Assert.IsFalse(actualVisible.Items.Any(i => i.Level == WeatherWarningLevel.Advisory));
-            Assert.Contains("解除されました", string.Join(" ", new PageComposer().Compose(actualVisible, AppSettings.CreateDefault().Display).Pages.Select(p => p.AccessibleText)));
+            Assert.Contains("｜解除", string.Join(" ", new PageComposer().Compose(actualVisible, AppSettings.CreateDefault().Display).Pages.Select(p => p.AccessibleText)));
         }
     }
 
@@ -1049,7 +1049,7 @@ public sealed class JmaXmlEventNormalizerTests
         Assert.AreEqual(OverlayPriority.WeatherSpecialWarning, program.Priority);
         Assert.IsTrue(program.Pages.SelectMany(page => page.Blocks).Any(block =>
             block.StyleToken == DisplayStyleTokens.WeatherSpecialWarning &&
-            block.Badge == "大雨特別警報"));
+            block.Badge.StartsWith("大雨特別警報　", StringComparison.Ordinal)));
     }
 
     [TestMethod]
@@ -1109,7 +1109,7 @@ public sealed class JmaXmlEventNormalizerTests
             weather,
             AppSettings.CreateDefault().Display);
         Assert.AreEqual(
-            "栃木県足利市のレベル２大雨注意報は解除されました",
+            "足利市",
             program.Pages[0].Blocks[0].PrimaryText);
         Assert.DoesNotContain("090000", program.Pages[0].AccessibleText);
         Assert.DoesNotContain("0920200", program.Pages[0].AccessibleText);
@@ -1180,8 +1180,8 @@ public sealed class JmaXmlEventNormalizerTests
             .Compose(weather, AppSettings.CreateDefault().Display)
             .Pages[0]
             .Blocks[0];
-        Assert.AreEqual("レベル２土砂災害注意報", block.Badge);
-        Assert.AreEqual("山形県　最上町　新たに発表", block.PrimaryText);
+        Assert.AreEqual("レベル２土砂災害注意報　山形県　｜新たに発表", block.Badge);
+        Assert.AreEqual("最上町", block.PrimaryText);
         Assert.DoesNotContain("060000", block.PrimaryText);
         Assert.DoesNotContain("0636200", block.PrimaryText);
     }
@@ -1370,7 +1370,7 @@ public sealed class JmaXmlEventNormalizerTests
             weather,
             AppSettings.CreateDefault().Display);
         Assert.AreEqual(
-            "熊本県熊本市のレベル４大雨危険警報は解除されました",
+            "熊本市",
             program.Pages[0].Blocks[0].PrimaryText);
     }
 

@@ -25,7 +25,8 @@ public sealed class AxisRecoveryAndPolicyTests
         Assert.IsTrue(AxisWeatherTelegramPolicy.ShouldAccept("VPWW59"));
         Assert.IsTrue(AxisWeatherTelegramPolicy.ShouldAccept("VPWW60"));
         Assert.IsTrue(AxisWeatherTelegramPolicy.ShouldAccept("VPWW61"));
-        Assert.IsTrue(AxisWeatherTelegramPolicy.ShouldAccept("VPOA50"));
+        Assert.IsFalse(AxisWeatherTelegramPolicy.ShouldAccept("VPOA50"));
+        Assert.IsFalse(AxisWeatherTelegramPolicy.ShouldAccept(" vpoa50 "));
         Assert.AreEqual(
             "VPWW55",
             AxisWeatherTelegramPolicy.ReadTelegramType(

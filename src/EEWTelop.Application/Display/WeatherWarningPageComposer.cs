@@ -169,35 +169,18 @@ internal static partial class WeatherWarningPageComposer
                 .ThenBy(static group => GetLevelDisplayOrder(group.Key.Level))
                 .ThenBy(static group => group.Key.KindName, StringComparer.Ordinal);
 
-        foreach (IGrouping<ActiveWarningKey, WeatherWarningItem> warningGroup in warningGroups)
+        foreach (var warningGroup in warningGroups)
         {
-            ActiveWeatherWarningRow[] rows = warningGroup
-                .GroupBy(static item => new ActiveAreaStatusKey(
-                    GetPrefectureName(item),
-                    item.Status.Trim()))
-                .OrderBy(static group => GetStatusDisplayOrder(group.Key.Status))
-                .ThenBy(static group => group.Key.PrefectureName, StringComparer.Ordinal)
-                .SelectMany(static group => CreateGroupedAreaRows(group))
-                .ToArray();
-
-            // 市区町村が多い注警報は、1ページへ詰め込み過ぎると
-            // OBS側の折り返しで読みにくくなる。地域一覧は2行ずつ送り、
-            // 残りは次ページへ送る。
-            for (int offset = 0; offset < rows.Length; offset += ActiveWarningRowsPerPage)
+            foreach (var group in warningGroup.GroupBy(item => new ActiveAreaStatusKey(
+                         GetPrefectureName(item), item.Status.Trim()))
+                         .OrderBy(group => GetStatusDisplayOrder(group.Key.Status))
+                         .ThenBy(group => group.Key.PrefectureName, StringComparer.Ordinal))
             {
-                DisplayBlock[] blocks = rows
-                    .Skip(offset)
-                    .Take(ActiveWarningRowsPerPage)
-                    .Select((row, index) => new DisplayBlock(
-                        index == 0 ? warningGroup.Key.KindName : string.Empty,
-                        row.PrimaryText,
-                        string.Empty,
-                        warningGroup.Key.StyleToken))
-                    .ToArray();
-                if (blocks.Length > 0)
-                {
-                    yield return new PageDraft(blocks);
-                }
+                string heading = JoinWeatherRowParts(warningGroup.Key.KindName,
+                    group.Key.PrefectureName, "｜" + FormatStatus(group.Key.Status));
+                string[] rows = CreateGroupedAreaRows(group).Select(row => row.PrimaryText).ToArray();
+                foreach (var chunk in rows.Chunk(ActiveWarningRowsPerPage))
+                    yield return CreateTextPage(heading, chunk, warningGroup.Key.StyleToken);
             }
         }
     }
@@ -216,15 +199,12 @@ internal static partial class WeatherWarningPageComposer
         if (areaNames.Length == 0)
         {
             yield return new ActiveWeatherWarningRow(
-                JoinWeatherRowParts(
-                    group.Key.PrefectureName,
-                    FormatStatus(group.Key.Status)));
+                string.Join("　", group.Select(item => item.AreaName.Trim()).Where(name => name.Length > 0).Distinct()));
             yield break;
         }
 
         foreach (string row in WeatherTextPagination.Group(areaNames, AreasPerWarningRow,
-                     names => JoinWeatherRowParts(group.Key.PrefectureName, string.Join("　", names),
-                         FormatStatus(group.Key.Status))))
+                     names => string.Join("　", names)))
             yield return new ActiveWeatherWarningRow(row);
     }
 
@@ -641,31 +621,16 @@ internal static partial class WeatherWarningPageComposer
     private static IEnumerable<PageDraft> CreateReleasePages(
         WeatherWarningItem[] releasedWarnings)
     {
-        // 市町村ごとに1件ずつ表示すると同時解除でページが急増する。
-        // 府県・警報種別・レベル単位で地域をまとめ、1ページは2行までに保つ。
-        ReleasedWarningRow[] rows = releasedWarnings
-            .GroupBy(static item => new ReleasedWarningKey(
-                GetPrefectureName(item),
-                item.KindName.Trim(),
-                item.Level))
-            .OrderBy(static group => GetLevelDisplayOrder(group.Key.Level))
-            .ThenBy(static group => group.Key.KindName, StringComparer.Ordinal)
-            .ThenBy(static group => group.Key.PrefectureName, StringComparer.Ordinal)
-            .SelectMany(static group => CreateGroupedReleaseRows(group))
-            .ToArray();
-
-        for (int offset = 0; offset < rows.Length; offset += ReleaseRowsPerPage)
+        foreach (var group in releasedWarnings.GroupBy(item => new ReleasedWarningKey(
+                     GetPrefectureName(item), item.KindName.Trim(), item.Level))
+                     .OrderBy(group => GetLevelDisplayOrder(group.Key.Level))
+                     .ThenBy(group => group.Key.KindName, StringComparer.Ordinal)
+                     .ThenBy(group => group.Key.PrefectureName, StringComparer.Ordinal))
         {
-            DisplayBlock[] blocks = rows
-                .Skip(offset)
-                .Take(ReleaseRowsPerPage)
-                .Select(static row => new DisplayBlock(
-                    "解除",
-                    row.PrimaryText,
-                    string.Empty,
-                    DisplayStyleTokens.WeatherCancel))
-                .ToArray();
-            yield return new PageDraft(blocks);
+            string heading = JoinWeatherRowParts(group.Key.KindName, group.Key.PrefectureName, "｜解除");
+            string[] rows = CreateGroupedReleaseRows(group).Select(row => row.PrimaryText).ToArray();
+            foreach (var chunk in rows.Chunk(ReleaseRowsPerPage))
+                yield return CreateTextPage(heading, chunk, DisplayStyleTokens.WeatherCancel);
         }
     }
 
@@ -683,12 +648,12 @@ internal static partial class WeatherWarningPageComposer
         if (areaNames.Length == 0)
         {
             yield return new ReleasedWarningRow(
-                $"{group.Key.PrefectureName}の{group.Key.KindName}は解除されました");
+                string.Join("　", group.Select(item => item.AreaName.Trim()).Where(name => name.Length > 0).Distinct()));
             yield break;
         }
 
         foreach (string row in WeatherTextPagination.Group(areaNames, ReleaseAreasPerRow,
-                     names => $"{group.Key.PrefectureName}{string.Join("、", names)}の{group.Key.KindName}は解除されました"))
+                     names => string.Join("　", names)))
             yield return new ReleasedWarningRow(row);
     }
 

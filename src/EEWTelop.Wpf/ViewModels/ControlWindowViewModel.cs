@@ -1472,7 +1472,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             ReceivedTelegrams.RemoveAt(ReceivedTelegrams.Count - 1);
         }
 
-        SelectedReceivedTelegram = item;
+        if (MatchesReviewCategory(item)) SelectedReceivedTelegram = item;
     }
 
     private void DisplayRehearsal(
@@ -1714,7 +1714,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                     AddTelegramForReview(item.DisasterEvent, item.Program);
                 }
 
-                SelectedReceivedTelegram = ReceivedTelegrams.FirstOrDefault();
+                SelectedReceivedTelegram = ReceivedTelegrams.FirstOrDefault(MatchesReviewCategory);
                 TelegramReviewStatusText = items.Length == 0
                     ? "確認できる過去電文がありませんでした。履歴設定とログを確認してください。"
                     : $"過去電文を{items.Length}件取得しました（対象外 {loaded.IgnoredCount}件、不正 {loaded.InvalidCount}件）。";

@@ -102,9 +102,18 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <TextBlock Text="電文一覧（新しい順）" FontWeight="Bold" Margin="4,2,4,8" />
+                    <StackPanel Margin="4,2,4,8">
+                        <TextBlock Text="電文一覧（新しい順）" FontWeight="Bold" Margin="0,0,0,6" />
+                        <ComboBox ItemsSource="{Binding ReviewCategoryOptions}" DisplayMemberPath="Label"
+                                  SelectedValuePath="Value" SelectedValue="{Binding SelectedReviewCategory}"
+                                  Foreground="Black" Background="White" Padding="6,4"
+                                  AutomationProperties.Name="電文一覧の種別"
+                                  ToolTip="確認画面だけを絞り込みます。配信用字幕・音声の設定は変わりません。" />
+                        <TextBlock Text="{Binding ReviewTelegramsView.Count, StringFormat=該当 {0} 件}"
+                                   Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0" />
+                    </StackPanel>
                     <ListBox Grid.Row="1"
-                             ItemsSource="{Binding ReceivedTelegrams}"
+                             ItemsSource="{Binding ReviewTelegramsView}"
                              SelectedItem="{Binding SelectedReceivedTelegram}"
                              Background="#FF0B1016" Foreground="White"
                              BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">

@@ -598,6 +598,32 @@ public sealed class Phase6ViewModelTests
     }
 
     [TestMethod]
+    public async Task ReviewCategoryFiltersListWithoutRemovingStoredTelegrams()
+    {
+        AppServices services = CreateServices(ProviderConnectionState.Stopped);
+        var vm = new ControlWindowViewModel(services, services.InitialSettings,
+            new FakeConfirmationService(), new ImmediateUiDispatcher());
+        try
+        {
+            var quake = TestScenarioCatalog.Create(DateTimeOffset.UtcNow).First(s => s.Event is QuakeEvent).Event;
+            var item = new ReceivedTelegramViewModel(quake, new PageComposer().Compose(quake, services.InitialSettings.Display));
+            vm.ReceivedTelegrams.Add(item);
+            vm.SelectedReceivedTelegram = item;
+            Assert.AreEqual(1, vm.ReviewTelegramsView.Cast<object>().Count());
+            vm.SelectedReviewCategory = TelegramReviewCategory.Eew;
+            Assert.IsTrue(vm.ReviewTelegramsView.IsEmpty);
+            Assert.IsNull(vm.SelectedReceivedTelegram);
+            Assert.AreEqual(1, vm.ReceivedTelegrams.Count);
+            vm.ReceivedTelegrams.Add(new ReceivedTelegramViewModel(quake, item.Program));
+            Assert.IsTrue(vm.ReviewTelegramsView.IsEmpty);
+            vm.SelectedReviewCategory = TelegramReviewCategory.Quake;
+            Assert.AreEqual(2, vm.ReviewTelegramsView.Cast<object>().Count());
+            Assert.AreSame(item, vm.SelectedReceivedTelegram);
+        }
+        finally { await vm.DisposeAsync(); }
+    }
+
+    [TestMethod]
     public async Task ManualDisconnectRequiresConfirmationButCancellationKeepsConnection()
     {
         var confirmation = new FakeConfirmationService { DisconnectResult = false };

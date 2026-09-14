@@ -143,7 +143,9 @@ public sealed class JmaPullEventSource : IEventSource, IProviderConfigurableEven
         "VYSE50" or "VYSE60" => routing.NankaiTrough == ReceptionProvider.JmaXml,
         "VTSE41" or "VTSE51" or "VTSE52" => routing.Tsunami == ReceptionProvider.JmaXml,
         "VFVO50" or "VFVO56" => routing.Volcano == ReceptionProvider.JmaXml,
-        "VPWW53" or "VPWW54" or "VPWW55" or "VPWW56" or "VPWW57" or "VPWW58" or "VPWW59" or "VPWW60" or "VPWW61" or "VPWS50" or "VPOA50" or "VPBS50" or "VPBS51" or "VPHW50" or "VPHW51" => routing.Weather == ReceptionProvider.JmaXml,
+        // Exclude legacy aggregate warnings; retain the reorganized warning telegrams.
+        "VPWW53" or "VPWW54" or "VPOA50" => false,
+        "VPWW55" or "VPWW56" or "VPWW57" or "VPWW58" or "VPWW59" or "VPWW60" or "VPWW61" or "VPWS50" or "VPBS50" or "VPBS51" or "VPHW50" or "VPHW51" => routing.Weather == ReceptionProvider.JmaXml,
         _ => Regex.IsMatch(code, @"^VXKO[5-8][0-9]$", RegexOptions.CultureInvariant) && routing.Weather == ReceptionProvider.JmaXml,
     };
 

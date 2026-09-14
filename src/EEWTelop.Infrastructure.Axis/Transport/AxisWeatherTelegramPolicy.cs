@@ -13,7 +13,7 @@ internal static class AxisWeatherTelegramPolicy
         };
 
     private static readonly HashSet<string> LegacyWarningTelegrams =
-        new(StringComparer.OrdinalIgnoreCase) { "VPWW53", "VPWW54" };
+        new(StringComparer.OrdinalIgnoreCase) { "VPWW53", "VPWW54", "VPOA50" };
 
     public static bool ShouldAccept(string? telegramType)
     {

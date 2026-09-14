@@ -25,6 +25,19 @@ public sealed class JmaPullEventSourceTests
     }
 
     [TestMethod]
+    public void ExcludesOnlyLegacyWarningCodesFromSupportedWeatherTelegrams()
+    {
+        var routing = ProviderRoutingSettings.Default with { Weather = ReceptionProvider.JmaXml };
+        Assert.IsFalse(JmaPullEventSource.Accepts("VPWW53", routing));
+        Assert.IsFalse(JmaPullEventSource.Accepts("VPWW54", routing));
+        Assert.IsFalse(JmaPullEventSource.Accepts("VPOA50", routing));
+        foreach (string code in new[] { "VPWW55", "VPWW56", "VPWW57", "VPWW58", "VPWW59", "VPWW60", "VPWW61", "VPWS50", "VPBS50", "VPBS51", "VPHW50", "VPHW51", "VXKO52", "VXKO72" })
+        {
+            Assert.IsTrue(JmaPullEventSource.Accepts(code, routing), code);
+        }
+    }
+
+    [TestMethod]
     public void RestrictsTelegramHostsAndPaths()
     {
         Assert.IsTrue(JmaPullEventSource.IsTelegramUri(new("https://www.data.jma.go.jp/developer/xml/data/20260908152751_0_VPWW53_140000.xml")));
@@ -70,6 +83,9 @@ public sealed class JmaPullEventSourceTests
                     <entry><updated>2026-09-09T00:01:00Z</updated><link href="https://www.data.jma.go.jp/developer/xml/data/20260909000100_0_VPWW55_010000.xml"/></entry>
                     <entry><updated>2026-09-08T23:59:00Z</updated><link href="https://www.data.jma.go.jp/developer/xml/data/20260908235900_0_VPWW55_010000.xml"/></entry>
                     <entry><updated>2026-09-09T00:01:00Z</updated><link href="https://www.data.jma.go.jp/developer/xml/data/20260909000100_0_VXSE43_010000.xml"/></entry>
+                    <entry><updated>2026-09-09T00:01:00Z</updated><link href="https://www.data.jma.go.jp/developer/xml/data/20260909000100_0_VPWW53_010000.xml"/></entry>
+                    <entry><updated>2026-09-09T00:01:00Z</updated><link href="https://www.data.jma.go.jp/developer/xml/data/20260909000100_0_VPWW54_010000.xml"/></entry>
+                    <entry><updated>2026-09-09T00:01:00Z</updated><link href="https://www.data.jma.go.jp/developer/xml/data/20260909000100_0_VPOA50_010000.xml"/></entry>
                     </feed>
                     """) });
             XmlRequests++;
