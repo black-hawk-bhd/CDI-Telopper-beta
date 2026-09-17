@@ -176,11 +176,10 @@ internal static partial class WeatherWarningPageComposer
                          .OrderBy(group => GetStatusDisplayOrder(group.Key.Status))
                          .ThenBy(group => group.Key.PrefectureName, StringComparer.Ordinal))
             {
-                string heading = JoinWeatherRowParts(warningGroup.Key.KindName,
-                    group.Key.PrefectureName, "｜" + FormatStatus(group.Key.Status));
+                string heading = JoinWeatherRowParts(group.Key.PrefectureName, "｜" + FormatStatus(group.Key.Status));
                 string[] rows = CreateGroupedAreaRows(group).Select(row => row.PrimaryText).ToArray();
                 foreach (var chunk in rows.Chunk(ActiveWarningRowsPerPage))
-                    yield return CreateTextPage(heading, chunk, warningGroup.Key.StyleToken);
+                    yield return CreateAreaListPage(warningGroup.Key.KindName, heading, chunk, warningGroup.Key.StyleToken);
             }
         }
     }
@@ -627,12 +626,15 @@ internal static partial class WeatherWarningPageComposer
                      .ThenBy(group => group.Key.KindName, StringComparer.Ordinal)
                      .ThenBy(group => group.Key.PrefectureName, StringComparer.Ordinal))
         {
-            string heading = JoinWeatherRowParts(group.Key.KindName, group.Key.PrefectureName, "｜解除");
+            string heading = JoinWeatherRowParts(group.Key.PrefectureName, "｜解除");
             string[] rows = CreateGroupedReleaseRows(group).Select(row => row.PrimaryText).ToArray();
             foreach (var chunk in rows.Chunk(ReleaseRowsPerPage))
-                yield return CreateTextPage(heading, chunk, DisplayStyleTokens.WeatherCancel);
+                yield return CreateAreaListPage(group.Key.KindName, heading, chunk, DisplayStyleTokens.WeatherCancel);
         }
     }
+
+    private static PageDraft CreateAreaListPage(string kind, string context, string[] rows, string style) =>
+        CreateTextPage(kind, rows.Select((row, index) => index == 0 ? context + "\n" + row : row).ToArray(), style);
 
     private static IEnumerable<ReleasedWarningRow> CreateGroupedReleaseRows(
         IGrouping<ReleasedWarningKey, WeatherWarningItem> group)

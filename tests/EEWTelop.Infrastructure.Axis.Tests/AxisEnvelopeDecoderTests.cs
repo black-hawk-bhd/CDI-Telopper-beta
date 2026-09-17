@@ -659,7 +659,7 @@ public sealed class AxisEnvelopeDecoderTests
         Assert.AreEqual(OverlayPriority.WeatherSpecialWarning, program.Priority);
         Assert.IsTrue(program.Pages.SelectMany(page => page.Blocks).Any(block =>
             block.StyleToken == DisplayStyleTokens.WeatherSpecialWarning &&
-            block.Badge.StartsWith("大雨特別警報　", StringComparison.Ordinal)));
+            block.Badge == "大雨特別警報"));
     }
 
     [TestMethod]

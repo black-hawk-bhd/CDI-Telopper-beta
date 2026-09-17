@@ -362,22 +362,23 @@ public sealed class EewAndTsunamiPageComposerTests
             rawType: "VTSE51",
             observationAsOf: issuedAt.AddMinutes(-1)));
 
-        Assert.HasCount(4, program.Pages);
+        Assert.HasCount(5, program.Pages);
         Assert.AreEqual("津波観測情報", ContentBlocks(program.Pages[0])[0].Badge);
         Assert.AreEqual(
             "01時09分現在の津波観測値をお知らせします",
             ContentBlocks(program.Pages[0])[0].PrimaryText);
-        Assert.AreEqual("津波警報", ContentBlocks(program.Pages[0])[1].Badge);
-        Assert.AreEqual("現在発表中", ContentBlocks(program.Pages[0])[1].PrimaryText);
-        Assert.AreEqual("津波観測情報", ContentBlocks(program.Pages[1])[0].Badge);
+        Assert.HasCount(1, ContentBlocks(program.Pages[0]));
+        Assert.AreEqual("津波警報", ContentBlocks(program.Pages[1])[0].Badge);
+        Assert.AreEqual("現在、津波警報を発表中です", ContentBlocks(program.Pages[1])[0].PrimaryText);
+        Assert.AreEqual("津波観測情報", ContentBlocks(program.Pages[2])[0].Badge);
         Assert.AreEqual(
             "〔01時42分 押し １．２ｍ〕",
-            ContentBlocks(program.Pages[1])[0].SecondaryText);
-        Assert.AreEqual("津波到達予想", ContentBlocks(program.Pages[2])[0].Badge);
+            ContentBlocks(program.Pages[2])[0].SecondaryText);
+        Assert.AreEqual("津波到達予想", ContentBlocks(program.Pages[3])[0].Badge);
         Assert.AreEqual(
             "〔到達 01時35分 満潮 02時15分〕",
-            ContentBlocks(program.Pages[2])[0].SecondaryText);
-        Assert.AreEqual("津波警報", ContentBlocks(program.Pages[3])[0].Badge);
+            ContentBlocks(program.Pages[3])[0].SecondaryText);
+        Assert.AreEqual("津波警報", ContentBlocks(program.Pages[4])[0].Badge);
     }
 
     [TestMethod]
@@ -417,7 +418,7 @@ public sealed class EewAndTsunamiPageComposerTests
     }
 
     [TestMethod]
-    public void Vtse51ShowsActiveMajorWarningAsLargeBadgeRow()
+    public void Vtse51ShowsActiveMajorWarningOnSeparateSecondPage()
     {
         DateTimeOffset observationAsOf = new(2026, 8, 24, 16, 44, 0, TimeSpan.FromHours(9));
         TsunamiArea[] areas =
@@ -451,11 +452,13 @@ public sealed class EewAndTsunamiPageComposerTests
         Assert.AreEqual(
             "16時44分現在の津波観測値をお知らせします",
             summary[0].PrimaryText);
-        Assert.AreEqual("大津波警報", summary[1].Badge);
-        Assert.AreEqual("現在発表中", summary[1].PrimaryText);
+        Assert.HasCount(1, summary);
+        Assert.HasCount(1, ContentBlocks(program.Pages[1]));
+        Assert.AreEqual("大津波警報", ContentBlocks(program.Pages[1])[0].Badge);
+        Assert.AreEqual("現在、大津波警報を発表中です", ContentBlocks(program.Pages[1])[0].PrimaryText);
         Assert.AreEqual(
             "〔押し 観測中〕",
-            ContentBlocks(program.Pages[1])[0].SecondaryText);
+            ContentBlocks(program.Pages[2])[0].SecondaryText);
     }
 
     [TestMethod]

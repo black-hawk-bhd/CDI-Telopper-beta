@@ -19,6 +19,22 @@ namespace EEWTelop.Wpf.Tests;
 [TestClass]
 public sealed class Phase9RenderingRegressionTests
 {
+    [TestMethod]
+    public void WeatherAreaContextIsBesideBadgeWithoutChangingSourceText()
+    {
+        var block = new OverlayBlockViewModel("大雨警報", "大雨警報", true,
+            "福島県　｜継続中\nいわき市　三島町　三春町", "", DisplayStyleTokens.WeatherWarning);
+        Assert.IsTrue(block.HasWeatherContext);
+        Assert.AreEqual("福島県　｜継続中", block.WeatherContext);
+        Assert.AreEqual("いわき市　三島町　三春町", block.SubtitlePrimaryText);
+        Assert.IsTrue(block.PrimaryText.Contains("福島県", StringComparison.Ordinal));
+        var narrative = block with { PrimaryText = "河川では水位が上昇しています\n注意してください" };
+        Assert.IsFalse(narrative.HasWeatherContext);
+        Assert.AreEqual(narrative.PrimaryText, narrative.SubtitlePrimaryText);
+        Assert.IsFalse((block with { Badge = "" }).HasWeatherContext);
+        Assert.IsFalse((block with { StyleToken = DisplayStyleTokens.Summary }).HasWeatherContext);
+    }
+
     private static readonly double[] FontScales = [0.8, 1.0, 1.2];
 
     private static readonly DateTimeOffset Now =

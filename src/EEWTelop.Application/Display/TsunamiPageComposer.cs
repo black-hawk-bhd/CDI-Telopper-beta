@@ -75,7 +75,11 @@ internal static class TsunamiPageComposer
             hasObservations &&
             tsunami.ObservationAsOf is { } observationAsOf)
         {
-            pages.Add(BuildObservationSummaryPage(observationAsOf, forecastAreas));
+            pages.Add(BuildObservationSummaryPage(observationAsOf));
+            if (BuildActiveWarningBlock(forecastAreas) is { } warningBlock)
+            {
+                pages.Add(new PageDraft([warningBlock]));
+            }
         }
 
         if (isObservationTelegram)
@@ -157,13 +161,12 @@ internal static class TsunamiPageComposer
             "津波到達予想"));
 
     private static PageDraft BuildObservationSummaryPage(
-        DateTimeOffset observationAsOf,
-        IReadOnlyCollection<TsunamiArea> forecastAreas)
+        DateTimeOffset observationAsOf)
     {
         string referenceTime = observationAsOf
             .ToOffset(TimeSpan.FromHours(9))
             .ToString("HH時mm分", CultureInfo.InvariantCulture);
-        var blocks = new List<DisplayBlock>(2)
+        var blocks = new List<DisplayBlock>(1)
         {
             new(
                 "津波観測情報",
@@ -171,11 +174,6 @@ internal static class TsunamiPageComposer
                 string.Empty,
                 DisplayStyleTokens.Tsunami),
         };
-
-        if (BuildActiveWarningBlock(forecastAreas) is { } warningBlock)
-        {
-            blocks.Add(warningBlock);
-        }
 
         return new PageDraft(blocks);
     }
@@ -194,7 +192,7 @@ internal static class TsunamiPageComposer
     }
 
     private static DisplayBlock CreateWarningBlock(string badge) =>
-        new(badge, "現在発表中", string.Empty, DisplayStyleTokens.Tsunami);
+        new(badge, $"現在、{badge}を発表中です", string.Empty, DisplayStyleTokens.Tsunami);
 
     private static IEnumerable<TsunamiArea> GetPendingStationForecasts(TsunamiEvent tsunami)
     {

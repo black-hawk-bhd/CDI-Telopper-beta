@@ -74,6 +74,9 @@
       margin: 0 0 18px; max-width: 100%; white-space: normal; }
     #content.subtitle .block[class*="weather-"] .badge.placeholder { display: none; }
     #content.subtitle .block[class*="weather-"] .primary { white-space: pre-line; }
+    #content.subtitle .block.weather-area-heading { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 22px; }
+    #content.subtitle .block.weather-area-heading .weather-context { margin-bottom: 18px; }
+    #content.subtitle .block.weather-area-heading .texts { grid-column: 1 / -1; }
     #content.subtitle .primary, #content.subtitle .secondary {
       margin: 0; color: #fff; font-size: calc(58px * var(--font-scale, 1));
       line-height: calc(1.25 * var(--line-spacing, 1));

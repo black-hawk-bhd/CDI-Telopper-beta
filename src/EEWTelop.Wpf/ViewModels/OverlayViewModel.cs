@@ -287,6 +287,17 @@ public sealed record OverlayBlockViewModel(
     public bool IsTsunami => StyleToken == DisplayStyleTokens.Tsunami;
     public bool IsWeather => StyleToken.StartsWith("weather-", StringComparison.Ordinal);
 
+    // Area-list pages keep context in the source text for history and speech.
+    // Only their first line is lifted beside the badge in the subtitle layout.
+    public bool HasWeatherContext => IsWeather && IsBadgeVisible &&
+        PrimaryText.IndexOf('\n') is > 0 && PrimaryText.Split('\n')[0].Contains('｜');
+
+    public string WeatherContext => HasWeatherContext ? PrimaryText.Split('\n')[0] : string.Empty;
+
+    public string SubtitlePrimaryText => HasWeatherContext
+        ? PrimaryText[(PrimaryText.IndexOf('\n') + 1)..]
+        : PrimaryText;
+
     public string BadgeBackground => Badge switch
     {
         "長周期階級1" => "#FF075CFF",

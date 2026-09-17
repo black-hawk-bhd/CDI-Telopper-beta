@@ -1049,7 +1049,7 @@ public sealed class JmaXmlEventNormalizerTests
         Assert.AreEqual(OverlayPriority.WeatherSpecialWarning, program.Priority);
         Assert.IsTrue(program.Pages.SelectMany(page => page.Blocks).Any(block =>
             block.StyleToken == DisplayStyleTokens.WeatherSpecialWarning &&
-            block.Badge.StartsWith("大雨特別警報　", StringComparison.Ordinal)));
+            block.Badge == "大雨特別警報"));
     }
 
     [TestMethod]
@@ -1109,7 +1109,7 @@ public sealed class JmaXmlEventNormalizerTests
             weather,
             AppSettings.CreateDefault().Display);
         Assert.AreEqual(
-            "足利市",
+            "栃木県　｜解除\n足利市",
             program.Pages[0].Blocks[0].PrimaryText);
         Assert.DoesNotContain("090000", program.Pages[0].AccessibleText);
         Assert.DoesNotContain("0920200", program.Pages[0].AccessibleText);
@@ -1180,8 +1180,8 @@ public sealed class JmaXmlEventNormalizerTests
             .Compose(weather, AppSettings.CreateDefault().Display)
             .Pages[0]
             .Blocks[0];
-        Assert.AreEqual("レベル２土砂災害注意報　山形県　｜新たに発表", block.Badge);
-        Assert.AreEqual("最上町", block.PrimaryText);
+        Assert.AreEqual("レベル２土砂災害注意報", block.Badge);
+        Assert.AreEqual("山形県　｜新たに発表\n最上町", block.PrimaryText);
         Assert.DoesNotContain("060000", block.PrimaryText);
         Assert.DoesNotContain("0636200", block.PrimaryText);
     }
@@ -1370,7 +1370,7 @@ public sealed class JmaXmlEventNormalizerTests
             weather,
             AppSettings.CreateDefault().Display);
         Assert.AreEqual(
-            "熊本市",
+            "熊本県　｜解除\n熊本市",
             program.Pages[0].Blocks[0].PrimaryText);
     }
 

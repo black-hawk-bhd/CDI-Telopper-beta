@@ -166,6 +166,9 @@
                                                     <Setter Property="HorizontalAlignment" Value="Left" />
                                                     <Setter Property="Margin" Value="0,0,0,18" />
                                                 </DataTrigger>
+                                                <DataTrigger Binding="{Binding HasWeatherContext}" Value="True">
+                                                    <Setter Property="Grid.ColumnSpan" Value="1" />
+                                                </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Border.Style>
@@ -181,6 +184,13 @@
                                                LineStackingStrategy="BlockLineHeight"
                                                LineHeight="{Binding DataContext.BadgeFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                                 </Border>
+                                <controls:OutlinedText Grid.Column="1" Margin="22,0,0,18"
+                                                       Text="{Binding WeatherContext}"
+                                                       Visibility="{Binding HasWeatherContext, Converter={StaticResource BoolVisibility}}"
+                                                       FontSize="{Binding DataContext.SubtitleFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                       LineHeight="{Binding DataContext.SubtitleLineHeight, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                       LetterSpacing="{Binding DataContext.SubtitleLetterSpacing, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                       StrokeThickness="{Binding DataContext.StrokeThickness, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                                 <Grid>
                                     <Grid.Style>
                                         <Style TargetType="Grid">
@@ -210,7 +220,7 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
-                                        <controls:OutlinedText Text="{Binding PrimaryText}"
+                                        <controls:OutlinedText Text="{Binding SubtitlePrimaryText}"
                                                                FontSize="{Binding DataContext.SubtitleFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                LineHeight="{Binding DataContext.SubtitleLineHeight, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                LetterSpacing="{Binding DataContext.SubtitleLetterSpacing, RelativeSource={RelativeSource AncestorType=UserControl}}"
