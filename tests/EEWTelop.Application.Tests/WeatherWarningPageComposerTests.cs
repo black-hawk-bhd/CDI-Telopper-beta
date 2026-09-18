@@ -8,6 +8,39 @@ namespace EEWTelop.Application.Tests;
 [TestClass]
 public sealed class WeatherWarningPageComposerTests
 {
+    [TestMethod]
+    public void RiverStationLevelAndColorContinueUntilNextExplicitLevel()
+    {
+        var weather = new WeatherWarningEvent(EventId.Create("river-mixed-level"), "axis", IssuedAt, IssuedAt,
+            "mixed", SourceMode.ManualTest, new IssueInfo("気象台", IssuedAt, "VXKO", CorrectionType.None),
+            "氾濫危険水位に到達しました。", [], false, WeatherInformationType.RiverFlood)
+        {
+            RiverFlood = new RiverFloodInfo("酒谷川", "レベル４氾濫危険警報", 4, [],
+                ["【警戒レベル２】本町橋では氾濫注意水位付近の水位が続く見込みです。",
+                 "引き続き、洪水に関する情報に注意してください。",
+                 "【警戒レベル4相当】東光寺橋では氾濫危険水位に到達しました。",
+                 "適切な防災行動をとってください。",
+                 "【警戒レベル３相当】第三観測所の説明です。", "第三観測所の続きです。",
+                 "【警戒レベル5相当】第四観測所の説明です。", "第四観測所の続きです。"]),
+        };
+        var blocks = new PageComposer().Compose(weather, AppSettings.CreateDefault().Display).Pages
+            .SelectMany(p => p.Blocks).Where(b => b.StyleToken != DisplayStyleTokens.PageIndicator).ToArray();
+        Assert.AreEqual("酒谷川｜レベル４氾濫危険警報", blocks[0].Badge);
+        Assert.AreEqual("酒谷川｜警戒レベル２", blocks[1].Badge);
+        Assert.AreEqual(blocks[1].Badge, blocks[2].Badge);
+        Assert.AreEqual(DisplayStyleTokens.WeatherAdvisory, blocks[2].StyleToken);
+        Assert.AreEqual("酒谷川｜警戒レベル4相当", blocks[3].Badge);
+        Assert.AreEqual(blocks[3].Badge, blocks[4].Badge);
+        Assert.AreEqual(DisplayStyleTokens.WeatherDangerWarning, blocks[4].StyleToken);
+        Assert.AreEqual("酒谷川｜警戒レベル３相当", blocks[5].Badge);
+        Assert.AreEqual(blocks[5].Badge, blocks[6].Badge);
+        Assert.AreEqual(DisplayStyleTokens.WeatherWarning, blocks[6].StyleToken);
+        Assert.AreEqual("酒谷川｜警戒レベル5相当", blocks[7].Badge);
+        Assert.AreEqual(blocks[7].Badge, blocks[8].Badge);
+        Assert.AreEqual(DisplayStyleTokens.WeatherSpecialWarning, blocks[8].StyleToken);
+        Assert.AreEqual(4, weather.RiverFlood!.AlertLevel);
+    }
+
     private static readonly string[] MixedStatusHeadings = [
         "大雨警報", "大雨警報",
         "大雨警報", "大雨警報", "大雨警報",
@@ -706,6 +739,9 @@ public sealed class WeatherWarningPageComposerTests
             WeatherBlocks(page).Length == 1));
         Assert.IsTrue(program.Pages.All(static page =>
             WeatherBlocks(page).Single().Badge == "気象防災速報"));
+        Assert.IsTrue(program.Pages.All(static page =>
+            WeatherBlocks(page).Single().PrimaryText.StartsWith("茨城県南部\n", StringComparison.Ordinal)));
+        Assert.IsFalse(WeatherBlocks(program.Pages[0]).Single().PrimaryText.Contains("では、", StringComparison.Ordinal));
         StringAssert.Contains(
             WeatherBlocks(program.Pages[0]).Single().PrimaryText,
             "線状降水帯が発生");

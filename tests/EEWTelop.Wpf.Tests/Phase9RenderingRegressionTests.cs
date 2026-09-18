@@ -33,6 +33,9 @@ public sealed class Phase9RenderingRegressionTests
         Assert.AreEqual(narrative.PrimaryText, narrative.SubtitlePrimaryText);
         Assert.IsFalse((block with { Badge = "" }).HasWeatherContext);
         Assert.IsFalse((block with { StyleToken = DisplayStyleTokens.Summary }).HasWeatherContext);
+        var bulletin = block with { Badge = "気象防災速報", PrimaryText = "宮崎県南部平野部\n今後3時間以内に線状降水帯が発生する可能性があります" };
+        Assert.AreEqual("宮崎県南部平野部", bulletin.WeatherContext);
+        Assert.AreEqual("今後3時間以内に線状降水帯が発生する可能性があります", bulletin.SubtitlePrimaryText);
     }
 
     private static readonly double[] FontScales = [0.8, 1.0, 1.2];

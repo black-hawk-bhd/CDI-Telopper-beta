@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '2.0.0-beta.43',
+    [string]$Version = '2.0.0-beta.44',
     [string]$RuntimeIdentifier = 'win-x64',
     [string]$OutputLabel = '',
     [ValidateSet('true', 'false')]

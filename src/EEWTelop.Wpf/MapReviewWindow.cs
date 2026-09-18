@@ -2,6 +2,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using EEWTelop.Domain.Events;
+using EEWTelop.Application.Configuration;
+using EEWTelop.Application.Display;
+using EEWTelop.Application.Testing;
 using EEWTelop.Wpf.Controls;
 using EEWTelop.Wpf.ViewModels;
 
@@ -10,6 +13,8 @@ namespace EEWTelop.Wpf;
 internal sealed class MapReviewWindow : Window
 {
     private readonly Func<IEnumerable<ReceivedTelegramViewModel>> _telegrams;
+    private readonly CheckBox _includeTests = new() { Content = "試験電文を表示（訓練）", Foreground = Brushes.Yellow, Margin = new Thickness(8) };
+    private readonly IReadOnlyList<ReceivedTelegramViewModel> _testTelegrams = CreateTestTelegrams();
     private readonly ComboBox _selection = new() { DisplayMemberPath = nameof(ReceivedTelegramViewModel.DisplayText), MinWidth = 300, MaxWidth = 740, Margin = new Thickness(8) };
     private readonly ComboBox _extent = new() { ItemsSource = TrialQuakeMap.Extents.Select(x => x.Name).Prepend("自動").ToArray(), SelectedIndex = 0, Width = 170, Margin = new Thickness(8) };
     private readonly Image _image = new() { Stretch = Stretch.Uniform };
@@ -32,6 +37,9 @@ internal sealed class MapReviewWindow : Window
         var reload = new Button { Content = "電文一覧を更新", Margin = new Thickness(8), Padding = new Thickness(10, 4, 10, 4) };
         reload.Click += (_, _) => Reload((_selection.SelectedItem as ReceivedTelegramViewModel)?.Event as QuakeEvent);
         controls.Children.Add(reload);
+        controls.Children.Add(_includeTests);
+        _includeTests.Checked += (_, _) => Reload();
+        _includeTests.Unchecked += (_, _) => Reload();
         header.Children.Add(controls);
         var toolbar = new WrapPanel();
         toolbar.Children.Add(_extent);
@@ -62,9 +70,24 @@ internal sealed class MapReviewWindow : Window
 
     internal QuakeEvent? SelectedQuake => (_selection.SelectedItem as ReceivedTelegramViewModel)?.Event as QuakeEvent;
 
+    internal static IReadOnlyList<ReceivedTelegramViewModel> CreateTestTelegrams()
+    {
+        var composer = new PageComposer();
+        var settings = AppSettings.CreateDefault().Display;
+        return TestScenarioCatalog.Create(DateTimeOffset.UtcNow)
+            .SelectMany(s => s.Steps.Select((step, index) => (s.Label, Step: step, Index: index)))
+            .Where(x => x.Step.Event is QuakeEvent && x.Step.Event.SourceMode == SourceMode.ManualTest)
+            .Select(x => new ReceivedTelegramViewModel(x.Step.Event, composer.Compose(x.Step.Event, settings),
+                $"試験電文・訓練：{x.Label} ({x.Index + 1})"))
+            .ToArray();
+    }
+
+    internal void IncludeTestTelegrams() => _includeTests.IsChecked = true;
+
     internal void Reload(QuakeEvent? selected = null)
     {
         var items = _telegrams().Where(t => t.Event is QuakeEvent).ToList();
+        if (_includeTests.IsChecked == true) items.AddRange(_testTelegrams);
         // Keep a displayed snapshot even after the bounded reception history evicts it.
         if (selected is not null && !items.Any(t => ReferenceEquals(t.Event, selected)) &&
             _selection.SelectedItem is ReceivedTelegramViewModel previous && ReferenceEquals(previous.Event, selected))

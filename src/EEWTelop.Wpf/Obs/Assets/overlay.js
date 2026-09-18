@@ -83,7 +83,8 @@ function renderBlock(item, previousBadge) {
   const weatherStyle = style.startsWith("weather-");
   const contextEnd = (item.primaryText || "").indexOf("\n");
   const hasWeatherContext = weatherStyle && item.badge && contextEnd > 0 &&
-    item.primaryText.slice(0, contextEnd).includes("｜");
+    (item.primaryText.slice(0, contextEnd).includes("｜") ||
+      item.badge === "気象防災速報" || item.badge === "気象防災速報（潮位）");
   if (hasWeatherContext) block.classList.add("weather-area-heading");
   const volcanoStyle = style.startsWith("volcano-") || style === "eruption-flash";
   const reservesBadge = (style === "intensity" || style === "tsunami" || style === "correction" || weatherStyle || volcanoStyle) &&

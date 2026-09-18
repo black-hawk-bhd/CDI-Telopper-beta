@@ -290,7 +290,8 @@ public sealed record OverlayBlockViewModel(
     // Area-list pages keep context in the source text for history and speech.
     // Only their first line is lifted beside the badge in the subtitle layout.
     public bool HasWeatherContext => IsWeather && IsBadgeVisible &&
-        PrimaryText.IndexOf('\n') is > 0 && PrimaryText.Split('\n')[0].Contains('｜');
+        PrimaryText.IndexOf('\n') is > 0 && (PrimaryText.Split('\n')[0].Contains('｜') ||
+        Badge is "気象防災速報" or "気象防災速報（潮位）");
 
     public string WeatherContext => HasWeatherContext ? PrimaryText.Split('\n')[0] : string.Empty;
 

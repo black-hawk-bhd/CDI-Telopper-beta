@@ -39,6 +39,7 @@ public sealed class ReceivedTelegramViewModel
         SourceMode.Production => "本番受信",
         SourceMode.HistoryRehearsal => "過去電文",
         SourceMode.Sandbox => "テスト",
+        SourceMode.ManualTest => "試験電文・訓練",
         _ => Event.SourceMode.ToString(),
     };
 

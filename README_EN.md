@@ -1,8 +1,10 @@
 # CDI-Telopper
 
+Beta.44 moves disaster-prevention bulletin area headings beside the badge, including continuation pages. River-flood narrative badges and colors follow each explicitly stated station alert level (2–5). Experimental maps support municipality markers, all-point rendering and built-in test telegrams; maps remain disabled in public packages.
+
 Beta.43: weather captions show only the information type in the badge, with prefecture/status alongside it and municipalities below. Tsunami observation introductions and the active warning/advisory announcement now appear on separate pages.
 
-The experimental map is disabled in normal and distribution builds. Its buttons remain disabled; source, geographic data and tests are retained for development. Beta.43 distribution packages also disable the map.
+The experimental map is disabled in normal and distribution builds. Its buttons remain disabled; source, geographic data and tests are retained for development. Beta.44 distribution packages also disable the map.
 
 English | [日本語](README.md)
 
@@ -10,10 +12,10 @@ Beta.41 fixes JMA XML telegrams being rejected before normalization. “気象�
 
 **Comprehensive Disaster Information Telopper (CDI-Telopper)** is a Windows application that receives disaster information related to earthquakes, tsunamis, weather, volcanoes, and the Nankai Trough, then generates captions for OBS.
 
-The current public release is **2.0.0-beta.43**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.44**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.43](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.43)
-- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.43.txt)
+- [Download 2.0.0-beta.44](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.44)
+- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.44.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
@@ -152,15 +154,15 @@ Building requires Windows 10/11 x64, the .NET 8 SDK, and PowerShell. Visual Stud
 powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
-The script restores dependencies, builds every project in the Release configuration, and runs the automated tests. The beta.43 source currently has 555 verified tests.
+The script restores dependencies, builds every project in the Release configuration, and runs the automated tests. The beta.44 source currently has 558 verified tests.
 
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.43
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.44
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.43\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.44\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
 
 ## License and attribution
 

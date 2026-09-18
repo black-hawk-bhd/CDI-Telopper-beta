@@ -448,15 +448,32 @@ internal static partial class WeatherWarningPageComposer
         }
 
         string[] lines = SplitBulletinSentences(weather.Headline);
+        string areaHeading = string.Empty;
+        if (lines.Length > 0)
+        {
+            int boundary = lines[0].IndexOf("では、", StringComparison.Ordinal);
+            if (boundary is > 0 and <= 80)
+            {
+                areaHeading = lines[0][..boundary];
+                lines[0] = lines[0][(boundary + 3)..];
+            }
+        }
         // 気象防災速報は一文が長く、複数文を同じページへ詰めると
         // WPF/OBS側の折り返し後に4行以上になる。1ページ1要点にして、
         // 線状降水帯情報などの長文も安全な行数で順に表示する。
-        return lines
+        var pages = lines
             .SelectMany(line => CreateTextPages(
                 badge,
                 [line],
                 DisplayStyleTokens.WeatherWarning, weather))
             .ToArray();
+        if (areaHeading.Length == 0) return pages;
+        return pages.Select(page => page with
+        {
+            Blocks = page.Blocks.Select((block, index) => index == 0
+                ? block with { Badge = badge, PrimaryText = areaHeading + "\n" + block.PrimaryText }
+                : block).ToArray(),
+        }).ToArray();
     }
 
     private static PageDraft[] CreateTornadoAdvisoryPages(WeatherWarningEvent weather)

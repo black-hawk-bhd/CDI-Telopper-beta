@@ -17,12 +17,12 @@ internal static partial class WeatherWarningPageComposer
             _ => DisplayStyleTokens.WeatherWarning,
         };
         var pages = new List<PageDraft>();
-        void AddText(string badge, IEnumerable<string> lines)
+        void AddText(string badge, IEnumerable<string> lines, string? pageStyle = null)
         {
             foreach (string line in lines)
                 foreach (string fragment in WeatherTextPagination.Split(line,
                     flood.Districts.SelectMany(d => new[] { d.City, d.Prefecture }).Append(flood.RiverName), 78))
-                    pages.Add(CreateTextPage($"{flood.RiverName}｜{badge}", [fragment], style));
+                    pages.Add(CreateTextPage($"{flood.RiverName}｜{badge}", [fragment], pageStyle ?? style));
         }
         if (weather.IsCancelled)
         {
@@ -64,7 +64,28 @@ internal static partial class WeatherWarningPageComposer
             if (flood.AlertLevel >= 4)
             {
                 // Preserve the actual telegram narrative rather than a fixed evacuation message.
-                AddText(flood.Badge, flood.MainTexts);
+                string stationBadge = flood.Badge;
+                string stationStyle = style;
+                foreach (string mainText in flood.MainTexts)
+                {
+                    // Carry the station's explicitly stated level across its continuation pages.
+                    // Do not interpret a previous level in a transition sentence as the current level.
+                    Match level = Regex.Match(mainText, @"^\s*【\s*警戒レベル\s*([2-5２-５])\s*(相当)?\s*】");
+                    if (level.Success)
+                    {
+                        char digit = level.Groups[1].Value[0];
+                        int value = digit >= '２' ? digit - '０' : digit - '0';
+                        stationBadge = "警戒レベル" + level.Groups[1].Value + level.Groups[2].Value;
+                        stationStyle = value switch
+                        {
+                            2 => DisplayStyleTokens.WeatherAdvisory,
+                            4 => DisplayStyleTokens.WeatherDangerWarning,
+                            5 => DisplayStyleTokens.WeatherSpecialWarning,
+                            _ => DisplayStyleTokens.WeatherWarning,
+                        };
+                    }
+                    AddText(stationBadge, [mainText], stationStyle);
+                }
             }
         }
         return PageComposerSupport.CreateProgram(weather, settings,

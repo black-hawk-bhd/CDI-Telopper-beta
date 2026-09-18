@@ -47,6 +47,10 @@ public sealed class MapReviewWindowTests
                 items.Clear();
                 window.Reload(quake);
                 Assert.AreSame(quake, window.SelectedQuake);
+                window.IncludeTestTelegrams();
+                Assert.IsNotNull(window.SelectedQuake);
+                Assert.AreEqual(SourceMode.ManualTest, window.SelectedQuake.SourceMode);
+                Assert.IsTrue(MapReviewWindow.CreateTestTelegrams().All(t => t.Event is QuakeEvent && t.SourceText == "試験電文・訓練"));
             }
             catch (Exception ex) { error = ex; }
             finally { window?.Close(); }
