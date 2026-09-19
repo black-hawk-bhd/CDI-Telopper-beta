@@ -931,22 +931,17 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
             return [];
         }
 
-        XElement[] candidates = Descendants(observation, "IntensityStation").ToArray();
-        bool isArea = false;
-        if (candidates.Length == 0)
-        {
-            candidates = Descendants(observation, "City").ToArray();
-        }
-
-        if (candidates.Length == 0)
-        {
-            candidates = Descendants(observation, "Area").ToArray();
-            isArea = true;
-        }
+        // Select the most detailed available level separately for each municipality/area.
+        XElement[] candidates = Descendants(observation, "IntensityStation")
+            .Concat(Descendants(observation, "City").Where(c => !Descendants(c, "IntensityStation").Any()))
+            .Concat(Descendants(observation, "Area").Where(a =>
+                !Descendants(a, "City").Any() && !Descendants(a, "IntensityStation").Any())).ToArray();
 
         return candidates
             .Select(element =>
             {
+                bool isArea = element.Name.LocalName == "Area";
+                XElement? city = element.AncestorsAndSelf().FirstOrDefault(a => a.Name.LocalName == "City");
                 string address = Text(Descendant(element, "Name"));
                 string prefecture = element.Ancestors()
                     .FirstOrDefault(static ancestor => ancestor.Name.LocalName == "Pref") is { } pref
@@ -967,11 +962,14 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
                 {
                     SeismicAreaCode = Text(element.AncestorsAndSelf().FirstOrDefault(a => a.Name.LocalName == "Area")?.Elements().FirstOrDefault(a => a.Name.LocalName == "Code")),
                     SeismicAreaName = Text(element.AncestorsAndSelf().FirstOrDefault(a => a.Name.LocalName == "Area")?.Elements().FirstOrDefault(a => a.Name.LocalName == "Name")),
+                    MunicipalityCode = Text(city?.Elements().FirstOrDefault(a => a.Name.LocalName == "Code")),
+                    MunicipalityName = Text(city?.Elements().FirstOrDefault(a => a.Name.LocalName == "Name")),
+                    StationCode = element.Name.LocalName == "IntensityStation" ? Text(Child(element, "Code")) : string.Empty,
                 };
             })
             .Where(static point => !string.IsNullOrWhiteSpace(point.Address) &&
                 point.Scale != JmaScale.Unknown)
-            .GroupBy(static point => (point.DisplayName, point.Scale))
+            .GroupBy(static point => (point.DisplayName, point.Scale, point.MunicipalityCode, point.StationCode))
             .Select(static group => group.First())
             .ToArray();
     }

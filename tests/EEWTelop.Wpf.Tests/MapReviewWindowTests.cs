@@ -51,6 +51,11 @@ public sealed class MapReviewWindowTests
                 Assert.IsNotNull(window.SelectedQuake);
                 Assert.AreEqual(SourceMode.ManualTest, window.SelectedQuake.SourceMode);
                 Assert.IsTrue(MapReviewWindow.CreateTestTelegrams().All(t => t.Event is QuakeEvent && t.SourceText == "試験電文・訓練"));
+                window.ShowExternalXml(quake);
+                Assert.AreSame(quake, window.SelectedQuake);
+                window.Reload();
+                Assert.AreSame(quake, window.SelectedQuake);
+                Assert.IsEmpty(items, "External map review must not add reception history.");
             }
             catch (Exception ex) { error = ex; }
             finally { window?.Close(); }

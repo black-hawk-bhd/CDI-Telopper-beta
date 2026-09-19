@@ -39,7 +39,10 @@ public sealed record ObsViewBlock(
     string Badge,
     string PrimaryText,
     string SecondaryText,
-    string StyleToken);
+    string StyleToken)
+{
+    public string WeatherHeading { get; init; } = string.Empty;
+}
 
 public enum ObsViewChannel
 {
@@ -231,7 +234,7 @@ public sealed class ObsSnapshotStore
                         block.Badge,
                         block.PrimaryText,
                         block.SecondaryText,
-                        block.StyleToken))
+                        block.StyleToken) { WeatherHeading = block.WeatherHeading })
                     .ToArray(),
                 AudioSequence: _snapshot.AudioSequence,
                 AudioAction: _snapshot.AudioAction,
@@ -457,7 +460,7 @@ public sealed class ObsSnapshotStore
                     block.Badge,
                     block.PrimaryText,
                     block.SecondaryText,
-                    block.StyleToken))
+                    block.StyleToken) { WeatherHeading = block.WeatherHeading })
                 .ToArray(),
             AudioSequence: 0,
             AudioAction: string.Empty,

@@ -9,8 +9,8 @@ internal sealed record TrialMapPalette(Dictionary<string, string> Colors, bool S
 {
     internal static readonly (string Key, string Label, string Color)[] Fields =
     [
-        ("Background", "背景（海）", "#F2EFE8"), ("Land", "情報なしの陸地", "#D6D2C8"),
-        ("Boundary", "地域境界", "#908A80"), ("Grid", "格子線", "#DED9CF"),
+        ("Background", "背景・海域", "#D3EDF5"), ("Land", "陸地の基本色", "#B5CF70"),
+        ("Boundary", "地域境界", "#82935D"), ("Grid", "格子線", "#B5D8E5"),
         ("Text", "文字・引出線", "#292B30"), ("Accent", "見出し・注記", "#8B431D"),
         ("Epicenter", "震央 ×", "#B32040"),
         ("0", "震度0", "#C6CBCF"), ("10", "震度1", "#B1C9D6"),
@@ -20,6 +20,8 @@ internal sealed record TrialMapPalette(Dictionary<string, string> Colors, bool S
         ("55", "震度6弱", "#B84E67"), ("60", "震度6強", "#8A486C"), ("70", "震度7", "#613C71"),
     ];
     internal static TrialMapPalette Default => new(Fields.ToDictionary(f => f.Key, f => f.Color));
+    internal static TrialMapPalette Paper => Default with { Colors = new(Default.Colors)
+    { ["Background"] = "#F2EFE8", ["Land"] = "#D6D2C8", ["Boundary"] = "#908A80", ["Grid"] = "#DED9CF" } };
     internal static TrialMapPalette Dark => Default with { Colors = Default.Colors.Concat(new Dictionary<string, string>
     { ["Background"] = "#252427", ["Land"] = "#454247", ["Boundary"] = "#89818B", ["Grid"] = "#38343B", ["Text"] = "#F4F0E9", ["Accent"] = "#E8B17A", ["Epicenter"] = "#FF7890" })
         .GroupBy(p => p.Key).ToDictionary(g => g.Key, g => g.Last().Value) };

@@ -82,9 +82,9 @@ function renderBlock(item, previousBadge) {
   block.className = `block ${style}`;
   const weatherStyle = style.startsWith("weather-");
   const contextEnd = (item.primaryText || "").indexOf("\n");
-  const hasWeatherContext = weatherStyle && item.badge && contextEnd > 0 &&
-    (item.primaryText.slice(0, contextEnd).includes("｜") ||
-      item.badge === "気象防災速報" || item.badge === "気象防災速報（潮位）");
+  const explicitHeading = item.weatherHeading || "";
+  const hasWeatherContext = weatherStyle && item.badge && (explicitHeading || contextEnd > 0 &&
+    item.primaryText.slice(0, contextEnd).includes("｜"));
   if (hasWeatherContext) block.classList.add("weather-area-heading");
   const volcanoStyle = style.startsWith("volcano-") || style === "eruption-flash";
   const reservesBadge = (style === "intensity" || style === "tsunami" || style === "correction" || weatherStyle || volcanoStyle) &&
@@ -117,10 +117,10 @@ function renderBlock(item, previousBadge) {
   }
   const texts = document.createElement("div");
   if (hasWeatherContext) {
-    block.appendChild(textNode("primary weather-context", item.primaryText.slice(0, contextEnd)));
+    block.appendChild(textNode("primary weather-context", explicitHeading || item.primaryText.slice(0, contextEnd)));
   }
   texts.className = "texts";
-  texts.appendChild(textNode("primary", hasWeatherContext ? item.primaryText.slice(contextEnd + 1) : item.primaryText));
+  texts.appendChild(textNode("primary", hasWeatherContext && !explicitHeading ? item.primaryText.slice(contextEnd + 1) : item.primaryText));
   if (item.secondaryText) {
     texts.appendChild(textNode("secondary", item.secondaryText));
   }

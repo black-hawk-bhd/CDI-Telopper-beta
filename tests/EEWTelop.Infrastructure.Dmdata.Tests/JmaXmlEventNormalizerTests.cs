@@ -13,6 +13,35 @@ namespace EEWTelop.Infrastructure.Dmdata.Tests;
 public sealed class JmaXmlEventNormalizerTests
 {
     [TestMethod]
+    public void XmlProvidersRetainMunicipalityAndStationMetadataIncludingMixedGranularity()
+    {
+        const string xml = """
+            <Report><Control><Title>震源・震度に関する情報</Title></Control>
+            <Head><ReportDateTime>2026-09-19T00:00:00+09:00</ReportDateTime><EventID>mixed</EventID></Head>
+            <Body><Intensity><Observation><MaxInt>4</MaxInt><Pref><Name>宮崎県</Name>
+            <Area><Name>宮崎県北部平野部</Name><Code>851</Code>
+            <City><Name>都農町</Name><Code>4540600</Code><IntensityStation><Name>都農町役場</Name><Code>station</Code><Int>4</Int></IntensityStation></City>
+            <City><Name>日向市</Name><Code>4520600</Code><MaxInt>3</MaxInt></City></Area>
+            <Area><Name>宮崎県南部平野部</Name><Code>853</Code><MaxInt>2</MaxInt></Area>
+            </Pref></Observation></Intensity></Body></Report>
+            """;
+        foreach (string provider in new[] { "jma-xml", "axis", "dmdata.jp" })
+        {
+            var result = new JmaXmlEventNormalizer(new EventSignatureBuilder()).Normalize(new RawProviderMessage(
+                provider, xml, SourceMode.Production, DateTimeOffset.UtcNow) { ContentFormat = RawProviderContentFormat.JmaXml });
+            var quake = Assert.IsInstanceOfType<QuakeEvent>(result.Event);
+            Assert.HasCount(3, quake.Points);
+            var station = quake.Points.Single(p => p.StationCode == "station");
+            Assert.AreEqual("4540600", station.MunicipalityCode);
+            Assert.AreEqual("都農町", station.MunicipalityName);
+            Assert.AreEqual("都農町役場", station.Address);
+            Assert.AreEqual("851", station.SeismicAreaCode);
+            Assert.IsTrue(quake.Points.Any(p => p.MunicipalityName == "日向市" && p.Scale == JmaScale.Three));
+            Assert.IsTrue(quake.Points.Any(p => p.IsArea && p.Scale == JmaScale.Two));
+        }
+    }
+
+    [TestMethod]
     public void WarningReleaseRemainsVisibleWhenAdvisoriesAreDisabled()
     {
         const string xml = """

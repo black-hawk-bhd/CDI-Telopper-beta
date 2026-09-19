@@ -5,19 +5,19 @@
 
 Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津波・気象・火山・南海トラフに関する防災情報を受信し、OBS向け字幕として出力するWindowsアプリです。
 
-現在の公開版は **2.0.0-beta.44** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
+現在の公開版は **2.0.0-beta.45** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
 本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
 
-- [2.0.0-beta.44をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.44)
-- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.44.txt)
+- [2.0.0-beta.45をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.45)
+- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.45.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
 - [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
 
 ## 主な機能
 
-beta.44: 気象防災速報の対象地名をバッジ横へ表示し、続きのページにも維持します。指定河川洪水予報は観測所の本文に明記された警戒レベル2～5に合わせてバッジと色を切り替えます。試験地図の全地点描画・試験電文選択も改善しましたが、配布版では地図は無効です。
+beta.45: 河川氾濫を除く気象系の見出しを「情報種別のバッジ＋地名＋明示された場合のみ状態」に統一しました。続きのページ、プレビュー・OBS・電文確認にも反映します。[表示仕様](docs/weather-heading-layout.md)。地図コードには外部XML読み込み、受信XMLの市町村対応、黄緑の陸地・薄い水色の海域を標準とする配色設定を追加しましたが、配布版では地図は無効です。
 
-地図は開発途中のため、通常ビルド・配布ビルドでは無効です。関連ボタンはグレー表示され、地図コード・境界データ・テストのみ保持しています。[開発用の説明](docs/trial-seismic-map.md)。beta.44の配布版も地図機能は無効です。
+地図は開発途中のため、通常ビルド・配布ビルドでは無効です。関連ボタンはグレー表示され、地図コード・境界データ・テストのみ保持しています。[開発用の説明](docs/trial-seismic-map.md)。beta.45の配布版も地図機能は無効です。
 
 beta.43: 気象字幕は情報種別のみをバッジにし、都道府県・状態を隣、市町村一覧を下に表示します。津波観測情報の案内と警報・注意報の発表状況を別ページにしました。
 
@@ -170,15 +170,15 @@ GitHub Releasesの配布物は.NET 8自己完結型です。通常利用ではVi
 powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
-このスクリプトは依存関係を復元し、Release構成で全プロジェクトをビルドして、自動テストを実行します。現在のbeta.44では558件のテストを確認しています。
+このスクリプトは依存関係を復元し、Release構成で全プロジェクトをビルドして、自動テストを実行します。現在のbeta.45では563件のテストを確認しています。
 
 配布物を作成する場合は次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.44
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.45
 ```
 
-フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.44\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
+フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.45\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
 
 ## 開発者向け資料
 

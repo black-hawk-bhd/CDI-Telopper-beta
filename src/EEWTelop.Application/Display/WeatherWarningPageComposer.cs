@@ -31,11 +31,12 @@ internal static partial class WeatherWarningPageComposer
         if (PageComposerSupport.IsTelegramCancellation(weather.Issue))
         {
             var telegramCancel = new DisplayBlock(
-                "取消",
+                weather.RiverFlood is null ? GetWeatherKind(weather) : "取消",
                 PageComposerSupport.GetCancellationText(
                     PageComposerSupport.GetWeatherCancellationSubject(weather)),
                 string.Empty,
-                DisplayStyleTokens.WeatherCancel);
+                DisplayStyleTokens.WeatherCancel)
+            { WeatherHeading = weather.RiverFlood is null ? GetWeatherHeading(weather, explicitState: "取消") : string.Empty };
             return PageComposerSupport.CreateProgram(
                 weather,
                 settings,
@@ -126,12 +127,12 @@ internal static partial class WeatherWarningPageComposer
             }
 
             var cancel = new DisplayBlock(
-                "解除",
+                GetWeatherKind(weather),
                 string.IsNullOrWhiteSpace(weather.Headline)
                     ? "気象警報・注意報は解除されました"
                     : weather.Headline,
                 string.Empty,
-                DisplayStyleTokens.WeatherCancel);
+                DisplayStyleTokens.WeatherCancel) { WeatherHeading = GetWeatherHeading(weather, explicitState: "解除") };
             return PageComposerSupport.CreateProgram(
                 weather,
                 settings,
@@ -271,9 +272,7 @@ internal static partial class WeatherWarningPageComposer
             string[] lines = WeatherTextPagination.Split(sentence,
                 active.SelectMany(i => new[] { i.AreaName, GetPrefectureName(i) }),
                 78).ToArray();
-            string badge = sentence.Contains("最大級の警戒", StringComparison.Ordinal)
-                ? "最大級の警戒"
-                : defaultBadge;
+            string badge = defaultBadge;
             for (int offset = 0; offset < lines.Length; offset++)
             {
                 string primaryText = string.Join(
@@ -282,8 +281,8 @@ internal static partial class WeatherWarningPageComposer
                 yield return new PageDraft(
                 [
                     new DisplayBlock(
-                        string.Join("・", active.Select(GetPrefectureName).Where(s => s.Length > 0).Distinct()) + "　" + badge,
-                        primaryText, string.Empty, style),
+                        badge, primaryText, string.Empty, style)
+                    { WeatherHeading = GetWeatherHeading(weather, includeStatus: true) },
                 ]);
             }
         }
@@ -398,10 +397,7 @@ internal static partial class WeatherWarningPageComposer
             return [];
         }
 
-        string badge = badgeOverride ?? weather.Items
-            .Select(static item => item.KindName)
-            .FirstOrDefault(static name => !string.IsNullOrWhiteSpace(name)) ??
-            "記録的短時間大雨情報";
+        string badge = badgeOverride ?? "記録的短時間大雨情報";
         const string style = DisplayStyleTokens.WeatherWarning;
         var pages = new List<PageDraft>
         {
@@ -425,7 +421,7 @@ internal static partial class WeatherWarningPageComposer
         // 詰め込まず、必ず次ページ以降へ1文ずつ送る。
         pages.AddRange(warningLines.SelectMany(line =>
             CreateTextPages(badge, [line], style, weather)));
-        return pages.ToArray();
+        return WithWeatherHeading(pages, GetWeatherHeading(weather));
     }
 
     private static PageDraft[] CreateDisasterPreventionBulletinPages(
@@ -467,13 +463,7 @@ internal static partial class WeatherWarningPageComposer
                 [line],
                 DisplayStyleTokens.WeatherWarning, weather))
             .ToArray();
-        if (areaHeading.Length == 0) return pages;
-        return pages.Select(page => page with
-        {
-            Blocks = page.Blocks.Select((block, index) => index == 0
-                ? block with { Badge = badge, PrimaryText = areaHeading + "\n" + block.PrimaryText }
-                : block).ToArray(),
-        }).ToArray();
+        return WithWeatherHeading(pages, GetWeatherHeading(weather, areaOverride: areaHeading));
     }
 
     private static PageDraft[] CreateTornadoAdvisoryPages(WeatherWarningEvent weather)
@@ -488,11 +478,7 @@ internal static partial class WeatherWarningPageComposer
             return [];
         }
 
-        string kindName = weather.Items
-            .Select(static item => item.KindName)
-            .FirstOrDefault(static name => !string.IsNullOrWhiteSpace(name)) ??
-            "竜巻注意情報";
-        string badge = CreateTornadoAdvisoryBadge(weather, kindName);
+        string badge = "竜巻注意情報";
         const string style = DisplayStyleTokens.WeatherAdvisory;
         // 竜巻注意情報は一文が長く、安全行動を含むため、通常の注警報と同じ
         // 3項目詰め込みにはしない。1ページ1要点にして自然な折り返しに任せる。
@@ -507,40 +493,7 @@ internal static partial class WeatherWarningPageComposer
                 style));
         }
 
-        return pages.ToArray();
-    }
-
-    private static string CreateTornadoAdvisoryBadge(
-        WeatherWarningEvent weather,
-        string kindName)
-    {
-        // VPHWの対象地域名は配信経路により府県名を別項目へ持つ場合がある。
-        // バッジだけは市町村名ではなく府県名へ統一し、複数府県なら一度ずつ並べる。
-        string[] prefectureNames = weather.Items
-            .Select(GetTornadoAdvisoryPrefectureName)
-            .Where(static name => !string.IsNullOrWhiteSpace(name))
-            .Distinct(StringComparer.Ordinal)
-            .OrderBy(static name => name, StringComparer.Ordinal)
-            .ToArray();
-        return prefectureNames.Length == 0
-            ? kindName
-            : $"{string.Join("・", prefectureNames)}　{kindName}";
-    }
-
-    private static string GetTornadoAdvisoryPrefectureName(WeatherWarningItem item)
-    {
-        string prefectureName = GetPrefectureName(item);
-        if (!string.IsNullOrWhiteSpace(prefectureName))
-        {
-            return prefectureName;
-        }
-
-        string areaName = item.AreaName.Trim();
-        return WeatherPrefectureCatalog.Options
-            .Where(static option => !string.IsNullOrWhiteSpace(option.Code))
-            .FirstOrDefault(option =>
-                areaName.Contains(option.Name, StringComparison.Ordinal))
-            ?.Name ?? string.Empty;
+        return WithWeatherHeading(pages, GetWeatherHeading(weather));
     }
 
     private static string[] SplitBulletinSentences(string headline) => headline
@@ -579,18 +532,14 @@ internal static partial class WeatherWarningPageComposer
     {
         string[] names = weather?.Items.SelectMany(i => new[] { i.AreaName, GetPrefectureName(i) })
             .Where(s => s.Length > 0).Distinct().ToArray() ?? [];
-        string context = weather is null ? string.Empty : string.Join("・",
-            weather.Items.Select(GetPrefectureName).Where(s => s.Length > 0).Distinct());
         var pending = new List<string>();
         int visualLines = 0;
-        int pageIndex = 0;
         foreach (string fragment in lines.SelectMany(line => WeatherTextPagination.Split(line, names, 72)))
         {
             int height = NarrativeTextPaginator.EstimateVisualLineCount(fragment);
             if (pending.Count > 0 && visualLines + height > 3)
             {
-                yield return CreateTextPage(pageIndex++ > 0 && context.Length > 0 && !badge.Contains(context, StringComparison.Ordinal)
-                    ? context + "　" + badge : badge, pending.ToArray(), style);
+                yield return CreateTextPage(badge, pending.ToArray(), style);
                 pending.Clear();
                 visualLines = 0;
             }
@@ -598,9 +547,34 @@ internal static partial class WeatherWarningPageComposer
             visualLines += height;
         }
         if (pending.Count > 0)
-            yield return CreateTextPage(pageIndex > 0 && context.Length > 0 && !badge.Contains(context, StringComparison.Ordinal)
-                ? context + "　" + badge : badge, pending.ToArray(), style);
+            yield return CreateTextPage(badge, pending.ToArray(), style);
     }
+
+    private static PageDraft[] WithWeatherHeading(IEnumerable<PageDraft> pages, string heading) => pages.Select(page => page with
+    {
+        Blocks = page.Blocks.Select((block, index) => index == 0 ? block with { WeatherHeading = heading } : block).ToArray(),
+    }).ToArray();
+
+    private static string GetWeatherHeading(WeatherWarningEvent weather, bool includeStatus = false, string? explicitState = null, string? areaOverride = null)
+    {
+        string area = string.Join("・", weather.Items.Select(i => GetPrefectureName(i) is { Length: > 0 } pref ? pref : i.AreaName.Trim())
+            .Where(n => n.Length > 0).Distinct(StringComparer.Ordinal));
+        if (!string.IsNullOrWhiteSpace(areaOverride)) area = areaOverride;
+        // Bulletin item statuses may be synthesized by a provider; do not treat them as explicit state.
+        string[] states = includeStatus ? weather.Items.Select(i => i.Status.Trim()).Where(s => s.Length > 0).Distinct().ToArray() : [];
+        string state = explicitState ?? (states.Length == 1 ? FormatStatus(states[0]) :
+            !includeStatus && weather.Issue.InformationType.Trim() is "発表" or "訂正" or "解除" or "取消"
+                ? weather.Issue.InformationType.Trim() : string.Empty);
+        return string.Join("｜", new[] { area, state }.Where(s => s.Length > 0));
+    }
+
+    private static string GetWeatherKind(WeatherWarningEvent weather) => weather.InformationType switch
+    {
+        WeatherInformationType.DisasterPreventionBulletin => weather.Issue.RawType == "VPBS51" ? "気象防災速報（潮位）" : "気象防災速報",
+        WeatherInformationType.TornadoAdvisory => "竜巻注意情報",
+        WeatherInformationType.RecordShortDurationHeavyRain => "記録的短時間大雨情報",
+        _ => "気象警報・注意報",
+    };
 
     private static PageDraft CreateTextPage(
         string badge,

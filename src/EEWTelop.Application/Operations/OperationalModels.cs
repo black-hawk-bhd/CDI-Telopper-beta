@@ -388,7 +388,7 @@ public sealed class SourceComparisonService : ISourceComparisonService
                 result.Program?.Pages.Count ?? 0,
                 CreateDomainFingerprint(result.Event),
                 string.Join("\u001e", blocks.Select(static block => string.Join("\u001f", block.Badge, block.StyleToken))),
-                string.Join("\u001e", blocks.Select(static block => string.Join("\u001f", block.PrimaryText, block.SecondaryText))),
+                string.Join("\u001e", blocks.Select(static block => string.Join("\u001f", block.WeatherHeading, block.PrimaryText, block.SecondaryText))),
                 string.Empty);
         }
 

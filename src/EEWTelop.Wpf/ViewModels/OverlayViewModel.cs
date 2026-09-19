@@ -220,7 +220,7 @@ public sealed class OverlayViewModel : ObservableObject
                 !string.IsNullOrWhiteSpace(block.Badge) || reservesPreviousBadge,
                 block.PrimaryText,
                 block.SecondaryText,
-                block.StyleToken));
+                block.StyleToken) { WeatherHeading = block.WeatherHeading });
         }
     }
 
@@ -280,6 +280,7 @@ public sealed record OverlayBlockViewModel(
     string SecondaryText,
     string StyleToken)
 {
+    public string WeatherHeading { get; init; } = string.Empty;
     public bool IsBadgeVisible => !string.IsNullOrWhiteSpace(Badge);
 
     public double BadgeOpacity => IsBadgeVisible ? 1 : 0;
@@ -289,13 +290,12 @@ public sealed record OverlayBlockViewModel(
 
     // Area-list pages keep context in the source text for history and speech.
     // Only their first line is lifted beside the badge in the subtitle layout.
-    public bool HasWeatherContext => IsWeather && IsBadgeVisible &&
-        PrimaryText.IndexOf('\n') is > 0 && (PrimaryText.Split('\n')[0].Contains('｜') ||
-        Badge is "気象防災速報" or "気象防災速報（潮位）");
+    public bool HasWeatherContext => IsWeather && IsBadgeVisible && (WeatherHeading.Length > 0 ||
+        PrimaryText.IndexOf('\n') is > 0 && PrimaryText.Split('\n')[0].Contains('｜'));
 
-    public string WeatherContext => HasWeatherContext ? PrimaryText.Split('\n')[0] : string.Empty;
+    public string WeatherContext => HasWeatherContext ? WeatherHeading.Length > 0 ? WeatherHeading : PrimaryText.Split('\n')[0] : string.Empty;
 
-    public string SubtitlePrimaryText => HasWeatherContext
+    public string SubtitlePrimaryText => HasWeatherContext && WeatherHeading.Length == 0
         ? PrimaryText[(PrimaryText.IndexOf('\n') + 1)..]
         : PrimaryText;
 

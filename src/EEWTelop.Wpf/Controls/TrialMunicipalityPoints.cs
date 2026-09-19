@@ -12,9 +12,15 @@ internal static class TrialMunicipalityPoints
     internal static Location? Resolve(QuakePoint point)
     {
         // Exact municipality names only: never turn a station-name prefix into a city observation.
-        string address = point.Address.Trim();
+        if (point.IsArea) return null;
+        string address = (string.IsNullOrWhiteSpace(point.MunicipalityName) ? point.Address : point.MunicipalityName).Trim();
         string prefecture = point.Prefecture.Trim();
         if (prefecture.Length == 0) return null;
+        if (!string.IsNullOrWhiteSpace(point.MunicipalityCode))
+        {
+            var coded = Locations.FirstOrDefault(p => p.Code == "city:" + point.MunicipalityCode && p.Prefecture == prefecture);
+            if (coded is not null) return coded;
+        }
         if (address.StartsWith(prefecture, StringComparison.Ordinal)) address = address[prefecture.Length..];
         string shortPrefecture = prefecture == "北海道" ? prefecture : prefecture[..^1];
         var matches = Locations.Where(p => p.Prefecture == prefecture &&

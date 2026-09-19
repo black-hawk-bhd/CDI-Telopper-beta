@@ -79,8 +79,11 @@ internal static class TrialQuakeMap
         Point? epicenter = !quake.IsCancelled && hypo?.Longitude is double lon && hypo.Latitude is double lat && InBounds(lon, lat) ? new Point(lon, lat) : null;
         if (epicenter is Point ep) locations.Add(ep);
         Extent extent = Extents.FirstOrDefault(e => e.Name == extentName) ?? SelectExtent(locations);
-        var candidates = Regions.Where(r => scales.ContainsKey(r.Code) && extent.Contains(r.Center))
-            .Select(r => new LabelCandidate(r.Code, scales[r.Code], extent.Project(r.Center)))
+        var areaOnlyScales = quake.Points.Where(p => !quake.IsCancelled && p.Scale != JmaScale.Unknown && TrialMunicipalityPoints.Resolve(p) is null)
+            .Select(p => (Region: Match(p), p.Scale)).Where(p => p.Region is not null)
+            .GroupBy(p => p.Region!.Code).ToDictionary(g => g.Key, g => g.Max(p => p.Scale));
+        var candidates = Regions.Where(r => areaOnlyScales.ContainsKey(r.Code) && extent.Contains(r.Center))
+            .Select(r => new LabelCandidate(r.Code, areaOnlyScales[r.Code], extent.Project(r.Center)))
             .Concat(cities.Where(p => extent.Contains(p.City.Position))
                 .Select(p => new LabelCandidate(p.City.Code, p.Scale, extent.Project(p.City.Position)))).ToArray();
         Rect? reserved = epicenter is Point epic && extent.Contains(epic)
@@ -92,6 +95,7 @@ internal static class TrialQuakeMap
             dc.DrawRectangle(palette.Brush("Background"), null, new Rect(0, 0, Width, Height));
             Text(dc, quake.SourceMode is SourceMode.ManualTest or SourceMode.Sandbox
                 ? "【訓練・試験電文】実際の地震情報ではありません"
+                : quake.Provider == "local-jma-xml" ? "外部XML・過去電文の確認用（自動更新なし）"
                 : "試験地図・選択電文の確認用（自動更新なし）", 25, 18, 26, palette.Brush("Accent"));
             Text(dc, $"{quake.IssuedAt.ToLocalTime():yyyy年M月d日 HH:mm:ss} 発表　{hypo?.Name}　［{extent.Name}］", 25, 58, 23, text);
             if (!quake.IsCancelled && (epicenter is null || !extent.Contains(epicenter.Value)))
@@ -146,7 +150,7 @@ internal static class TrialQuakeMap
             dc.Pop();
             DrawSummary(dc, quake, palette);
             Text(dc, quake.IsCancelled ? "取消電文：震央・震度を表示しません" : $"地域内最大震度 {scales.Count}地域／市町村代表点 {cities.Length}地点（観測点位置ではありません）", 25, 798, 19, text);
-            Text(dc, $"全地点描画：{labels.Length}　範囲外：{scales.Count + cities.Length - candidates.Length}　未対応：{GetRegionRows(quake).Count(r => !r.Mapped)}　重なりは地方図・一覧選択で確認", 25, 829, 18, text);
+            Text(dc, $"全地点描画：{labels.Length}　範囲外：{areaOnlyScales.Count + cities.Length - candidates.Length}　未対応：{GetRegionRows(quake).Count(r => !r.Mapped)}　重なりは地方図・一覧選択で確認", 25, 829, 18, text);
             Text(dc, "気象庁GIS（地震情報／細分区域）を簡略化・加工。着色は受信値であり、面的な震度推定ではありません。", 25, 859, 17, text);
         }
         drawing.Freeze();

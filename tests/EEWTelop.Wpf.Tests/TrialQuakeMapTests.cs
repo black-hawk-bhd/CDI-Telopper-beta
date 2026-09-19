@@ -25,6 +25,9 @@ public sealed class TrialQuakeMapTests
         Assert.IsNull(TrialMunicipalityPoints.Resolve(p with { Address = "日南市油津" }));
         Assert.IsNull(TrialMunicipalityPoints.Resolve(p with { Prefecture = "大分県", Address = "日南市" }));
         Assert.IsNull(TrialMunicipalityPoints.Resolve(p with { Prefecture = "" }));
+        Assert.IsNotNull(TrialMunicipalityPoints.Resolve(p with { Address = "任意の観測点", MunicipalityCode = "4540600", MunicipalityName = "都農町" }));
+        Assert.IsNotNull(TrialMunicipalityPoints.Resolve(p with { Address = "任意の観測点", MunicipalityCode = "unknown", MunicipalityName = "都農町" }));
+        Assert.IsNull(TrialMunicipalityPoints.Resolve(p with { Address = "任意の観測点", MunicipalityCode = "4540600", Prefecture = "大分県" }));
         foreach (var (prefecture, city) in new[] { ("神奈川県", "横浜市"), ("神奈川県", "相模原市"),
             ("北海道", "北見市"), ("北海道", "釧路市"), ("宮城県", "仙台市") })
         {

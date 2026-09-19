@@ -298,6 +298,7 @@ public sealed class EventIngestionPipeline
                     '\u001f',
                     page.Index,
                     block.Badge,
+                    block.WeatherHeading,
                     block.PrimaryText,
                     block.SecondaryText,
                     block.StyleToken))));

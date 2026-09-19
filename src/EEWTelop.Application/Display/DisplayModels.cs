@@ -50,7 +50,10 @@ public sealed record DisplayBlock(
     string Badge,
     string PrimaryText,
     string SecondaryText,
-    string StyleToken);
+    string StyleToken)
+{
+    public string WeatherHeading { get; init; } = string.Empty;
+}
 
 public static class DisplayStyleTokens
 {

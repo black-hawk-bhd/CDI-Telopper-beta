@@ -65,7 +65,7 @@ public sealed class ReceivedTelegramViewModel
             $"ページ {index + 1} / {Program.Pages.Count}",
             Event is WeatherWarningEvent
                 ? string.Join(Environment.NewLine, page.Blocks.Where(b => b.StyleToken != DisplayStyleTokens.PageIndicator)
-                    .Select(b => b.PrimaryText + (b.SecondaryText.Length > 0 ? Environment.NewLine + b.SecondaryText : string.Empty)))
+                    .Select(b => (b.WeatherHeading.Length > 0 ? b.WeatherHeading + Environment.NewLine : string.Empty) + b.PrimaryText + (b.SecondaryText.Length > 0 ? Environment.NewLine + b.SecondaryText : string.Empty)))
                 : page.AccessibleText,
             Event is WeatherWarningEvent
                 ? string.Join(" ／ ", page.Blocks.Select(b => b.Badge).Where(b => b.Length > 0).Distinct())

@@ -13,6 +13,7 @@ namespace EEWTelop.Wpf;
 internal sealed class MapReviewWindow : Window
 {
     private readonly Func<IEnumerable<ReceivedTelegramViewModel>> _telegrams;
+    private ReceivedTelegramViewModel? _externalXml;
     private readonly CheckBox _includeTests = new() { Content = "試験電文を表示（訓練）", Foreground = Brushes.Yellow, Margin = new Thickness(8) };
     private readonly IReadOnlyList<ReceivedTelegramViewModel> _testTelegrams = CreateTestTelegrams();
     private readonly ComboBox _selection = new() { DisplayMemberPath = nameof(ReceivedTelegramViewModel.DisplayText), MinWidth = 300, MaxWidth = 740, Margin = new Thickness(8) };
@@ -37,6 +38,20 @@ internal sealed class MapReviewWindow : Window
         var reload = new Button { Content = "電文一覧を更新", Margin = new Thickness(8), Padding = new Thickness(10, 4, 10, 4) };
         reload.Click += (_, _) => Reload((_selection.SelectedItem as ReceivedTelegramViewModel)?.Event as QuakeEvent);
         controls.Children.Add(reload);
+        var openXml = new Button { Content = "外部XMLを開く…", Margin = new Thickness(8), Padding = new Thickness(10, 4, 10, 4) };
+        openXml.Click += async (_, _) =>
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog { Title = "地図確認用の地震XMLを開く（字幕・音声には送出しません）", Filter = "気象庁形式のXML (*.xml)|*.xml", CheckFileExists = true };
+            if (dialog.ShowDialog(this) != true) return;
+            openXml.IsEnabled = false;
+            try { await LoadExternalXmlAsync(dialog.FileName); }
+            catch (Exception ex) when (ex is System.IO.IOException or InvalidDataException or UnauthorizedAccessException or System.Xml.XmlException or System.Text.DecoderFallbackException or InvalidOperationException or ArgumentException)
+            {
+                MessageBox.Show(this, "XMLを読み込めませんでした。\n" + ex.Message, "外部XML", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            finally { openXml.IsEnabled = true; }
+        };
+        controls.Children.Add(openXml);
         controls.Children.Add(_includeTests);
         _includeTests.Checked += (_, _) => Reload();
         _includeTests.Unchecked += (_, _) => Reload();
@@ -70,6 +85,20 @@ internal sealed class MapReviewWindow : Window
 
     internal QuakeEvent? SelectedQuake => (_selection.SelectedItem as ReceivedTelegramViewModel)?.Event as QuakeEvent;
 
+    internal async Task LoadExternalXmlAsync(string path)
+    {
+        var quake = await MapXmlLoader.LoadAsync(path);
+        ShowExternalXml(quake);
+    }
+
+    internal void ShowExternalXml(QuakeEvent quake)
+    {
+        // Local review only: never enter the live reception or replay pipeline.
+        _externalXml = new ReceivedTelegramViewModel(quake,
+            new PageComposer().Compose(quake, AppSettings.CreateDefault().Display), "外部XML・地図確認のみ");
+        Reload(quake);
+    }
+
     internal static IReadOnlyList<ReceivedTelegramViewModel> CreateTestTelegrams()
     {
         var composer = new PageComposer();
@@ -87,6 +116,7 @@ internal sealed class MapReviewWindow : Window
     internal void Reload(QuakeEvent? selected = null)
     {
         var items = _telegrams().Where(t => t.Event is QuakeEvent).ToList();
+        if (_externalXml is not null) items.Insert(0, _externalXml);
         if (_includeTests.IsChecked == true) items.AddRange(_testTelegrams);
         // Keep a displayed snapshot even after the bounded reception history evicts it.
         if (selected is not null && !items.Any(t => ReferenceEquals(t.Event, selected)) &&
@@ -115,7 +145,7 @@ internal sealed class MapReviewWindow : Window
                 _regions.ItemsSource = TrialQuakeMap.GetRegionRows(quake);
             }
             _image.Source = TrialQuakeMap.Render(quake, _extent.SelectedItem as string, _palette, (_regions.SelectedItem as TrialQuakeMap.RegionRow)?.Code);
-            _status.Text = $"{item.SourceText} / {quake.Provider} / {quake.IssuedAt.ToLocalTime():yyyy/MM/dd HH:mm:ss} 発表　選択電文の固定表示です。新着へ自動更新せず、字幕・音声の再実行もしません。";
+            _status.Text = $"{(ReferenceEquals(item, _externalXml) ? "外部XML・地図確認のみ" : item.SourceText)} / {quake.Provider} / {quake.IssuedAt.ToLocalTime():yyyy/MM/dd HH:mm:ss} 発表　選択電文の固定表示です。新着へ自動更新せず、字幕・音声の再実行もしません。";
         }
         catch (Exception)
         {

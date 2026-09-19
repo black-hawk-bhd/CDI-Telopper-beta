@@ -9,6 +9,20 @@ namespace EEWTelop.Wpf.Tests;
 public sealed class TrialMapPaletteTests
 {
     [TestMethod]
+    public void DefaultUsesYellowGreenLandAndLightBlueSeaWithoutReplacingCustomColors()
+    {
+        Assert.AreEqual("#B5CF70", TrialMapPalette.Default.Colors["Land"]);
+        Assert.AreEqual("#D3EDF5", TrialMapPalette.Default.Colors["Background"]);
+        Assert.AreEqual("#B5D8E5", TrialMapPalette.Default.Colors["Grid"]);
+        Assert.AreEqual("#F2EFE8", TrialMapPalette.Paper.Colors["Background"]);
+        var custom = TrialMapPalette.Normalize(new(new() { ["Land"] = "#112233", ["Background"] = "#445566" }));
+        Assert.AreEqual("#112233", custom.Colors["Land"]);
+        Assert.AreEqual("#445566", custom.Colors["Background"]);
+        TrialMapPalette.Paper.Colors["Land"] = "#000000";
+        Assert.AreEqual("#B5CF70", TrialMapPalette.Default.Colors["Land"]);
+    }
+
+    [TestMethod]
     public void InvalidAndMissingColorsFallBackIndividually()
     {
         var palette = TrialMapPalette.Normalize(new(new() { ["Background"] = "#123456", ["Land"] = "transparent" }, true));

@@ -174,7 +174,7 @@ internal static class PageComposerSupport
         "。",
         blocks
             .Where(static block => block.StyleToken != DisplayStyleTokens.PageIndicator)
-            .SelectMany(static block => new[] { block.Badge, block.PrimaryText, block.SecondaryText })
+            .SelectMany(static block => new[] { block.Badge, block.WeatherHeading, block.PrimaryText, block.SecondaryText })
             .Where(static text => !string.IsNullOrWhiteSpace(text)));
 
     private static string GetRehearsalLabel(DisasterEvent disasterEvent)

@@ -15,7 +15,7 @@ internal sealed class TrialMapPaletteDialog : Window
         var root = new DockPanel { Margin = new Thickness(14) };
         var fields = new Dictionary<string, TextBox>();
         var options = new StackPanel();
-        options.Children.Add(new TextBlock { Text = "色を選択、または #RRGGBB を入力してください。\n色を変えても震度の数値・地域判定は変わりません。", Margin = new Thickness(0, 0, 0, 10) });
+        options.Children.Add(new TextBlock { Text = "標準は黄緑の陸地・薄い水色の海域です。各色を変更できます。\n色を変えても震度の数値・地域判定は変わりません。\n震度情報のある地域には、陸地の基本色に震度色を重ねます。", Margin = new Thickness(0, 0, 0, 10) });
         var grid = new CheckBox { Content = "格子線を表示する", IsChecked = initial.ShowGrid, Margin = new Thickness(0, 8, 0, 8) };
         var presets = new StackPanel { Orientation = Orientation.Horizontal };
         void Apply(TrialMapPalette palette)
@@ -23,10 +23,10 @@ internal sealed class TrialMapPaletteDialog : Window
             foreach (var pair in fields) pair.Value.Text = palette.Colors[pair.Key];
             grid.IsChecked = palette.ShowGrid;
         }
-        foreach (string name in new[] { "ペーパー（初期配色）", "グラファイト" })
+        foreach (string name in new[] { "標準（黄緑・水色）", "ペーパー", "グラファイト" })
         {
             var button = new Button { Content = name, Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(8) };
-            button.Click += (_, _) => Apply(name == "グラファイト" ? TrialMapPalette.Dark : TrialMapPalette.Default);
+            button.Click += (_, _) => Apply(name == "グラファイト" ? TrialMapPalette.Dark : name == "ペーパー" ? TrialMapPalette.Paper : TrialMapPalette.Default);
             presets.Children.Add(button);
         }
         options.Children.Add(presets); options.Children.Add(grid);

@@ -35,6 +35,9 @@ public sealed record QuakePoint(
 {
     public string SeismicAreaCode { get; init; } = string.Empty;
     public string SeismicAreaName { get; init; } = string.Empty;
+    public string MunicipalityCode { get; init; } = string.Empty;
+    public string MunicipalityName { get; init; } = string.Empty;
+    public string StationCode { get; init; } = string.Empty;
 }
 
 public sealed record LongPeriodIntensityArea(

@@ -95,7 +95,7 @@ public sealed class Phase7ObsLocalViewTests
         var weatherProgram = new DisplayProgram(
             "weather-route", weatherEvent.Id, EventKind.WeatherWarning,
             SourceMode.Production, clock.UtcNow, OverlayPriority.WeatherWarning,
-            [new DisplayPage(0, [new DisplayBlock("大雨警報", "熊本市", "新たに発表", DisplayStyleTokens.WeatherWarning)], "", null)],
+            [new DisplayPage(0, [new DisplayBlock("大雨警報", "熊本市", "", DisplayStyleTokens.WeatherWarning) { WeatherHeading = "熊本県｜新たに発表" }], "", null)],
             clock.UtcNow, EndPolicy.AutoHide, string.Empty);
         store.PublishProgram(weatherEvent, weatherProgram, settings.Display, clock.UtcNow);
 
@@ -122,6 +122,8 @@ public sealed class Phase7ObsLocalViewTests
         Assert.AreEqual("Eew", eew.RootElement.GetProperty("kind").GetString());
         Assert.IsTrue(weather.RootElement.GetProperty("hasProgram").GetBoolean());
         Assert.AreEqual("WeatherWarning", weather.RootElement.GetProperty("kind").GetString());
+        Assert.AreEqual("熊本県｜新たに発表", weather.RootElement.GetProperty("blocks")[0].GetProperty("weatherHeading").GetString());
+        Assert.AreEqual("大雨警報", weather.RootElement.GetProperty("blocks")[0].GetProperty("badge").GetString());
 
     }
 
