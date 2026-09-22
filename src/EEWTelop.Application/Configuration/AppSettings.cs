@@ -103,6 +103,8 @@ public sealed record ProviderSettings(
 
     public ProviderRoutingSettings Routing { get; init; } = ProviderRoutingSettings.Default;
 
+    public bool JmaXmlAutoFallback { get; init; } = true;
+
     public string DmdataApiBaseUrl { get; init; } = "https://api.dmdata.jp/v2";
 
     // Migration fallback only. New credentials are entered in the UI and stored
@@ -193,8 +195,8 @@ public sealed record ProviderRoutingSettings(
                 ReceptionProvider.Disabled),
             ReceptionProvider.Axis => AxisHybrid,
             ReceptionProvider.ObsEarthquakeBridge => new ProviderRoutingSettings(
-                ReceptionProvider.ObsEarthquakeBridge, ReceptionProvider.ObsEarthquakeBridge,
-                ReceptionProvider.ObsEarthquakeBridge, ReceptionProvider.Disabled,
+                ReceptionProvider.Disabled, ReceptionProvider.Disabled,
+                ReceptionProvider.Disabled, ReceptionProvider.Disabled,
                 ReceptionProvider.Disabled, ReceptionProvider.Disabled),
             ReceptionProvider.JmaXml => new ProviderRoutingSettings(
                 ReceptionProvider.Disabled, ReceptionProvider.JmaXml, ReceptionProvider.JmaXml,
@@ -233,9 +235,7 @@ public sealed record ProviderRoutingSettings(
             .ToArray();
 
     public ReceptionProvider GetCompatibilityProvider() =>
-        Uses(ReceptionProvider.ObsEarthquakeBridge)
-            ? ReceptionProvider.ObsEarthquakeBridge
-            : Uses(ReceptionProvider.JmaXml)
+        Uses(ReceptionProvider.JmaXml)
             ? ReceptionProvider.JmaXml
             : Uses(ReceptionProvider.Axis)
             ? ReceptionProvider.Axis
@@ -599,6 +599,7 @@ public enum ReceptionProvider
     Disabled = 3,
     Wolfx = 4,
     JmaXml = 5,
+    // Retained only to read beta.46 settings; migrated to Disabled. Never connect.
     ObsEarthquakeBridge = 6,
 }
 

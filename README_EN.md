@@ -12,13 +12,15 @@ Beta.41 fixes JMA XML telegrams being rejected before normalization. “気象�
 
 **Comprehensive Disaster Information Telopper (CDI-Telopper)** is a Windows application that receives disaster information related to earthquakes, tsunamis, weather, volcanoes, and the Nankai Trough, then generates captions for OBS.
 
-The current public release is **2.0.0-beta.46**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.47**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.46](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.46)
-- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.46.txt)
+- [Download 2.0.0-beta.47](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.47)
+- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.47.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
+
+beta.47: automatic JMA XML PULL fallback for supported non-EEW information after a DMDATA.JP, P2P, or AXIS connection remains faulted/reconnecting for 30 seconds. The reception settings checkbox enables or disables it (default on). The original source resumes on successful reconnection; saved source selections are unchanged. Silence or Stale alone does not trigger fallback, and partial feed outages on an otherwise connected source cannot be detected. EEW, Sandbox, disabled categories, and Wolfx are excluded. JMA polling is shared and remains at least 60 seconds apart; no backup requests are made while the selected sources are healthy. Completeness and timeliness are not guaranteed.
 
 beta.46 adds the read-only [CDI External API v1](docs/external-api-v1.md) for earthquake, EEW, and tsunami information. It is local-only, disabled by default, and protected by a separate token. Initial synchronization does not replay captions or audio. See the external API terms below.
 
@@ -161,10 +163,10 @@ The script restores dependencies, builds every project in the Release configurat
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.46
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.47
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.46\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.47\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
 
 ## External API integration: terms and disclaimer
 

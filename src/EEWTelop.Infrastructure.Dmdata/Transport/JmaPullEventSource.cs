@@ -11,7 +11,7 @@ using EEWTelop.Domain.Events;
 
 namespace EEWTelop.Infrastructure.Dmdata.Transport;
 
-/// <summary>Official minute feeds, manually selected; never an EEW transport.</summary>
+/// <summary>Shared official minute feeds for manual selection and failover; never EEW.</summary>
 public sealed class JmaPullEventSource : IEventSource, IProviderConfigurableEventSource
 {
     private readonly HttpClient _http;
@@ -25,6 +25,8 @@ public sealed class JmaPullEventSource : IEventSource, IProviderConfigurableEven
     private bool _disposed;
     private bool _pollFailed;
     private DateTimeOffset? _since;
+    private DateTimeOffset? _lastPoll;
+    public JmaFallbackRouting? FallbackRouting { get; init; }
     public JmaPullEventSource(ProviderSettings settings, IClock clock)
         : this(settings, clock, new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })) { }
 
@@ -58,6 +60,20 @@ public sealed class JmaPullEventSource : IEventSource, IProviderConfigurableEven
         {
             while (!reader.IsCancellationRequested)
             {
+                var activeRouting = FallbackRouting?.GetRouting() ?? _routing;
+                if (!activeRouting.GetDistinctProviders().Contains(ReceptionProvider.JmaXml))
+                {
+                    if (Connection.State != ProviderConnectionState.Stopped)
+                        SetState(ProviderConnectionState.Stopped, "気象庁XML：自動代替待機中（アクセスなし）");
+                    await Task.Delay(TimeSpan.FromSeconds(1), reader.Token).ConfigureAwait(false);
+                    continue;
+                }
+                if (_lastPoll is { } last && _clock.UtcNow - last < TimeSpan.FromSeconds(60))
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1), reader.Token).ConfigureAwait(false);
+                    continue;
+                }
+                _lastPoll = _clock.UtcNow;
                 List<RawProviderMessage> messages = [];
                 try
                 {
@@ -71,7 +87,6 @@ public sealed class JmaPullEventSource : IEventSource, IProviderConfigurableEven
                     SetState(ProviderConnectionState.Reconnecting, "気象庁XML取得失敗：" + ex.Message);
                 }
                 foreach (var message in messages) yield return message;
-                await Task.Delay(TimeSpan.FromSeconds(60), reader.Token).ConfigureAwait(false);
             }
         }
         finally
@@ -87,8 +102,9 @@ public sealed class JmaPullEventSource : IEventSource, IProviderConfigurableEven
         _pollFailed = false;
         var entries = new List<(Uri Uri, DateTimeOffset Updated)>();
         var feeds = new List<string>();
-        if (_routing.Weather == ReceptionProvider.JmaXml) feeds.Add("extra");
-        if (new[] { _routing.Quake, _routing.Tsunami, _routing.Volcano, _routing.NankaiTrough }.Contains(ReceptionProvider.JmaXml)) feeds.Add("eqvol");
+        var routing = FallbackRouting?.GetRouting() ?? _routing;
+        if (routing.Weather == ReceptionProvider.JmaXml) feeds.Add("extra");
+        if (new[] { routing.Quake, routing.Tsunami, routing.Volcano, routing.NankaiTrough }.Contains(ReceptionProvider.JmaXml)) feeds.Add("eqvol");
         foreach (string feed in feeds)
         {
             string xml;
@@ -109,7 +125,10 @@ public sealed class JmaPullEventSource : IEventSource, IProviderConfigurableEven
                 {
                     if (!Uri.TryCreate((string?)link.Attribute("href"), UriKind.Absolute, out var uri) || !IsTelegramUri(uri)) continue;
                     string code = Regex.Match(uri.AbsolutePath, @"_(V[A-Z]{3}\d{2})_", RegexOptions.CultureInvariant).Groups[1].Value;
-                    if (Accepts(code, _routing) && !_seen.Contains(uri.AbsoluteUri)) entries.Add((uri, updated));
+                    var originalProvider = GetCodeProvider(code, _routing);
+                    var cutoff = originalProvider == ReceptionProvider.JmaXml ? since
+                        : FallbackRouting?.GetFailureSince(originalProvider) ?? since;
+                    if (updated >= cutoff && Accepts(code, routing) && !_seen.Contains(uri.AbsoluteUri)) entries.Add((uri, updated));
                 }
             }
         }
@@ -147,6 +166,15 @@ public sealed class JmaPullEventSource : IEventSource, IProviderConfigurableEven
         "VPWW53" or "VPWW54" or "VPOA50" => false,
         "VPWW55" or "VPWW56" or "VPWW57" or "VPWW58" or "VPWW59" or "VPWW60" or "VPWW61" or "VPWS50" or "VPBS50" or "VPBS51" or "VPHW50" or "VPHW51" => routing.Weather == ReceptionProvider.JmaXml,
         _ => Regex.IsMatch(code, @"^VXKO[5-8][0-9]$", RegexOptions.CultureInvariant) && routing.Weather == ReceptionProvider.JmaXml,
+    };
+
+    private static ReceptionProvider GetCodeProvider(string code, ProviderRoutingSettings routing) => code switch
+    {
+        "VXSE51" or "VXSE52" or "VXSE53" or "VXSE62" => routing.Quake,
+        "VYSE50" or "VYSE60" => routing.NankaiTrough,
+        "VTSE41" or "VTSE51" or "VTSE52" => routing.Tsunami,
+        "VFVO50" or "VFVO56" => routing.Volcano,
+        _ => routing.Weather,
     };
 
     private async Task<string> DownloadAsync(Uri uri, CancellationToken token)

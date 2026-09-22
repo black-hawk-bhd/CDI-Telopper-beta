@@ -19,6 +19,9 @@ public sealed class ProviderSelectionEventNormalizer :
 {
     private readonly IEventNormalizer _inner;
     private ProviderRoutingSettings _routing;
+    public JmaFallbackRouting? FallbackRouting { get; init; }
+    private readonly Dictionary<string, ReceptionProvider> _recentProviders = new(StringComparer.Ordinal);
+    private readonly Queue<string> _recentOrder = new();
 
     public ProviderSelectionEventNormalizer(
         IEventNormalizer inner,
@@ -49,11 +52,27 @@ public sealed class ProviderSelectionEventNormalizer :
         {
             IssueType: QuakeIssueType.NankaiTroughTemporaryInformation,
         };
-        ReceptionProvider selectedProvider = Volatile.Read(ref _routing)
+        ReceptionProvider selectedProvider = (FallbackRouting?.GetRouting() ?? Volatile.Read(ref _routing))
             .GetProvider(result.Event.Kind, isNankaiTrough);
-        return selectedProvider == actualProvider
-            ? result
-            : NormalizeResult.Ignored();
+        if (selectedProvider != actualProvider) return NormalizeResult.Ignored();
+        if (FallbackRouting is not null && result.Event.Kind != EventKind.Eew && !raw.IsStateSnapshot)
+        {
+            string fingerprint = EventSignatureBuilder.BuildCrossProvider(result.Event);
+            lock (_recentProviders)
+            {
+                if (_recentProviders.TryGetValue(fingerprint, out var previous))
+                {
+                    if (previous != actualProvider) return NormalizeResult.Ignored();
+                }
+                else
+                {
+                    _recentProviders.Add(fingerprint, actualProvider);
+                    _recentOrder.Enqueue(fingerprint);
+                    while (_recentOrder.Count > 2000) _recentProviders.Remove(_recentOrder.Dequeue());
+                }
+            }
+        }
+        return result;
     }
 
     private static bool TryMapProvider(
@@ -91,11 +110,6 @@ public sealed class ProviderSelectionEventNormalizer :
         }
 
         receptionProvider = default;
-        if (string.Equals(provider, "obs-earthquake-bridge", StringComparison.OrdinalIgnoreCase))
-        {
-            receptionProvider = ReceptionProvider.ObsEarthquakeBridge;
-            return true;
-        }
         return false;
     }
 }

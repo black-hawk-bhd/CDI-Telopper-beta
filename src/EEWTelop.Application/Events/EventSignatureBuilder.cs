@@ -7,6 +7,12 @@ namespace EEWTelop.Application.Events;
 public sealed class EventSignatureBuilder : IEventSignatureBuilder
 {
     public string Build(DisasterEvent disasterEvent)
+        => BuildCore(disasterEvent, includeProvider: true);
+
+    public static string BuildCrossProvider(DisasterEvent disasterEvent)
+        => BuildCore(disasterEvent, includeProvider: false);
+
+    private static string BuildCore(DisasterEvent disasterEvent, bool includeProvider)
     {
         ArgumentNullException.ThrowIfNull(disasterEvent);
 
@@ -14,7 +20,7 @@ public sealed class EventSignatureBuilder : IEventSignatureBuilder
         using (var writer = new Utf8JsonWriter(buffer))
         {
             writer.WriteStartObject();
-            writer.WriteString("provider", disasterEvent.Provider);
+            if (includeProvider) writer.WriteString("provider", disasterEvent.Provider);
             writer.WriteNumber("code", disasterEvent.ProviderCode);
             writer.WriteString("issuedAt", disasterEvent.IssuedAt.ToUniversalTime());
             writer.WriteBoolean("cancelled", disasterEvent.IsCancelled);

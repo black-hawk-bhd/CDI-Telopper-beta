@@ -149,6 +149,30 @@ public sealed class ProviderSelectionRoutingTests
         Assert.IsEmpty(source.GetProviderConnections());
     }
 
+    [TestMethod]
+    public void AutomaticSelectionRejectsHealthyBackupAndSuppressesIdenticalRecoveryReport()
+    {
+        var clock = new FallbackClock();
+        var settings = AppSettings.CreateDefault().Provider with { Mode = ProviderMode.Production };
+        var fallback = new JmaFallbackRouting(settings, clock);
+        var normalizer = new ProviderSelectionEventNormalizer(new StubNormalizer(CreateQuake(QuakeIssueType.DetailScale)), settings)
+            { FallbackRouting = fallback };
+        Assert.AreEqual(NormalizeStatus.Ignored, normalizer.Normalize(Message("jma-xml")).Status);
+        fallback.Observe(ReceptionProvider.P2pQuake, ProviderConnectionState.Reconnecting);
+        clock.UtcNow += TimeSpan.FromSeconds(30);
+        Assert.AreEqual(NormalizeStatus.Success, normalizer.Normalize(Message("jma-xml")).Status);
+        Assert.AreEqual(NormalizeStatus.Ignored, normalizer.Normalize(Message("p2pquake")).Status);
+        fallback.Observe(ReceptionProvider.P2pQuake, ProviderConnectionState.Connected);
+        Assert.AreEqual(NormalizeStatus.Ignored, normalizer.Normalize(Message("p2pquake")).Status);
+    }
+
+    private sealed class FallbackClock : EEWTelop.Application.Abstractions.IClock
+    {
+        public DateTimeOffset UtcNow { get; set; } = Now;
+        public long GetTimestamp() => 0;
+        public TimeSpan GetElapsedTime(long startingTimestamp) => TimeSpan.Zero;
+    }
+
     private static RawProviderMessage Message(string provider) => new(
         provider,
         "{}",

@@ -311,8 +311,9 @@
                                                   SelectedValue="{Binding Settings.NankaiTroughProvider}"
                                                   Visibility="{Binding Settings.HasCommercialProviderOptions, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                     </Grid>
-                                    <TextBlock Text="気象庁XML：手動切替・60秒巡回。EEWは対象外です。公開の遅延・停止や、長時間の停止中の取りこぼしがあり、即時配信は保証されません。接続前の電文は新着表示しません。" TextWrapping="Wrap" Foreground="Orange" Margin="0,8,0,8" />
-                                    <TextBlock Text="OBS-Earthquake Bridge：別途Bridgeを127.0.0.1:51235で起動してください。EEW・地震・津波に対応。初期・再接続時の状態取得では字幕・音声を再生しません。r6で欠落する津波取消・有効期限などは補完できません。公式情報と併用してください。" TextWrapping="Wrap" Foreground="Orange" Margin="0,0,0,8" />
+                                    <TextBlock Text="気象庁XML：手動選択／接続障害時の自動代替・60秒以上の間隔で巡回。EEWは対象外です。公開の遅延・停止や、長時間の停止中の取りこぼしがあり、即時配信は保証されません。手動接続前の電文は新着表示しません。" TextWrapping="Wrap" Foreground="Orange" Margin="0,8,0,8" />
+                                    <CheckBox Content="接続障害時に気象庁XMLへ自動切替（EEW対象外）" IsChecked="{Binding Settings.JmaXmlAutoFallback}" IsEnabled="{Binding Settings.IsJmaFallbackAvailable}" />
+                                    <TextBlock Text="DMDATA.JP・P2P・AXISの再接続・異常が30秒続いた場合、対応情報を60秒以上の間隔で代替取得します。復旧後は元に戻ります。新着なしだけでは切り替えず、Sandboxは対象外です。" TextWrapping="Wrap" Foreground="Orange" Margin="0,0,0,8" />
                                     <StackPanel Visibility="{Binding Settings.IsP2pProvider, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <TextBlock Text="P2P地震情報 API" FontWeight="Bold" />
                                         <TextBlock Text="運用モード（接続先プリセット）" Foreground="{StaticResource MutedBrush}" />

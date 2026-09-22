@@ -72,12 +72,38 @@ public sealed class JmaPullEventSourceTests
         Assert.AreEqual(2, handler.XmlRequests);
     }
 
+    [TestMethod]
+    public async Task AutomaticFallbackDoesNotPollHealthySourcesAndStopsAfterRecovery()
+    {
+        var clock = new FakeClock();
+        var handler = new FakeHandler();
+        var settings = AppSettings.CreateDefault().Provider with
+        {
+            Mode = ProviderMode.Production,
+            Routing = ProviderRoutingSettings.FromLegacy(ReceptionProvider.Disabled) with { Weather = ReceptionProvider.Axis },
+        };
+        var fallback = new JmaFallbackRouting(settings, clock);
+        await using var source = new JmaPullEventSource(settings, clock, new HttpClient(handler)) { FallbackRouting = fallback };
+        await source.PollAsync(clock.UtcNow, default);
+        Assert.AreEqual(0, handler.FeedRequests);
+        fallback.Observe(ReceptionProvider.Axis, ProviderConnectionState.Faulted);
+        clock.UtcNow += TimeSpan.FromSeconds(30);
+        await source.PollAsync(clock.UtcNow - TimeSpan.FromSeconds(30), default);
+        Assert.AreEqual(1, handler.FeedRequests);
+        fallback.Observe(ReceptionProvider.Axis, ProviderConnectionState.Connected);
+        await source.PollAsync(clock.UtcNow, default);
+        Assert.AreEqual(1, handler.FeedRequests);
+    }
+
     private sealed class FakeHandler : HttpMessageHandler
     {
         public int XmlRequests { get; private set; }
+        public int FeedRequests { get; private set; }
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             if (request.RequestUri!.AbsolutePath.Contains("/feed/"))
+            {
+                FeedRequests++;
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""
                     <feed xmlns="http://www.w3.org/2005/Atom">
                     <entry><updated>2026-09-09T00:01:00Z</updated><link href="https://www.data.jma.go.jp/developer/xml/data/20260909000100_0_VPWW55_010000.xml"/></entry>
@@ -88,6 +114,7 @@ public sealed class JmaPullEventSourceTests
                     <entry><updated>2026-09-09T00:01:00Z</updated><link href="https://www.data.jma.go.jp/developer/xml/data/20260909000100_0_VPOA50_010000.xml"/></entry>
                     </feed>
                     """) });
+            }
             XmlRequests++;
             return Task.FromResult(new HttpResponseMessage(XmlRequests == 1 ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.OK) { Content = new StringContent("""
                 <Report><Control><Title>気象警報・注意報（Ｒ０６）（大雨）</Title><Status>通常</Status><PublishingOffice>和歌山地方気象台</PublishingOffice></Control>
@@ -100,7 +127,7 @@ public sealed class JmaPullEventSourceTests
     }
     private sealed class FakeClock : IClock
     {
-        public DateTimeOffset UtcNow => new(2026, 9, 9, 0, 0, 0, TimeSpan.Zero);
+        public DateTimeOffset UtcNow { get; set; } = new(2026, 9, 9, 0, 0, 0, TimeSpan.Zero);
         public long GetTimestamp() => 0;
         public TimeSpan GetElapsedTime(long startingTimestamp) => TimeSpan.Zero;
     }

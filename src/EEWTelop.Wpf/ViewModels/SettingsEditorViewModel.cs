@@ -25,6 +25,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private ReceptionProvider _volcanoProvider;
     private ReceptionProvider _nankaiTroughProvider;
     private ProviderMode _providerMode;
+    private bool _jmaXmlAutoFallback;
     private string _webSocketUrl;
     private string _restBaseUrl;
     private string _dmdataApiBaseUrl;
@@ -150,6 +151,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(settings);
         _receptionProvider = NormalizeReceptionProvider(
             settings.Provider.ReceptionProvider);
+        _jmaXmlAutoFallback = settings.Provider.JmaXmlAutoFallback;
         ProviderRoutingSettings initialRouting = settings.Provider.Routing;
         if (settings.Provider.ReceptionProvider != initialRouting.GetCompatibilityProvider())
         {
@@ -348,7 +350,6 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 ReceptionProvider.Dmdata => BuildFeatures.DmdataProviderEnabled,
                 ReceptionProvider.Axis => BuildFeatures.AxisProviderEnabled,
                 ReceptionProvider.Wolfx => true,
-                ReceptionProvider.ObsEarthquakeBridge => true,
                 ReceptionProvider.JmaXml => BuildFeatures.DmdataProviderEnabled,
                 _ => false,
             })
@@ -513,6 +514,14 @@ public sealed class SettingsEditorViewModel : ObservableObject
             value,
             nameof(NankaiTroughProvider));
     }
+
+    public bool JmaXmlAutoFallback
+    {
+        get => _jmaXmlAutoFallback;
+        set => SetProperty(ref _jmaXmlAutoFallback, value);
+    }
+
+    public bool IsJmaFallbackAvailable { get; } = BuildFeatures.DmdataProviderEnabled;
 
     public ProviderMode ProviderMode
     {
@@ -737,7 +746,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
             MidpointRounding.AwayFromZero) / 2;
         ProviderMode providerMode = routing.Uses(ReceptionProvider.Axis) ||
             routing.Uses(ReceptionProvider.Dmdata) ||
-            routing.Uses(ReceptionProvider.Wolfx) || routing.Uses(ReceptionProvider.JmaXml) || routing.Uses(ReceptionProvider.ObsEarthquakeBridge)
+            routing.Uses(ReceptionProvider.Wolfx) || routing.Uses(ReceptionProvider.JmaXml)
             ? ProviderMode.Production
             : ProviderMode == ProviderMode.Sandbox
             ? ProviderMode.Sandbox
@@ -755,6 +764,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 RestBaseUrl = provider.RestBaseUri.AbsoluteUri.TrimEnd('/'),
                 ReceptionProvider = routing.GetCompatibilityProvider(),
                 Routing = routing,
+                JmaXmlAutoFallback = JmaXmlAutoFallback,
                 DmdataApiBaseUrl = DmdataApiBaseUrl.Trim(),
                 DmdataCredentialEnvironmentVariable = string.Empty,
                 DmdataProtectedCredential = ProtectDmdataCredential(
@@ -1524,7 +1534,6 @@ public sealed class SettingsEditorViewModel : ObservableObject
         if (includeP2p)
         {
             options.Add(new ReceptionProviderOption(ReceptionProvider.P2pQuake, "P2P"));
-            options.Add(new ReceptionProviderOption(ReceptionProvider.ObsEarthquakeBridge, "OBS-Earthquake Bridge（ローカル連携）"));
         }
 
         if (includeWolfx)
@@ -1555,7 +1564,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
             ReceptionProvider.Axis when BuildFeatures.AxisProviderEnabled =>
                 ReceptionProvider.Axis,
             ReceptionProvider.Wolfx => ReceptionProvider.Wolfx,
-            ReceptionProvider.ObsEarthquakeBridge => ReceptionProvider.ObsEarthquakeBridge,
+            ReceptionProvider.ObsEarthquakeBridge => ReceptionProvider.Disabled,
             ReceptionProvider.JmaXml when BuildFeatures.DmdataProviderEnabled => ReceptionProvider.JmaXml,
             _ => ReceptionProvider.P2pQuake,
         };

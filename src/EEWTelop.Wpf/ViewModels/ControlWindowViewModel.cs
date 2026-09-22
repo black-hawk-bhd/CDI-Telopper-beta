@@ -749,7 +749,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         ProviderSettings current,
         ProviderSettings updated)
     {
-        if (current.Routing != updated.Routing)
+        if (current.Routing != updated.Routing || current.JmaXmlAutoFallback != updated.JmaXmlAutoFallback)
         {
             return true;
         }

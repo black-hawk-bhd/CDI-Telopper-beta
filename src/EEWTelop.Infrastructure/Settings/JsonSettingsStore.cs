@@ -122,6 +122,36 @@ public sealed class JsonSettingsStore : ISettingsStore
 
     private static AppSettings Validate(AppSettings? settings)
     {
+        if (settings?.Provider?.Routing is { } storedRouting &&
+            (storedRouting.Uses(ReceptionProvider.ObsEarthquakeBridge) ||
+             settings.Provider.ReceptionProvider == ReceptionProvider.ObsEarthquakeBridge))
+        {
+            static ReceptionProvider RemoveRetiredProvider(ReceptionProvider value) =>
+                value == ReceptionProvider.ObsEarthquakeBridge ? ReceptionProvider.Disabled : value;
+            settings = settings with
+            {
+                Provider = settings.Provider with
+                {
+                    ReceptionProvider = RemoveRetiredProvider(settings.Provider.ReceptionProvider),
+                    Routing = storedRouting with
+                    {
+                        Eew = RemoveRetiredProvider(storedRouting.Eew),
+                        Quake = RemoveRetiredProvider(storedRouting.Quake),
+                        Tsunami = RemoveRetiredProvider(storedRouting.Tsunami),
+                        Weather = RemoveRetiredProvider(storedRouting.Weather),
+                        Volcano = RemoveRetiredProvider(storedRouting.Volcano),
+                        NankaiTrough = RemoveRetiredProvider(storedRouting.NankaiTrough),
+                    },
+                },
+            };
+            settings = settings with
+            {
+                Provider = settings.Provider with
+                {
+                    ReceptionProvider = settings.Provider.Routing.GetCompatibilityProvider(),
+                },
+            };
+        }
         if (settings is null || settings.SchemaVersion != AppSettings.CurrentSchemaVersion ||
             settings.Provider is null || settings.Filter is null || settings.Display is null ||
             settings.Provider.Routing is null ||
@@ -614,6 +644,7 @@ public sealed class JsonSettingsStore : ISettingsStore
     }
 
     private static bool IsValidProviderRouting(ProviderRoutingSettings routing) =>
+        !routing.Uses(ReceptionProvider.ObsEarthquakeBridge) &&
         routing.Weather != ReceptionProvider.ObsEarthquakeBridge &&
         routing.Volcano != ReceptionProvider.ObsEarthquakeBridge &&
         routing.NankaiTrough != ReceptionProvider.ObsEarthquakeBridge &&

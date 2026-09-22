@@ -113,21 +113,6 @@ WS URLは上記コピーURLの `http` を `ws` に、パスを `/api/v1/events` 
 
 これは「最新の受信結果」であり、気象庁における現在の発表状況を保証するAPIではありません。受信停止中の値は最後の値として残ります。statusの接続状態、津波受信元の設定、電文時刻、期限を併せて扱ってください。P2Pの対象外メッセージ等でも全体の最終受信時刻は更新されるので、それだけでは津波情報の鮮度を判断できません。契約プロバイダー由来の情報は、その利用条件・再配信条件も確認してください。
 
-## Bridge API 1.1（fixed-r8仕様）との関係
-
-これは**CDIが外部へ公開するAPI v1**の仕様書です。Bridge API 1.1をそのまま転送するAPIではありません。Bridge受信にCDI External APIの有効化は不要です。BridgeのSSE `/api/v1/events` とCDIのWebSocket `/api/v1/events` は、接続先・形式とも別です。
-
-- Bridge入力では新旧のイベント識別子、入れ子の震源、津波メタデータ＋JMA互換本文、取消専用イベントを変換します。外部公開データは本書の共通形式を維持します。
-- r8初期情報は `mode=live` と確認できる場合のみ本番採用します。訓練・テスト・区分不明を本番情報へ変換しません。初期・再接続時の同期は字幕・音声を再実行しません。
-- 同一EventIDの古い報を抑止し、津波予報・観測は別々の報番号で比較します。観測情報の取消で予報を解除しません。別EventIDへの電文取消で現在保持する予報・観測を置き換えません。
-- Bridgeの `upstreamHealthy`、`upstreamState`、feedの `configured`・`stale` をCDIの接続状態に反映します。CDIのstatusには `Stale` 等の接続状態として現れます。これらは災害情報の解除フラグではありません。
-- `available:false` や空本文だけでは解除と判断しません。本文のない明示的な取消はメタデータから判定します。期限切れ情報は状態として保持しますが、新着字幕・音声を出しません。
-- Bridgeの `highestSerial`、`available`、`reason`、SSEの `sequence` はCDI公開APIの同名フィールドとして転送しません。クライアントは本書の状態フィールドを使ってください。
-
-津波本文は `Head` / `Body.Tsunami` のJMA互換形式を前提とします。添付仕様の `payload: {}` だけから地域・高さを推測しません。対応範囲とr6向け互換パッチは[連携手順](../integrations/obs-earthquake/README.md)を参照してください。r6向けパッチをr8へ適用する必要はありません。
-
-検証は仕様に基づく自動テストで実施済みです。**r8実機との接続確認は未実施**です。
-
 ## 指定の津波マップツールとの接続
 
 確認したZIPの `server-src/main.go` は、`/api/jma/tsunami` から気象庁JSONを代理取得します。`index.html` はそのJSONの `item[].area.name` と `item[].kind.code` を使って海岸線を描画します。
@@ -147,6 +132,4 @@ CDI側だけの変更では、この既存ツールの接続先は変わりま�
 - `src/EEWTelop.Wpf/Obs/ObsLocalViewServer.ExternalApi.cs`: HTTP/WS・認証・接続管理
 - `src/EEWTelop.Wpf/Obs/ExternalApiState.cs`: 本番受信の投影とDTO
 - `src/EEWTelop.Wpf/Obs/ExternalEarthquakeState.cs`: 地震・EEWの公開状態
-- `src/EEWTelop.Infrastructure/Bridge/`: Bridgeの受信・新旧形式変換
 - `tests/EEWTelop.Wpf.Tests/ExternalApiTests.cs`: API・状態分離テスト
-- `tests/EEWTelop.Wpf.Tests/BridgeIntegrationTests.cs`: Bridge互換・取消・失効・初期同期テスト

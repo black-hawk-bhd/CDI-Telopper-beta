@@ -12,7 +12,6 @@ using EEWTelop.Application.Operations;
 using EEWTelop.Application.Persistence;
 using EEWTelop.Domain.Events;
 using EEWTelop.Infrastructure.Diagnostics;
-using EEWTelop.Infrastructure.Bridge;
 #if QTELOPPER_AXIS_PROVIDER
 using EEWTelop.Infrastructure.Axis.Configuration;
 using EEWTelop.Infrastructure.Axis.Normalization;
@@ -74,7 +73,6 @@ public static class AppComposition
         var liveNormalizers = new List<KeyValuePair<string, IEventNormalizer>>
         {
             new("p2pquake", p2pNormalizer),
-            new(ObsEarthquakeBridgeSource.ProviderName, new ObsEarthquakeBridgeNormalizer(signatureBuilder)),
             new(WolfxProviderOptions.ProviderName, new WolfxEventNormalizer(signatureBuilder)),
         };
 #if QTELOPPER_DMDATA_PROVIDER
@@ -104,9 +102,11 @@ public static class AppComposition
 #endif
         }
 #endif
+        var fallbackRouting = BuildFeatures.DmdataProviderEnabled
+            ? new JmaFallbackRouting(settings.Provider, clock) : null;
         var normalizer = new ProviderSelectionEventNormalizer(
             new ProviderRoutingEventNormalizer(liveNormalizers),
-            settings.Provider);
+            settings.Provider) { FallbackRouting = fallbackRouting };
         var pageComposer = new PageComposer();
         var displayCoordinator = new PriorityCoordinator(clock, settings.Display);
         DisplayStateDocument storedState = stateStore.LoadAsync().AsTask().GetAwaiter().GetResult();
@@ -124,14 +124,14 @@ public static class AppComposition
         var eventSources = new Dictionary<ReceptionProvider, IEventSource>
         {
             [ReceptionProvider.P2pQuake] = p2pEventSource,
-            [ReceptionProvider.ObsEarthquakeBridge] = new ObsEarthquakeBridgeSource(clock),
             [ReceptionProvider.Wolfx] = new WolfxEventSource(
                 WolfxProviderOptions.FromSettings(settings.Provider),
                 clock,
                 logWriter),
         };
         #if QTELOPPER_DMDATA_PROVIDER
-        eventSources[ReceptionProvider.JmaXml] = new JmaPullEventSource(settings.Provider, clock);
+        eventSources[ReceptionProvider.JmaXml] = new JmaPullEventSource(settings.Provider, clock)
+            { FallbackRouting = fallbackRouting };
         #endif
         if (BuildFeatures.DmdataProviderEnabled)
         {
@@ -156,7 +156,7 @@ public static class AppComposition
             eventSources[ReceptionProvider.Axis] = axisEventSource;
 #endif
         }
-        var eventSource = new RoutedProviderEventSource(settings.Provider, eventSources);
+        var eventSource = new RoutedProviderEventSource(settings.Provider, eventSources, fallbackRouting);
         var versionCache = new EventVersionCache();
         versionCache.Restore(storedState.RecentSignatures);
         var ingestionPipeline = new EventIngestionPipeline(
@@ -234,7 +234,7 @@ public static class AppComposition
                 ReceptionProvider.Dmdata,
             ReceptionProvider.P2pQuake => ReceptionProvider.P2pQuake,
             ReceptionProvider.Wolfx => ReceptionProvider.Wolfx,
-            ReceptionProvider.ObsEarthquakeBridge => ReceptionProvider.ObsEarthquakeBridge,
+            ReceptionProvider.ObsEarthquakeBridge => ReceptionProvider.Disabled,
             ReceptionProvider.JmaXml when BuildFeatures.DmdataProviderEnabled => ReceptionProvider.JmaXml,
             _ => ReceptionProvider.P2pQuake,
         };
