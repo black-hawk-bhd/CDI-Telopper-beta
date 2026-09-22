@@ -1,19 +1,32 @@
 Comprehensive Disaster Information Telopper
-CDI-Telopper 2.0.0-beta.45 詳細README・操作説明・仕様書
+CDI-Telopper 2.0.0-beta.46 詳細README・操作説明・仕様書
 ======================================================================
 
-文書対象バージョン : 2.0.0-beta.45
+文書対象バージョン : 2.0.0-beta.46
 
 製品名             : Comprehensive Disaster Information Telopper
 製品略称           : CDI-Telopper
 実行ファイル       : CDI-Telopper.exe
 対象OS             : Windows 10 / Windows 11（64ビット）
 対象エディション   : 統合ベータ版
-最終更新日         : 2026年9月19日
+最終更新日         : 2026年9月21日
 作者               : ブラックホークBHD
 作者のX（SNS）     : https://x.com/bhd_den
 ライセンス         : MIT License
 
+
+【beta.46の追加機能】
+----------------------------------------------------------------------
+
+地震・EEW・津波の受信状態を同一PCの外部ソフトへ提供する、読み取り専用の
+CDI External API v1を追加しました。初期OFF・専用トークン認証付きです。
+「表示・出力」でOBS Local Viewを有効にして保存後、外部APIのチェックをONにします。
+有効状態は今回の起動中のみです。トークンは第三者へ公開しないでください。
+初期取得では字幕・音声を再実行しません。未取得、通信断、解除、取消、期限切れは
+異なる状態として扱います。外部ソフト側にも接続・状態処理の対応が必要です。
+仕様: https://github.com/black-hawk-bhd/CDI-Telopper-beta/blob/main/docs/external-api-v1.md
+利用前に本書28.1「外部API連携機能の利用条件・免責事項」を必ず確認してください。
+地図機能は配布版では引き続き無効です。
 
 【最初に必ずお読みください】
 ----------------------------------------------------------------------
@@ -1568,7 +1581,7 @@ OBS WebSocketの認証情報を移行先で再入力してください。
 ［配布物］
 
 □ ZIPを通常フォルダへ完全展開した
-□ CDI-Telopper.exeのバージョンが2.0.0-beta.45である
+□ CDI-Telopper.exeのバージョンが2.0.0-beta.46である
 □ SHA256を確認した
 □ セキュリティソフトの除外範囲が過大でない
 
@@ -1734,4 +1747,4 @@ docs\assets-license.mdを参照してください。
 以上
 
 Comprehensive Disaster Information Telopper
-CDI-Telopper 2.0.0-beta.45 詳細README・操作説明・仕様書
+CDI-Telopper 2.0.0-beta.46 詳細README・操作説明・仕様書

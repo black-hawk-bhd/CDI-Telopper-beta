@@ -35,6 +35,10 @@ public interface IObsLocalViewServer : IAsyncDisposable
 
     string WeatherUrl { get; }
 
+    bool ExternalApiEnabled { get => false; set { } }
+
+    string ExternalApiUrl => string.Empty;
+
     Task StartAsync(int port, CancellationToken cancellationToken = default);
 
     void UpdateSnapshotInterval(int milliseconds);

@@ -38,7 +38,9 @@ public partial class ControlWindow : Window, IAsyncDisposable
             obsSnapshots,
             services.Clock,
             services.LogWriter,
-            services.InitialSettings.Obs.SnapshotIntervalMilliseconds);
+            services.InitialSettings.Obs.SnapshotIntervalMilliseconds,
+            services.ReceptionService,
+            JmaTsunamiSnapshotClient.FetchAsync);
         var obsBrowserSourceSynchronizer = new ObsBrowserSourceSynchronizer(services.LogWriter);
         _viewModel = new ControlWindowViewModel(
             services,

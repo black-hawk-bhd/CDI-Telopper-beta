@@ -91,6 +91,11 @@ public sealed class ProviderSelectionEventNormalizer :
         }
 
         receptionProvider = default;
+        if (string.Equals(provider, "obs-earthquake-bridge", StringComparison.OrdinalIgnoreCase))
+        {
+            receptionProvider = ReceptionProvider.ObsEarthquakeBridge;
+            return true;
+        }
         return false;
     }
 }

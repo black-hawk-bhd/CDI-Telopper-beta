@@ -192,6 +192,10 @@ public sealed record ProviderRoutingSettings(
                 ReceptionProvider.Disabled,
                 ReceptionProvider.Disabled),
             ReceptionProvider.Axis => AxisHybrid,
+            ReceptionProvider.ObsEarthquakeBridge => new ProviderRoutingSettings(
+                ReceptionProvider.ObsEarthquakeBridge, ReceptionProvider.ObsEarthquakeBridge,
+                ReceptionProvider.ObsEarthquakeBridge, ReceptionProvider.Disabled,
+                ReceptionProvider.Disabled, ReceptionProvider.Disabled),
             ReceptionProvider.JmaXml => new ProviderRoutingSettings(
                 ReceptionProvider.Disabled, ReceptionProvider.JmaXml, ReceptionProvider.JmaXml,
                 ReceptionProvider.JmaXml, ReceptionProvider.JmaXml, ReceptionProvider.JmaXml),
@@ -229,7 +233,9 @@ public sealed record ProviderRoutingSettings(
             .ToArray();
 
     public ReceptionProvider GetCompatibilityProvider() =>
-        Uses(ReceptionProvider.JmaXml)
+        Uses(ReceptionProvider.ObsEarthquakeBridge)
+            ? ReceptionProvider.ObsEarthquakeBridge
+            : Uses(ReceptionProvider.JmaXml)
             ? ReceptionProvider.JmaXml
             : Uses(ReceptionProvider.Axis)
             ? ReceptionProvider.Axis
@@ -593,6 +599,7 @@ public enum ReceptionProvider
     Disabled = 3,
     Wolfx = 4,
     JmaXml = 5,
+    ObsEarthquakeBridge = 6,
 }
 
 public enum DmdataAuthenticationMode

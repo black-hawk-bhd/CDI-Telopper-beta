@@ -45,6 +45,8 @@ public abstract record DisasterEvent
     public bool IsCorrection { get; }
 
     public bool IsCancelled { get; }
+
+    public bool IsExpired { get; init; }
 }
 
 public sealed record QuakeEvent : DisasterEvent

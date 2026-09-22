@@ -27,7 +27,19 @@ public sealed class TsunamiEventStateAccumulator
         {
             if (incoming.IsCancelled)
             {
-                Remove(key);
+                if (incoming.Issue.RawType is "VTSE51" or "VTSE52")
+                {
+                    if (_states.TryGetValue(key, out var existing))
+                    {
+                        if (incoming.Issue.RawType == "VTSE51")
+                        {
+                            RemoveRole(existing.Areas, TsunamiInformationRole.CoastalObservation);
+                            RemoveRole(existing.Areas, TsunamiInformationRole.StationForecast);
+                        }
+                        else RemoveRole(existing.Areas, TsunamiInformationRole.OffshoreObservation);
+                    }
+                }
+                else Remove(key);
                 return incoming;
             }
 
@@ -68,6 +80,7 @@ public sealed class TsunamiEventStateAccumulator
                 // This is a property of the telegram currently being rendered.
                 // Do not retain it for later VTSE51/VTSE52 observation updates.
                 WarningStateChanged = incoming.WarningStateChanged,
+                IsExpired = incoming.IsExpired,
             };
             return merged with { Signature = _signatureBuilder.Build(merged) };
         }

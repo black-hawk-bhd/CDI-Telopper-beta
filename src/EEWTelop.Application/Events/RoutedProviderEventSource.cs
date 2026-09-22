@@ -307,6 +307,7 @@ public sealed class RoutedProviderEventSource : IEventSource,
         ReceptionProvider.Axis => "AXIS",
         ReceptionProvider.Wolfx => "Wolfx",
         ReceptionProvider.JmaXml => "気象庁XML",
+        ReceptionProvider.ObsEarthquakeBridge => "OBS-Earthquake Bridge",
         _ => provider.ToString(),
     };
 }

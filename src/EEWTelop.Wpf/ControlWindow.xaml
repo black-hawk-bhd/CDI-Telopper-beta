@@ -312,6 +312,7 @@
                                                   Visibility="{Binding Settings.HasCommercialProviderOptions, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                     </Grid>
                                     <TextBlock Text="気象庁XML：手動切替・60秒巡回。EEWは対象外です。公開の遅延・停止や、長時間の停止中の取りこぼしがあり、即時配信は保証されません。接続前の電文は新着表示しません。" TextWrapping="Wrap" Foreground="Orange" Margin="0,8,0,8" />
+                                    <TextBlock Text="OBS-Earthquake Bridge：別途Bridgeを127.0.0.1:51235で起動してください。EEW・地震・津波に対応。初期・再接続時の状態取得では字幕・音声を再生しません。r6で欠落する津波取消・有効期限などは補完できません。公式情報と併用してください。" TextWrapping="Wrap" Foreground="Orange" Margin="0,0,0,8" />
                                     <StackPanel Visibility="{Binding Settings.IsP2pProvider, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <TextBlock Text="P2P地震情報 API" FontWeight="Bold" />
                                         <TextBlock Text="運用モード（接続先プリセット）" Foreground="{StaticResource MutedBrush}" />
@@ -571,6 +572,18 @@
                                         <Button Content="OBS Local Viewを初期設定に戻す"
                                                 Command="{Binding ResetObsLocalViewSettingsCommand}"
                                                 Margin="0,8,0,0" />
+                                    </StackPanel>
+                                </GroupBox>
+                                <GroupBox Header="CDI External API v1">
+                                    <StackPanel>
+                                        <CheckBox Content="外部APIを有効化（今回の起動中のみ・即時反映）"
+                                                  IsChecked="{Binding ExternalApiEnabled}" />
+                                        <Button Content="外部API 接続URLをコピー"
+                                                IsEnabled="{Binding ExternalApiEnabled}"
+                                                Command="{Binding CopyObsOutputUrlCommand}"
+                                                CommandParameter="{Binding ExternalApiUrlText}" />
+                                        <TextBlock Text="同一PC・読み取り専用。ON時に気象庁から津波の現況を取得（字幕・音声なし）。以後の更新には津波の本番受信を有効にしてください。初期取得失敗時は60秒後に再試行。OBS Local Viewが必要です。OFFで接続キーも失効します。"
+                                                   TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
                                     </StackPanel>
                                 </GroupBox>
                                 <GroupBox Header="OBS WebSocket 自動登録">

@@ -12,6 +12,7 @@ using EEWTelop.Application.Operations;
 using EEWTelop.Application.Persistence;
 using EEWTelop.Domain.Events;
 using EEWTelop.Infrastructure.Diagnostics;
+using EEWTelop.Infrastructure.Bridge;
 #if QTELOPPER_AXIS_PROVIDER
 using EEWTelop.Infrastructure.Axis.Configuration;
 using EEWTelop.Infrastructure.Axis.Normalization;
@@ -73,6 +74,7 @@ public static class AppComposition
         var liveNormalizers = new List<KeyValuePair<string, IEventNormalizer>>
         {
             new("p2pquake", p2pNormalizer),
+            new(ObsEarthquakeBridgeSource.ProviderName, new ObsEarthquakeBridgeNormalizer(signatureBuilder)),
             new(WolfxProviderOptions.ProviderName, new WolfxEventNormalizer(signatureBuilder)),
         };
 #if QTELOPPER_DMDATA_PROVIDER
@@ -122,6 +124,7 @@ public static class AppComposition
         var eventSources = new Dictionary<ReceptionProvider, IEventSource>
         {
             [ReceptionProvider.P2pQuake] = p2pEventSource,
+            [ReceptionProvider.ObsEarthquakeBridge] = new ObsEarthquakeBridgeSource(clock),
             [ReceptionProvider.Wolfx] = new WolfxEventSource(
                 WolfxProviderOptions.FromSettings(settings.Provider),
                 clock,
@@ -231,6 +234,7 @@ public static class AppComposition
                 ReceptionProvider.Dmdata,
             ReceptionProvider.P2pQuake => ReceptionProvider.P2pQuake,
             ReceptionProvider.Wolfx => ReceptionProvider.Wolfx,
+            ReceptionProvider.ObsEarthquakeBridge => ReceptionProvider.ObsEarthquakeBridge,
             ReceptionProvider.JmaXml when BuildFeatures.DmdataProviderEnabled => ReceptionProvider.JmaXml,
             _ => ReceptionProvider.P2pQuake,
         };

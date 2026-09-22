@@ -13,7 +13,7 @@ using EEWTelop.Application.Logging;
 
 namespace EEWTelop.Wpf.Obs;
 
-public sealed class ObsLocalViewServer : IObsLocalViewServer
+public sealed partial class ObsLocalViewServer : IObsLocalViewServer
 {
     private const string HtmlResource = "EEWTelop.Wpf.Obs.Assets.overlay.html";
     private const string ScriptResource = "EEWTelop.Wpf.Obs.Assets.overlay.js";
@@ -46,7 +46,9 @@ public sealed class ObsLocalViewServer : IObsLocalViewServer
         ObsSnapshotStore snapshotStore,
         IClock clock,
         IAppLogWriter logWriter,
-        int snapshotIntervalMilliseconds = ObsSettings.DefaultSnapshotIntervalMilliseconds)
+        int snapshotIntervalMilliseconds = ObsSettings.DefaultSnapshotIntervalMilliseconds,
+        EEWTelop.Application.Events.EventReceptionService? receptionService = null,
+        Func<CancellationToken, Task<EEWTelop.Domain.Events.TsunamiEvent>>? initialTsunamiFetcher = null)
     {
         ArgumentNullException.ThrowIfNull(snapshotStore);
         ArgumentNullException.ThrowIfNull(clock);
@@ -54,6 +56,9 @@ public sealed class ObsLocalViewServer : IObsLocalViewServer
         _snapshotStore = snapshotStore;
         _clock = clock;
         _logWriter = logWriter;
+        _receptionService = receptionService;
+        _initialTsunamiFetcher = initialTsunamiFetcher;
+        if (receptionService is not null) receptionService.EventProcessed += OnExternalEventProcessed;
         UpdateSnapshotInterval(snapshotIntervalMilliseconds);
     }
 
@@ -137,6 +142,7 @@ public sealed class ObsLocalViewServer : IObsLocalViewServer
             _listener = listener;
             Port = ((IPEndPoint)listener.LocalEndpoint).Port;
             _acceptLoop = AcceptLoopAsync(listener, stop.Token);
+            StartExternalInitialization();
         }
         finally
         {
@@ -163,6 +169,7 @@ public sealed class ObsLocalViewServer : IObsLocalViewServer
             }
 
             stop = _stop;
+            CancelExternalInitialization();
             acceptLoop = _acceptLoop;
             stop?.Cancel();
             _listener.Stop();
@@ -190,7 +197,15 @@ public sealed class ObsLocalViewServer : IObsLocalViewServer
         Task[] clientTasks = _clientTasks.Values.ToArray();
         if (clientTasks.Length > 0)
         {
-            await Task.WhenAll(clientTasks).WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await Task.WhenAll(clientTasks).WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (stop?.IsCancellationRequested == true &&
+                !cancellationToken.IsCancellationRequested)
+            {
+                // An in-flight request is cancelled by this server's own shutdown.
+            }
         }
 
         stop?.Dispose();
@@ -209,6 +224,7 @@ public sealed class ObsLocalViewServer : IObsLocalViewServer
         }
 
         await StopAsync().ConfigureAwait(false);
+        if (_receptionService is not null) _receptionService.EventProcessed -= OnExternalEventProcessed;
         _disposed = true;
         _lifecycle.Dispose();
         GC.SuppressFinalize(this);
@@ -288,14 +304,9 @@ public sealed class ObsLocalViewServer : IObsLocalViewServer
             }
 
             await using NetworkStream stream = client.GetStream();
-            using var reader = new StreamReader(
-                stream,
-                Encoding.ASCII,
-                detectEncodingFromByteOrderMarks: false,
-                bufferSize: 2048,
-                leaveOpen: true);
-            HttpRequest? request = await ReadRequestAsync(reader, cancellationToken)
-                .ConfigureAwait(false);
+            using var headerTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            headerTimeout.CancelAfter(TimeSpan.FromSeconds(10));
+            HttpRequest? request = await ReadRequestAsync(stream, headerTimeout.Token).ConfigureAwait(false);
             if (request is null)
             {
                 return;
@@ -324,6 +335,11 @@ public sealed class ObsLocalViewServer : IObsLocalViewServer
             }
 
             string path = uri!.AbsolutePath;
+            if (path.StartsWith("/api/v1/", StringComparison.Ordinal))
+            {
+                await HandleExternalApiAsync(stream, request, uri, cancellationToken).ConfigureAwait(false);
+                return;
+            }
             if (path == "/healthz")
             {
                 if (!string.Equals(request.Method, "GET", StringComparison.Ordinal))
@@ -562,10 +578,23 @@ public sealed class ObsLocalViewServer : IObsLocalViewServer
     };
 
     private static async Task<HttpRequest?> ReadRequestAsync(
-        StreamReader reader,
+        NetworkStream stream,
         CancellationToken cancellationToken)
     {
-        string? requestLine = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+        // Read through exactly CRLFCRLF: a buffered text reader could consume WebSocket frames.
+        var buffer = new byte[MaximumHeaderCharacters];
+        int length = 0;
+        while (length < buffer.Length)
+        {
+            int read = await stream.ReadAsync(buffer.AsMemory(length, 1), cancellationToken).ConfigureAwait(false);
+            if (read == 0) return null;
+            length++;
+            if (length >= 4 && buffer[length - 4] == 13 && buffer[length - 3] == 10 &&
+                buffer[length - 2] == 13 && buffer[length - 1] == 10) break;
+        }
+        if (length == buffer.Length) return null;
+        using var reader = new StringReader(Encoding.ASCII.GetString(buffer, 0, length));
+        string? requestLine = reader.ReadLine();
         if (string.IsNullOrWhiteSpace(requestLine) || requestLine.Length > 4096)
         {
             return null;
@@ -581,7 +610,7 @@ public sealed class ObsLocalViewServer : IObsLocalViewServer
         int totalCharacters = requestLine.Length;
         while (true)
         {
-            string? line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+            string? line = reader.ReadLine();
             if (line is null || line.Length == 0)
             {
                 break;
@@ -600,6 +629,19 @@ public sealed class ObsLocalViewServer : IObsLocalViewServer
             }
         }
 
+        // Drain a bounded request body before replying/closing, avoiding TCP reset on rejected POSTs.
+        if (headers.ContainsKey("Transfer-Encoding")) return null;
+        if (headers.TryGetValue("Content-Length", out string? bodyLength))
+        {
+            if (!int.TryParse(bodyLength, NumberStyles.None, CultureInfo.InvariantCulture, out int remaining) ||
+                remaining is < 0 or > 65536) return null;
+            while (remaining > 0)
+            {
+                int read = await stream.ReadAsync(buffer.AsMemory(0, Math.Min(remaining, buffer.Length)), cancellationToken).ConfigureAwait(false);
+                if (read == 0) return null;
+                remaining -= read;
+            }
+        }
         return new HttpRequest(parts[0], parts[1], headers);
     }
 
@@ -718,6 +760,7 @@ public sealed class ObsLocalViewServer : IObsLocalViewServer
         string reason = statusCode switch
         {
             200 => "OK",
+            503 => "Service Unavailable",
             206 => "Partial Content",
             400 => "Bad Request",
             403 => "Forbidden",

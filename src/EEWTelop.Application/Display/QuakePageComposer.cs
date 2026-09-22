@@ -62,12 +62,12 @@ internal static class QuakePageComposer
         QuakeEvent quake,
         IReadOnlyList<IntensityRow> intensityRows)
     {
-        string time = PageComposerSupport.FormatJapanTime(quake.Earthquake.OriginTime);
+        string time = FormatOriginTime(quake.Earthquake);
         var pages = new List<PageDraft>
         {
             CreateSummaryPage(
                 quake,
-                $"{time}頃　震度３以上の地震がありました",
+                $"{time}　震度３以上の地震がありました",
                 string.Empty),
         };
 
@@ -138,11 +138,11 @@ internal static class QuakePageComposer
 
     private static List<PageDraft> ComposeForeign(QuakeEvent quake)
     {
-        string time = PageComposerSupport.FormatJapanTime(quake.Earthquake.OriginTime);
+        string time = FormatOriginTime(quake.Earthquake);
         string name = quake.Earthquake.Hypocenter?.Name ?? string.Empty;
         string firstLine = string.IsNullOrWhiteSpace(name)
-            ? $"{time}頃、海外で"
-            : $"{time}頃、{name}付近で";
+            ? $"{time}、海外で"
+            : $"{time}、{name}付近で";
         string magnitude = MagnitudeFormatter.Format(quake.Earthquake.Hypocenter?.Magnitude);
         string remainingLines = magnitude == "-"
             ? AppendMagnitudeDescription(
@@ -163,11 +163,11 @@ internal static class QuakePageComposer
 
     private static IReadOnlyList<PageDraft> ComposeOther(QuakeEvent quake)
     {
-        string time = PageComposerSupport.FormatJapanTime(quake.Earthquake.OriginTime);
+        string time = FormatOriginTime(quake.Earthquake);
         var blocks = CreateCorrectionPrefix(quake);
         blocks.Add(new DisplayBlock(
             string.Empty,
-            $"{time}頃、地震・火山に関する情報が発表されました",
+            $"{time}、地震・火山に関する情報が発表されました",
             string.Empty,
             DisplayStyleTokens.Summary));
 
@@ -241,12 +241,12 @@ internal static class QuakePageComposer
             ];
         }
 
-        string time = PageComposerSupport.FormatJapanTime(quake.Earthquake.OriginTime);
+        string time = FormatOriginTime(quake.Earthquake);
         var pages = new List<PageDraft>
         {
             CreateSummaryPage(
                 quake,
-                $"{time}頃　長周期地震動階級{observation.MaximumClass}を観測した地域があります",
+                $"{time}　長周期地震動階級{observation.MaximumClass}を観測した地域があります",
                 string.Empty),
         };
 
@@ -414,11 +414,11 @@ internal static class QuakePageComposer
     private static (string Primary, string Secondary) BuildEarthquakeSummary(
         EarthquakeInfo earthquake)
     {
-        string time = PageComposerSupport.FormatJapanTime(earthquake.OriginTime);
+        string time = FormatOriginTime(earthquake);
         string name = string.IsNullOrWhiteSpace(earthquake.Hypocenter?.Name)
             ? "震源不明"
             : earthquake.Hypocenter.Name;
-        var firstLine = new List<string> { $"{time}頃", $"{name}で地震" };
+        var firstLine = new List<string> { time, $"{name}で地震" };
         if (earthquake.Hypocenter?.DepthKilometers is 0)
         {
             firstLine.Add("震源はごく浅い");
@@ -444,6 +444,10 @@ internal static class QuakePageComposer
             ? firstLine
             : $"{firstLine}\n{description}";
     }
+
+    private static string FormatOriginTime(EarthquakeInfo earthquake) => earthquake.OriginTimeIsKnown
+        ? PageComposerSupport.FormatJapanTime(earthquake.OriginTime) + "頃"
+        : "発生時刻不明";
 
     private static List<IntensityRow> BuildIntensityRows(
         IReadOnlyList<QuakePoint> points)

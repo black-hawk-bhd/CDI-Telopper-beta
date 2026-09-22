@@ -614,6 +614,9 @@ public sealed class JsonSettingsStore : ISettingsStore
     }
 
     private static bool IsValidProviderRouting(ProviderRoutingSettings routing) =>
+        routing.Weather != ReceptionProvider.ObsEarthquakeBridge &&
+        routing.Volcano != ReceptionProvider.ObsEarthquakeBridge &&
+        routing.NankaiTrough != ReceptionProvider.ObsEarthquakeBridge &&
         routing.Eew != ReceptionProvider.JmaXml &&
         Enum.IsDefined(routing.Eew) &&
         Enum.IsDefined(routing.Quake) &&

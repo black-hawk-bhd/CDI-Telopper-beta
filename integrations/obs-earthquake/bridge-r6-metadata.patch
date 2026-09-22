@@ -1,0 +1,26 @@
+diff --git a/bridge/src/main.go b/bridge/src/main.go
+--- a/bridge/src/main.go
++++ b/bridge/src/main.go
+@@ -99,3 +99,4 @@
+ type QuakeEvent struct {
++	Mode             string              `json:"mode"`
+ 	Provider         string              `json:"provider"`
+ 	Type             string              `json:"type"`
+@@ -936,3 +937,4 @@
+ 	q := &QuakeEvent{
++		Mode:             cdiModeFromDoc(doc),
+ 		Provider:         "dmdata",
+ 		Type:             str(doc["type"]),
+@@ -1066,4 +1068,4 @@
+ func convertTsunamiCompat(doc map[string]any) map[string]any {
+ 	if str(doc["infoType"]) == "取消" {
+-		return map[string]any{"Control": map[string]any{"DateTime": str(doc["pressDateTime"])}, "Head": map[string]any{"EventID": str(doc["eventId"]), "Serial": str(doc["serialNo"]), "ReportDateTime": str(doc["reportDateTime"])}, "Body": map[string]any{"Tsunami": map[string]any{"Forecast": map[string]any{"Item": []any{}}, "Observation": map[string]any{"Item": []any{}}}}}
++		return map[string]any{"mode": cdiModeFromDoc(doc), "Control": map[string]any{"DateTime": str(doc["pressDateTime"])}, "Head": map[string]any{"InfoType": "取消", "EventID": str(doc["eventId"]), "Serial": str(doc["serialNo"]), "ReportDateTime": str(doc["reportDateTime"])}, "Body": map[string]any{"Tsunami": map[string]any{"Forecast": map[string]any{"Item": []any{}}, "Observation": map[string]any{"Item": []any{}}}}}
+ 	}
+@@ -1078,3 +1080,6 @@
+ 	out := map[string]any{"Control": map[string]any{"DateTime": str(doc["pressDateTime"])}, "Head": map[string]any{"EventID": str(doc["eventId"]), "Serial": str(doc["serialNo"]), "ReportDateTime": str(doc["reportDateTime"]), "TargetDateTime": str(doc["targetDateTime"]), "Headline": map[string]any{"Text": str(doc["headline"])}}, "Body": map[string]any{"Tsunami": map[string]any{}}}
++	out["mode"] = cdiModeFromDoc(doc)
++	mapObj(out["Head"])["InfoType"] = str(doc["infoType"])
++	mapObj(out["Head"])["ValidDateTime"] = str(doc["validDateTime"])
+ 	outT := mapObj(nested(out, "Body", "Tsunami"))
+ 	fcItems := []any{}

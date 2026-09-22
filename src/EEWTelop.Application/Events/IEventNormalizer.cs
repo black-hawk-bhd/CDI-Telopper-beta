@@ -26,6 +26,9 @@ public sealed record RawProviderMessage(
     public string? TransportPayload { get; init; }
 
     public RawProviderContentFormat? TransportContentFormat { get; init; }
+
+    // Initial/reconnect snapshots update state without replaying subtitles or audio.
+    public bool IsStateSnapshot { get; init; }
 }
 
 public enum RawProviderContentFormat

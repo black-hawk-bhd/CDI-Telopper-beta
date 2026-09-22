@@ -98,7 +98,9 @@ public sealed class EventIngestionPipeline
                 "AXIS旧形式気象電文");
         }
 
-        if (!_versionCache.TryAccept(receivedEvent))
+        // State-only sync must also seed a fresh API session when a signature was
+        // restored from disk. It can never replay output; live duplicates still stop here.
+        if (!_versionCache.TryAccept(receivedEvent) && !raw.IsStateSnapshot)
         {
             return CreateResult(
                 raw,
@@ -114,6 +116,12 @@ public sealed class EventIngestionPipeline
             : receivedEvent;
 
         DisasterEvent? displayEvent = EventDisplayFilter.Apply(_filter, disasterEvent);
+        if (raw.IsStateSnapshot || disasterEvent.IsExpired || disasterEvent is TsunamiEvent { ExpireAt: { } expiry } && expiry <= raw.ReceivedAt)
+        {
+            return CreateResult(raw, EventIngestionStatus.Accepted, disasterEvent,
+                null, null, normalized.Issues, raw.IsStateSnapshot
+                    ? "外部連携：初期状態同期（字幕・音声なし）" : "情報の有効期限切れ（字幕・音声なし）");
+        }
         if (displayEvent is null)
         {
             return CreateResult(

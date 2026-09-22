@@ -591,6 +591,20 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
     public string WeatherObsUrlText => _obsServer?.WeatherUrl ?? string.Empty;
 
+    public bool ExternalApiEnabled
+    {
+        get => _obsServer?.ExternalApiEnabled == true;
+        set
+        {
+            if (_obsServer is null) return;
+            _obsServer.ExternalApiEnabled = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ExternalApiUrlText));
+        }
+    }
+
+    public string ExternalApiUrlText => _obsServer?.ExternalApiUrl ?? string.Empty;
+
     public bool IsHistoryRehearsalRunning
     {
         get => _isHistoryRehearsalRunning;
@@ -2998,6 +3012,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             OnPropertyChanged(nameof(EewObsUrlText));
             OnPropertyChanged(nameof(TsunamiObsUrlText));
             OnPropertyChanged(nameof(WeatherObsUrlText));
+            OnPropertyChanged(nameof(ExternalApiUrlText));
             CopyObsUrlCommand.RaiseCanExecuteChanged();
             SyncObsBrowserSourcesCommand.RaiseCanExecuteChanged();
         });

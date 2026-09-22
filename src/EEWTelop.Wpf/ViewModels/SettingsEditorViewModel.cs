@@ -348,6 +348,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 ReceptionProvider.Dmdata => BuildFeatures.DmdataProviderEnabled,
                 ReceptionProvider.Axis => BuildFeatures.AxisProviderEnabled,
                 ReceptionProvider.Wolfx => true,
+                ReceptionProvider.ObsEarthquakeBridge => true,
                 ReceptionProvider.JmaXml => BuildFeatures.DmdataProviderEnabled,
                 _ => false,
             })
@@ -736,7 +737,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
             MidpointRounding.AwayFromZero) / 2;
         ProviderMode providerMode = routing.Uses(ReceptionProvider.Axis) ||
             routing.Uses(ReceptionProvider.Dmdata) ||
-            routing.Uses(ReceptionProvider.Wolfx) || routing.Uses(ReceptionProvider.JmaXml)
+            routing.Uses(ReceptionProvider.Wolfx) || routing.Uses(ReceptionProvider.JmaXml) || routing.Uses(ReceptionProvider.ObsEarthquakeBridge)
             ? ProviderMode.Production
             : ProviderMode == ProviderMode.Sandbox
             ? ProviderMode.Sandbox
@@ -1523,6 +1524,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         if (includeP2p)
         {
             options.Add(new ReceptionProviderOption(ReceptionProvider.P2pQuake, "P2P"));
+            options.Add(new ReceptionProviderOption(ReceptionProvider.ObsEarthquakeBridge, "OBS-Earthquake Bridge（ローカル連携）"));
         }
 
         if (includeWolfx)
@@ -1553,6 +1555,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
             ReceptionProvider.Axis when BuildFeatures.AxisProviderEnabled =>
                 ReceptionProvider.Axis,
             ReceptionProvider.Wolfx => ReceptionProvider.Wolfx,
+            ReceptionProvider.ObsEarthquakeBridge => ReceptionProvider.ObsEarthquakeBridge,
             ReceptionProvider.JmaXml when BuildFeatures.DmdataProviderEnabled => ReceptionProvider.JmaXml,
             _ => ReceptionProvider.P2pQuake,
         };

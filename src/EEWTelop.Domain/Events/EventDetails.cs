@@ -24,7 +24,10 @@ public sealed record EarthquakeInfo(
     HypocenterInfo? Hypocenter,
     JmaScale MaximumScale,
     DomesticTsunami DomesticTsunami,
-    ForeignTsunami ForeignTsunami);
+    ForeignTsunami ForeignTsunami)
+{
+    public bool OriginTimeIsKnown { get; init; } = true;
+}
 
 public sealed record QuakePoint(
     string Prefecture,
@@ -38,6 +41,8 @@ public sealed record QuakePoint(
     public string MunicipalityCode { get; init; } = string.Empty;
     public string MunicipalityName { get; init; } = string.Empty;
     public string StationCode { get; init; } = string.Empty;
+    public double? Latitude { get; init; }
+    public double? Longitude { get; init; }
 }
 
 public sealed record LongPeriodIntensityArea(

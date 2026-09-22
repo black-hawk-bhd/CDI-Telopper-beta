@@ -62,8 +62,10 @@ public sealed class EventVersionCache : IEventVersionCache
             }
 
             int? serial = GetSerialNumber(disasterEvent);
+            // Forecast and observation have independent report-number sequences.
+            string serialScope = disasterEvent is TsunamiEvent tsunami ? tsunami.Issue.RawType : string.Empty;
             if (serial is int reportNumber &&
-                entry.HighestSerial is int highestSerial &&
+                entry.HighestSerials.TryGetValue(serialScope, out int highestSerial) &&
                 reportNumber < highestSerial)
             {
                 return false;
@@ -81,9 +83,9 @@ public sealed class EventVersionCache : IEventVersionCache
             }
 
             if (serial is int acceptedSerial &&
-                (entry.HighestSerial is not int currentSerial || acceptedSerial > currentSerial))
+                (!entry.HighestSerials.TryGetValue(serialScope, out int currentSerial) || acceptedSerial > currentSerial))
             {
-                entry.HighestSerial = acceptedSerial;
+                entry.HighestSerials[serialScope] = acceptedSerial;
             }
 
             entry.Signatures.AddLast(disasterEvent.Signature);
@@ -249,6 +251,6 @@ public sealed class EventVersionCache : IEventVersionCache
 
         public HashSet<string> SignatureSet { get; } = new(StringComparer.Ordinal);
 
-        public int? HighestSerial { get; set; }
+        public Dictionary<string, int> HighestSerials { get; } = new(StringComparer.Ordinal);
     }
 }

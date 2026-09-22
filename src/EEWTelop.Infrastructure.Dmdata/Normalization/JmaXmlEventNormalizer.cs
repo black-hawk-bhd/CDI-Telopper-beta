@@ -520,7 +520,9 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
             issuedAt,
             raw.ReceivedAt,
             signature: string.Empty,
-            raw.SourceMode,
+            raw.SourceMode == SourceMode.Production && IsTestTelegram(document)
+                ? SourceMode.Sandbox
+                : raw.SourceMode,
             issue,
             ReadTsunamiAreas(document, telegramType),
             cancelled,

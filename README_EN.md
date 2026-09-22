@@ -12,13 +12,15 @@ Beta.41 fixes JMA XML telegrams being rejected before normalization. “気象�
 
 **Comprehensive Disaster Information Telopper (CDI-Telopper)** is a Windows application that receives disaster information related to earthquakes, tsunamis, weather, volcanoes, and the Nankai Trough, then generates captions for OBS.
 
-The current public release is **2.0.0-beta.45**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.46**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.45](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.45)
-- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.45.txt)
+- [Download 2.0.0-beta.46](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.46)
+- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.46.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
+
+beta.46 adds the read-only [CDI External API v1](docs/external-api-v1.md) for earthquake, EEW, and tsunami information. It is local-only, disabled by default, and protected by a separate token. Initial synchronization does not replay captions or audio. See the external API terms below.
 
 Beta.40 redesigns weather captions with a heading above a full-width body. Sentences and districts are kept together where possible; long text is split with place names and parentheses protected. The fixed two-line layout is removed. Designated-river forecasts retain river and district context without automatic summarization.
 
@@ -154,15 +156,28 @@ Building requires Windows 10/11 x64, the .NET 8 SDK, and PowerShell. Visual Stud
 powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
-The script restores dependencies, builds every project in the Release configuration, and runs the automated tests. The beta.45 source currently has 563 verified tests.
+The script restores dependencies, builds every project in the Release configuration, and runs the automated tests.
 
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.45
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.46
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.45\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.46\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
+
+## External API integration: terms and disclaimer
+
+The following conditions apply to the external API integration feature and data obtained through it:
+
+- Do not use the feature or its data for commercial purposes.
+- Do not transmit the obtained data over the Internet, except for video uploads and similar activities performed manually by the user.
+- Do not duplicate or redistribute any or all of the obtained data through relays or similar mechanisms.
+- When using connected software for video production, publication, or streaming (including YouTube and other live streams), clearly state that CDI-Telopper is used. Attribution does not authorize commercial use or otherwise prohibited transmission or redistribution.
+- Do not use the feature in public or commercial facilities, to control machine tools or medical equipment, or in other systems affecting human life or physical safety.
+- Comply with the source APIs' and data providers' terms, contracts, and reuse and redistribution restrictions. These conditions do not relax provider restrictions or grant permission for prohibited uses.
+
+This feature is provided as is, without any warranty of operation, compatibility, accuracy, completeness, timeliness, continuity, or fitness for a particular purpose. To the extent permitted by applicable law, the developer accepts no liability for damage arising from its use or inability to use it. Users are responsible for testing their setup and must also consult official disaster information.
 
 ## License and attribution
 
