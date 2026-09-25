@@ -1,5 +1,7 @@
 # CDI-Telopper
 
+Beta.49 restores long-period ground-motion classes and areas from Simulator messages. The Simulator must supply `longPeriodIntensity`; the normal JMA XML reception path is unchanged.
+
 Beta.45 unifies non-river weather headings: information type in the badge, area beside it, and status only when explicitly available. Continuation pages, preview, OBS and telegram review retain the heading.
 
 Beta.43: weather captions show only the information type in the badge, with prefecture/status alongside it and municipalities below. Tsunami observation introductions and the active warning/advisory announcement now appear on separate pages.
@@ -14,10 +16,10 @@ Beta.41 fixes JMA XML telegrams being rejected before normalization. “気象�
 
 **Comprehensive Disaster Information Telopper (CDI-Telopper)** is a Windows application that receives disaster information related to earthquakes, tsunamis, weather, volcanoes, and the Nankai Trough, then generates captions for OBS.
 
-The current public release is **2.0.0-beta.48**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.49**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.48](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.48)
-- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.48.txt)
+- [Download 2.0.0-beta.49](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.49)
+- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.49.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
@@ -165,10 +167,10 @@ The script restores dependencies, builds every project in the Release configurat
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.48
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.49
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.48\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.49\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
 
 ## External API integration: terms and disclaimer
 

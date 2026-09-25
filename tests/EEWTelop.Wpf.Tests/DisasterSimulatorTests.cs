@@ -50,6 +50,69 @@ public sealed class DisasterSimulatorTests
         if (item is TsunamiEvent tsunami) Assert.AreEqual(TsunamiGrade.MajorWarning, tsunami.Areas.Single().Grade);
     }
 
+
+    [TestMethod]
+    public void LongPeriodObservationPreservesSimulatorClasses()
+    {
+        using var json = JsonDocument.Parse("""
+            {
+              "eventId":"lp-1", "serial":1, "informationType":"LongPeriodObservation",
+              "issuedAt":"2026-09-25T20:00:00+09:00",
+              "earthquake":{"originTime":"2026-09-25T19:58:00+09:00"},
+              "longPeriodIntensity":{
+                "maximumClass":4,
+                "areas":[
+                  {"prefecture":"石川県","area":"石川県能登","class":4},
+                  {"prefecture":"石川県","area":"石川県加賀","class":3},
+                  {"prefecture":"新潟県","area":"新潟県上越","class":2}
+                ]
+              }
+            }
+            """);
+        var quake = (QuakeEvent)DisasterSimulatorDecoder.Decode(
+            "earthquake", json.RootElement, DateTimeOffset.UtcNow);
+        Assert.AreEqual(QuakeIssueType.LongPeriodObservation, quake.IssueType);
+        Assert.IsNotNull(quake.LongPeriodIntensity);
+        Assert.AreEqual(4, quake.LongPeriodIntensity.MaximumClass);
+        Assert.HasCount(3, quake.LongPeriodIntensity.Areas);
+        Assert.AreEqual("石川県能登", quake.LongPeriodIntensity.Areas[0].Area);
+        Assert.AreEqual(4, quake.LongPeriodIntensity.Areas[0].Class);
+        Assert.AreEqual(SourceMode.ManualTest, quake.SourceMode);
+        var program = new EEWTelop.Application.Display.PageComposer().Compose(quake,
+            EEWTelop.Application.Configuration.AppSettings.CreateDefault().Display);
+        string text = string.Join("\n", program.Pages.Select(p => p.AccessibleText));
+        StringAssert.Contains(text, "石川県能登");
+        StringAssert.Contains(text, "4");
+    }
+
+    [TestMethod]
+    public void LongPeriodRejectsInvalidClassesAndDeduplicatesAreas()
+    {
+        using var json = JsonDocument.Parse("""
+            {"eventId":"lp","informationType":"LongPeriodObservation","longPeriodIntensity":{
+              "areas":[{"prefecture":"石川県","area":"能登","class":2},
+                       {"prefecture":"石川県","area":"能登","class":"4"},
+                       {"prefecture":"石川県","area":"加賀","class":5},
+                       {"prefecture":"石川県","area":"","class":3}]}}
+            """);
+        var quake = (QuakeEvent)DisasterSimulatorDecoder.Decode("earthquake", json.RootElement, DateTimeOffset.UtcNow);
+        Assert.IsNotNull(quake.LongPeriodIntensity);
+        Assert.AreEqual(4, quake.LongPeriodIntensity.MaximumClass);
+        Assert.HasCount(1, quake.LongPeriodIntensity.Areas);
+        Assert.AreEqual(4, quake.LongPeriodIntensity.Areas[0].Class);
+    }
+
+    [TestMethod]
+    public void LongPeriodAbsentOrInvalidDoesNotInventInformation()
+    {
+        foreach (string payload in new[] { "{}", "{\"maximumClass\":9,\"areas\":[]}" })
+        {
+            using var json = JsonDocument.Parse("{\"eventId\":\"lp\",\"longPeriodIntensity\":" + payload + "}");
+            var quake = (QuakeEvent)DisasterSimulatorDecoder.Decode("earthquake", json.RootElement, DateTimeOffset.UtcNow);
+            Assert.IsNull(quake.LongPeriodIntensity);
+        }
+    }
+
     [TestMethod]
     public void InitialHeartbeatAndUnchangedSectionsDoNotReplay()
     {

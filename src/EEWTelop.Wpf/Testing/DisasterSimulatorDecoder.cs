@@ -4,7 +4,7 @@ using EEWTelop.Domain.Events;
 
 namespace EEWTelop.Wpf.Testing;
 
-/// <summary>Simulator 0.3.1 projections are always training, even when marked live upstream.</summary>
+/// <summary>Simulator projections are always training, even when marked live upstream.</summary>
 internal static class DisasterSimulatorDecoder
 {
     internal static JsonElement Get(JsonElement value, string name) =>
@@ -29,6 +29,33 @@ internal static class DisasterSimulatorDecoder
         "5+" or "5強" => JmaScale.FiveUpper, "6-" or "6弱" => JmaScale.SixLower,
         "6+" or "6強" => JmaScale.SixUpper, "7" => JmaScale.Seven, _ => JmaScale.Unknown,
     };
+
+    private static int LongPeriodClass(JsonElement value, string name) =>
+        int.TryParse(Text(value, name), NumberStyles.Integer, CultureInfo.InvariantCulture, out int result) &&
+        result is >= 1 and <= 4 ? result : 0;
+
+    private static LongPeriodIntensityInfo? DecodeLongPeriodIntensity(JsonElement item)
+    {
+        JsonElement value = Get(item, "longPeriodIntensity");
+        if (value.ValueKind != JsonValueKind.Object)
+            return null;
+
+        LongPeriodIntensityArea[] areas = Array(value, "areas")
+            .Select(area => new LongPeriodIntensityArea(
+                Text(area, "prefecture"),
+                Text(area, "area"),
+                LongPeriodClass(area, "class")))
+            .Where(area => !string.IsNullOrWhiteSpace(area.Area) && area.Class is >= 1 and <= 4)
+            .GroupBy(area => (area.Prefecture, area.Area))
+            .Select(group => group.OrderByDescending(area => area.Class).First())
+            .ToArray();
+        int maximumClass = LongPeriodClass(value, "maximumClass");
+        if (maximumClass == 0 && areas.Length > 0)
+            maximumClass = areas.Max(area => area.Class);
+        return maximumClass == 0 && areas.Length == 0
+            ? null
+            : new LongPeriodIntensityInfo(maximumClass, areas);
+    }
 
     internal static DisasterEvent Decode(string kind, JsonElement item, DateTimeOffset receivedAt)
     {
@@ -62,7 +89,8 @@ internal static class DisasterSimulatorDecoder
                     MunicipalityName = Text(p, "municipalityName"), MunicipalityCode = Text(p, "municipalityCode"),
                     SeismicAreaName = Text(p, "seismicAreaName"), SeismicAreaCode = Text(p, "areaCode"),
                     StationCode = Text(p, "stationCode"), Latitude = Number(p, "latitude"), Longitude = Number(p, "longitude"),
-                }).ToArray(), "", isCancelled: cancelled, headline: Text(item, "headline")),
+                }).ToArray(), "", longPeriodIntensity: DecodeLongPeriodIntensity(item),
+                isCancelled: cancelled, headline: Text(item, "headline")),
             "eew" => new EewEvent(eventId, provider, issued, receivedAt, "", SourceMode.ManualTest, issue,
                 earthquake, Array(item, "areas").Select(a => new EewArea(Text(a, "prefecture"), Text(a, "name"),
                     Scale(Text(a, "intensity")), (int)Scale(Text(a, "intensity")), EewWarningKind.Unknown,
