@@ -294,13 +294,6 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     public event EventHandler? ShowPreviewRequested;
 
     public event Action? ShowTelegramReviewRequested;
-    public event Action<QuakeEvent?>? ShowMapReviewRequested;
-
-    public void RequestMapReview(QuakeEvent? selected = null)
-    {
-        if (BuildFeatures.TrialMapEnabled) ShowMapReviewRequested?.Invoke(selected);
-    }
-
     public event Action<DisplayProgram, DisplayProgram>? EditSubtitleRequested;
 
     public event Action<IReadOnlyList<DisplayProgram>>? EditPendingSubtitleRequested;
@@ -863,6 +856,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         }
 
         _disposed = true;
+        DisconnectSimulator();
+        await _simulatorTask.ConfigureAwait(false);
         _axisTokenRefreshStop.Cancel();
         try
         {
@@ -945,6 +940,11 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
     private void StartConnection()
     {
+        if (_simulatorStop is not null)
+        {
+            ReceptionStatusText = "シミュレーターを切断してから本番受信を開始してください。";
+            return;
+        }
         if (_receptionTask is { IsCompleted: false })
         {
             return;
@@ -1231,6 +1231,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
     private void RunSelectedTest()
     {
+        if (_simulatorStop is not null) return;
         TestScenario? scenario = SelectedScenario;
         if (scenario is null)
         {
@@ -1305,6 +1306,10 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         {
             program = concurrentEewComposer.Compose(eew, program, _settings.Display);
         }
+
+        if (scenario.Id == "disaster-simulator" && IsSimulatorCleanRehearsal &&
+            disasterEvent.Provider == "cdi-disaster-simulator" && disasterEvent.SourceMode == SourceMode.ManualTest)
+            program = program with { HideSimulatorTrainingBanner = true };
 
         CoordinatorSnapshot snapshot = previewCoordinator.Apply(program);
         _obsSnapshotStore.PublishProgram(

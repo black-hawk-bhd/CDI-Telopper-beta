@@ -520,6 +520,8 @@ public sealed class ObsSnapshotStore
 
     private static string GetRehearsalLabel(DisplayProgram program)
     {
+        if (program.HideSimulatorTrainingBanner && program.SourceMode == SourceMode.ManualTest)
+            return string.Empty;
         if (!string.IsNullOrWhiteSpace(program.RehearsalLabel))
         {
             return program.RehearsalLabel;

@@ -2,18 +2,6 @@ namespace EEWTelop.Wpf;
 
 public static class BuildFeatures
 {
-    public static bool TrialMapEnabled
-    {
-        get
-        {
-#if CDI_TRIAL_MAP
-            return true;
-#else
-            return false;
-#endif
-        }
-    }
-
     public static bool ExtendedFeaturesEnabled
     {
         get

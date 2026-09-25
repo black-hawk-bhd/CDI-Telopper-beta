@@ -17,11 +17,37 @@ namespace EEWTelop.Wpf;
 
 public partial class ControlWindow : Window, IAsyncDisposable
 {
+    protected override void OnPreviewKeyDown(System.Windows.Input.KeyEventArgs e)
+    {
+        base.OnPreviewKeyDown(e);
+        var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        if (key != System.Windows.Input.Key.R || e.IsRepeat ||
+            System.Windows.Input.Keyboard.Modifiers !=
+                (System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift | System.Windows.Input.ModifierKeys.Alt)) return;
+        e.Handled = true;
+        if (!_viewModel.CanToggleSimulatorRehearsal)
+        {
+            MessageBox.Show(this, "Simulator接続中だけ利用できます。", "リハーサル表示");
+            return;
+        }
+        if (!_viewModel.IsSimulatorCleanRehearsal && MessageBox.Show(this,
+                "プレビュー・OBSの訓練バナーを非表示にします。実際の災害情報と見分けられなくなります。\n配信・録画・公開先を確認し、誤送出しない環境でのみ使用してください。\n内部は訓練のままです。切替時に字幕・音声を消去します。続行しますか？",
+                "本番同様のリハーサル表示", MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        _viewModel.ToggleSimulatorRehearsal();
+    }
+    private async void OnSimulatorConnect(object sender, RoutedEventArgs e)
+    {
+        if (MessageBox.Show(this, "シミュレーターの訓練字幕・音声をプレビューとOBSへ出力します。開始しますか？", "訓練接続の確認",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        await _viewModel.ConnectSimulatorAsync(SimulatorAddressBox.Text, SimulatorTokenBox.Password);
+    }
+
+    private void OnSimulatorDisconnect(object sender, RoutedEventArgs e) => _viewModel.DisconnectSimulator();
     private readonly ControlWindowViewModel _viewModel;
     private readonly E2ETestPipeServer? _e2eTestPipeServer;
     private PreviewWindow? _previewWindow;
     private TelegramReviewWindow? _telegramReviewWindow;
-    private MapReviewWindow? _mapReviewWindow;
     private bool _disposed;
 
     public ControlWindow()
@@ -57,7 +83,6 @@ public partial class ControlWindow : Window, IAsyncDisposable
         _viewModel.Settings.PropertyChanged += OnSettingsPropertyChanged;
         _viewModel.ShowPreviewRequested += OnShowPreviewRequested;
         _viewModel.ShowTelegramReviewRequested += OnShowTelegramReviewRequested;
-        _viewModel.ShowMapReviewRequested += ShowMapReview;
         _viewModel.EditSubtitleRequested += OnEditSubtitleRequested;
         _viewModel.EditPendingSubtitleRequested += OnEditPendingSubtitleRequested;
         _viewModel.EditPreDisplaySubtitleRequested += OnEditPreDisplaySubtitleRequested;
@@ -103,7 +128,6 @@ public partial class ControlWindow : Window, IAsyncDisposable
         _disposed = true;
         _viewModel.ShowPreviewRequested -= OnShowPreviewRequested;
         _viewModel.ShowTelegramReviewRequested -= OnShowTelegramReviewRequested;
-        _viewModel.ShowMapReviewRequested -= ShowMapReview;
         _viewModel.EditSubtitleRequested -= OnEditSubtitleRequested;
         _viewModel.EditPendingSubtitleRequested -= OnEditPendingSubtitleRequested;
         _viewModel.EditPreDisplaySubtitleRequested -= OnEditPreDisplaySubtitleRequested;
@@ -123,7 +147,6 @@ public partial class ControlWindow : Window, IAsyncDisposable
         _viewModel.Settings.PropertyChanged -= OnSettingsPropertyChanged;
         _previewWindow?.Close();
         _telegramReviewWindow?.Close();
-        _mapReviewWindow?.Close();
         if (_e2eTestPipeServer is not null)
         {
             await _e2eTestPipeServer.DisposeAsync().ConfigureAwait(false);
@@ -142,23 +165,6 @@ public partial class ControlWindow : Window, IAsyncDisposable
 
         _previewWindow.Show();
         _previewWindow.Activate();
-    }
-
-    private void OnOpenMapReview(object sender, RoutedEventArgs e) => ShowMapReview(null);
-
-    private void ShowMapReview(QuakeEvent? selected)
-    {
-        if (!BuildFeatures.TrialMapEnabled) return;
-        if (_mapReviewWindow is null)
-        {
-            // No owner: minimizing the operation window must not hide this independent view.
-            _mapReviewWindow = new MapReviewWindow(() => _viewModel.ReceivedTelegrams, selected);
-            _mapReviewWindow.Closed += (_, _) => _mapReviewWindow = null;
-        }
-        else if (selected is not null) _mapReviewWindow.Reload(selected);
-        _mapReviewWindow.Show();
-        if (_mapReviewWindow.WindowState == WindowState.Minimized) _mapReviewWindow.WindowState = WindowState.Normal;
-        _mapReviewWindow.Activate();
     }
 
     private void OnShowTelegramReviewRequested()

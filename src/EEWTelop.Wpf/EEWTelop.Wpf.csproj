@@ -3,8 +3,6 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
-    <TrialMapEnabled Condition="'$(TrialMapEnabled)' == ''">false</TrialMapEnabled>
-    <DefineConstants Condition="'$(TrialMapEnabled)' == 'true'">$(DefineConstants);CDI_TRIAL_MAP</DefineConstants>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>disable</ImplicitUsings>
     <RootNamespace>EEWTelop.Wpf</RootNamespace>
@@ -14,10 +12,10 @@
     <Product>CDI-Telopper</Product>
     <Description>Comprehensive Disaster Information Telopper</Description>
     <ApplicationIcon>Assets\QTelopper.ico</ApplicationIcon>
-    <Version Condition="'$(Version)' == ''">2.0.0-beta.47</Version>
+    <Version Condition="'$(Version)' == ''">2.0.0-beta.48</Version>
     <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">2.0.0.0</AssemblyVersion>
     <FileVersion Condition="'$(FileVersion)' == ''">2.0.0.0</FileVersion>
-    <InformationalVersion Condition="'$(InformationalVersion)' == ''">2.0.0-beta.47</InformationalVersion>
+    <InformationalVersion Condition="'$(InformationalVersion)' == ''">2.0.0-beta.48</InformationalVersion>
     <AxisProviderEnabled Condition="'$(AxisProviderEnabled)' == ''">true</AxisProviderEnabled>
     <DefineConstants Condition="'$(AxisProviderEnabled)' == 'true'">$(DefineConstants);QTELOPPER_AXIS_PROVIDER</DefineConstants>
     <DmdataProviderEnabled Condition="'$(DmdataProviderEnabled)' == ''">true</DmdataProviderEnabled>
@@ -45,8 +43,6 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Assets\place-readings.tsv" />
-    <EmbeddedResource Include="Assets\trial-seismic-regions.json" />
-    <EmbeddedResource Include="Assets\trial-municipality-points.json" />
     <EmbeddedResource Include="Obs\Assets\overlay.html" />
     <EmbeddedResource Include="Obs\Assets\overlay.js" />
   </ItemGroup>

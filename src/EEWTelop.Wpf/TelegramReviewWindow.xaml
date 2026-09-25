@@ -52,7 +52,6 @@
                 <Button Content="過去電文を取得"
                         Command="{Binding LoadHistoryForReviewCommand}" />
                 <Button Content="閉じる" Click="OnCloseClicked" />
-                <Button Content="試験地図（開発中）" Click="OnTrialMapClicked" IsEnabled="{x:Static local:BuildFeatures.TrialMapEnabled}" ToolTipService.ShowOnDisabled="True" ToolTip="地図機能は配布版では無効です。" />
             </StackPanel>
         </Grid>
 

@@ -5,15 +5,17 @@
 
 Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津波・気象・火山・南海トラフに関する防災情報を受信し、OBS向け字幕として出力するWindowsアプリです。
 
-現在の公開版は **2.0.0-beta.47** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
+現在の公開版は **2.0.0-beta.48** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
 本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
 
-- [2.0.0-beta.47をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.47)
-- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.47.txt)
+- [2.0.0-beta.48をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.48)
+- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.48.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
 - [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
 
 ## 主な機能
+
+beta.48: 「テスト」画面に [Disaster Simulator 0.3.1の訓練接続](docs/disaster-simulator.md) を追加しました。地震・EEW・津波をローカル接続で受信し、内部では必ず訓練として扱います。本番受信と同時接続せず、本番の外部APIへは転送しません。非公開リハーサル向けに、確認付きの隠し操作で接続中だけ訓練バナーを非表示にできます。
 
 beta.47: DMDATA.JP・P2P・AXISの接続障害時に、EEW以外の対応情報を気象庁XML PULLで代替取得する機能を追加しました。「受信・フィルター」の「接続障害時に気象庁XMLへ自動切替」でON/OFFを指定し、「保存して反映」します（既定ON）。再接続中・異常が30秒以上続いた受信元だけを対象とし、正常接続へ戻ると元の受信元を採用します。保存した受信元の選択は変更しません。
 
@@ -21,9 +23,9 @@ beta.47: DMDATA.JP・P2P・AXISの接続障害時に、EEW以外の対応情報�
 
 beta.46: 外部の地図ツールなどに、地震・EEW・津波の本番受信情報を提供する読み取り専用の [CDI External API v1](docs/external-api-v1.md) を追加。同一PC限定・初期OFF・専用トークン認証付きです。外部ツール側の接続対応も必要です。
 
-beta.45: 河川氾濫を除く気象系の見出しを「情報種別のバッジ＋地名＋明示された場合のみ状態」に統一しました。続きのページ、プレビュー・OBS・電文確認にも反映します。[表示仕様](docs/weather-heading-layout.md)。地図コードには外部XML読み込み、受信XMLの市町村対応、黄緑の陸地・薄い水色の海域を標準とする配色設定を追加しましたが、配布版では地図は無効です。
+beta.45: 河川氾濫を除く気象系の見出しを「情報種別のバッジ＋地名＋明示された場合のみ状態」に統一しました。続きのページ、プレビュー・OBS・電文確認にも反映します。[表示仕様](docs/weather-heading-layout.md)。
 
-地図は開発途中のため、通常ビルド・配布ビルドでは無効です。関連ボタンはグレー表示され、地図コード・境界データ・テストのみ保持しています。[開発用の説明](docs/trial-seismic-map.md)。beta.47の配布版も地図機能は無効です。
+beta.48: 内蔵地図機能を完全に廃止しました。地図ボタン・専用ウインドウ・描画処理・専用データ・開発用ビルドスイッチを削除しています。外部プラグイン向けのCDI External APIと、震源・震度地点の受信情報は維持します。
 
 beta.43: 気象字幕は情報種別のみをバッジにし、都道府県・状態を隣、市町村一覧を下に表示します。津波観測情報の案内と警報・注意報の発表状況を別ページにしました。
 
@@ -138,7 +140,7 @@ OBSへは次の4つのブラウザーソースを登録します。各ソース�
 
 音声ミキサーの対象は「CDI-Telopper 地震字幕・全ての音声」だけです。ほかの3ソースは音声を無効にします。OBS WebSocket自動同期を使うと、ソースの不足分作成、起動ごとに変わるURLの更新、旧名称からの移行を行えます。
 
-旧OBS地図出力と常時デスクトップオーバーレイは廃止済みです。現在の試験地図はコードのみ保持し、配布版では無効です。PC上での確認にはプレビューと「受信・過去電文を確認」ウインドウを使用します。
+旧OBS地図出力と常時デスクトップオーバーレイは廃止済みです。内蔵試験地図も廃止しました。PC上での確認にはプレビューと「受信・過去電文を確認」ウインドウを使用します。
 
 ## 動作環境
 
@@ -181,10 +183,10 @@ powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 配布物を作成する場合は次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.47
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.48
 ```
 
-フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.47\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
+フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.48\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
 
 ## 開発者向け資料
 

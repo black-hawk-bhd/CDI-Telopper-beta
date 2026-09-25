@@ -195,7 +195,6 @@
                     <StackPanel>
                         <TextBlock Text="出力" FontSize="18" FontWeight="Bold" Margin="0,0,0,12" />
                         <Button Content="プレビューを表示" Style="{StaticResource PrimaryButton}" Command="{Binding ShowPreviewCommand}" />
-                        <Button Content="地図確認ウインドウ（開発中）" Click="OnOpenMapReview" IsEnabled="{x:Static local:BuildFeatures.TrialMapEnabled}" ToolTipService.ShowOnDisabled="True" ToolTip="地図機能は配布版では無効です。コードは開発用に保持しています。" />
                         <Button Content="表示中の字幕を編集"
                                 ToolTip="バッジ・本文・補足文をページごとに編集します。新着・更新情報の受信時に元の表示へ戻ります。"
                                 Command="{Binding EditSubtitleCommand}" />
@@ -940,6 +939,23 @@
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
                                 <TextBlock Text="収録シナリオ" FontWeight="Bold" Margin="0,0,0,8" />
+                                <GroupBox Header="CDI-Telopper Disaster Simulator 0.3.1（訓練専用）" Margin="0,0,0,16">
+                                    <StackPanel Margin="12">
+                                        <TextBlock Text="本番API受信を切断してから接続してください。新着だけを字幕・音声に反映し、通常は訓練バナーを表示します。本番履歴・外部APIへは配信しません。" TextWrapping="Wrap" />
+                                        <TextBlock Text="リハーサル表示中：OBS・プレビューの訓練バナー非表示／内部は訓練です。誤送出注意！"
+                                                   Foreground="#FFFFC04D" FontWeight="Bold" TextWrapping="Wrap"
+                                                   Visibility="{Binding IsSimulatorCleanRehearsal, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                        <TextBlock Text="SimulatorのAPI接続先" Margin="0,8,0,0" />
+                                        <TextBox x:Name="SimulatorAddressBox" Text="http://127.0.0.1:64270/" />
+                                        <TextBlock Text="Simulatorのトークン（保存しません）" Margin="0,8,0,0" />
+                                        <PasswordBox x:Name="SimulatorTokenBox" Password="cdi-sim-test" />
+                                        <WrapPanel Margin="0,8,0,0">
+                                            <Button Content="訓練接続" Click="OnSimulatorConnect" />
+                                            <Button Content="切断・訓練表示消去" Click="OnSimulatorDisconnect" />
+                                        </WrapPanel>
+                                        <TextBlock Text="{Binding SimulatorStatus}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </GroupBox>
                                 <TextBlock Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"
                                            Text="緊急地震速報（警報／取消）／震度速報（ScalePrompt）／震源・震度情報（DetailScale）／遠地地震／沖合の津波観測に関する情報（VTSE52）／津波13地域／津波解除／大量地点。すべて個別に選択でき、ManualTestとして黄色の訓練バナーを常時表示します。" />
                                 <Separator Margin="0,16" />

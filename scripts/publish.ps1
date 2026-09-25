@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '2.0.0-beta.47',
+    [string]$Version = '2.0.0-beta.48',
     [string]$RuntimeIdentifier = 'win-x64',
     [string]$OutputLabel = '',
     [ValidateSet('true', 'false')]
@@ -51,7 +51,6 @@ $msbuildProperties = @(
     "-p:AxisProviderEnabled=$AxisProviderEnabled",
     "-p:DmdataProviderEnabled=$DmdataProviderEnabled",
     "-p:ExtendedFeaturesEnabled=$ExtendedFeaturesEnabled",
-    '-p:TrialMapEnabled=false',
     '-p:NuGetAudit=false'
 )
 $enabledProviders = @('P2PQuake', 'Wolfx')
@@ -126,6 +125,7 @@ function Add-DistributionFiles {
     else {
         Copy-Item -LiteralPath $readmePath -Destination (Join-Path $Directory $readmeName)
     }
+    Copy-Item -LiteralPath (Join-Path $workspaceRoot 'docs\disaster-simulator.md') -Destination (Join-Path $Directory 'SIMULATOR_GUIDE.md')
     $manualName = "MANUAL_CDI-Telopper_$Version.txt"
     $manualPath = Join-Path $workspaceRoot $manualName
     if (Test-Path -LiteralPath $manualPath) {

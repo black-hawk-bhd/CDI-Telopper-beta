@@ -195,7 +195,8 @@ public sealed class OverlayViewModel : ObservableObject
                 DisplayStyleTokens.EewHeaderTest) > 1;
         IsSubtitleProgram = program.Kind != EventKind.Eew;
         ProgramId = program.ProgramId;
-        RehearsalLabel = program.RehearsalLabel;
+        RehearsalLabel = program.HideSimulatorTrainingBanner && program.SourceMode == SourceMode.ManualTest
+            ? string.Empty : program.RehearsalLabel;
         PageIndicator = settings.ShowPageIndicator && program.Pages.Count > 1
             ? $"{snapshot.CurrentPageIndex + 1} / {program.Pages.Count}"
             : "";

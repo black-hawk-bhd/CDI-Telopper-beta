@@ -1,21 +1,23 @@
 # CDI-Telopper
 
-Beta.45 unifies non-river weather headings: information type in the badge, area beside it, and status only when explicitly available. Continuation pages, preview, OBS and telegram review retain the heading. Experimental map code adds local XML import, received XML municipality matching and default yellow-green land / light-blue sea colors. Maps remain disabled in public packages.
+Beta.45 unifies non-river weather headings: information type in the badge, area beside it, and status only when explicitly available. Continuation pages, preview, OBS and telegram review retain the heading.
 
 Beta.43: weather captions show only the information type in the badge, with prefecture/status alongside it and municipalities below. Tsunami observation introductions and the active warning/advisory announcement now appear on separate pages.
 
-The experimental map is disabled in normal and distribution builds. Its buttons remain disabled; source, geographic data and tests are retained for development. Beta.45 distribution packages also disable the map.
+Beta.48: the built-in map feature has been fully removed, including its buttons, windows, renderer, geographic assets, and build switch. CDI External API output and received hypocenter/intensity-point information remain available for external plugins.
 
 English | [日本語](README.md)
+
+Beta.48: [Disaster Simulator 0.3.1 integration](docs/disaster-simulator.md) is available from the Test tab. Earthquake, EEW and tsunami updates are always treated as training. Production reception must be disconnected first; simulator updates are not forwarded through CDI's production external API.
 
 Beta.41 fixes JMA XML telegrams being rejected before normalization. “気象庁XML” is a manually selected, unauthenticated JMA XML pull provider for existing supported non-EEW categories. Select it in reception settings and save. Polling occurs at intervals of at least 60 seconds. Telegrams predating the initial connection are not displayed as new alerts. Publication may be delayed or interrupted; long outages may cause missed messages. There is no automatic AXIS failover. See [JMA's usage notes](https://xml.kishou.go.jp/xmlpull.html).
 
 **Comprehensive Disaster Information Telopper (CDI-Telopper)** is a Windows application that receives disaster information related to earthquakes, tsunamis, weather, volcanoes, and the Nankai Trough, then generates captions for OBS.
 
-The current public release is **2.0.0-beta.47**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.48**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.47](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.47)
-- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.47.txt)
+- [Download 2.0.0-beta.48](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.48)
+- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.48.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
@@ -120,7 +122,7 @@ Create the following four browser sources in OBS. Each source is designed for a 
 
 Only **CDI-Telopper 地震字幕・全ての音声** should appear as an audio source in the OBS mixer. Disable audio control for the other three sources. OBS WebSocket synchronization can create missing sources, update the URLs that change at each application start, and migrate legacy source names.
 
-Legacy OBS map output and the always-on desktop overlay have been removed. Experimental map code is retained but disabled in distribution builds. Use the preview and the live/past telegram review window for on-PC confirmation.
+Legacy OBS map output and the always-on desktop overlay have been removed. The built-in experimental map has also been removed. Use the preview and the live/past telegram review window for on-PC confirmation.
 
 ## System requirements
 
@@ -163,10 +165,10 @@ The script restores dependencies, builds every project in the Release configurat
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.47
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.48
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.47\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.48\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
 
 ## External API integration: terms and disclaimer
 

@@ -38,6 +38,10 @@ public sealed record DisplayProgram(
     string RehearsalLabel)
 {
     public int? MaximumDisplayCycles { get; init; }
+
+    // Session-only presentation option. Never persisted or used to reclassify training data.
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HideSimulatorTrainingBanner { get; init; }
 }
 
 public sealed record DisplayPage(
