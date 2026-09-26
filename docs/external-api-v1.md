@@ -47,7 +47,9 @@ CDI-Telopper が正規化した本番受信情報を、同じPCの外部ツー�
 - `earthquake`: `apiVersion`, `revision`, `hasInformation`, `earthquake`（未受信はnull）。内側の電文は `eventId`, `provider`, `issuedAt`, `receivedAt`, `serial`, `isCancelled`, `isExpired`, `informationType`, `sourceMode`, `earthquake`, `points`, `headline`, `comment`。
 - 電文中の `earthquake`: `originTime`, `maximumIntensity`, `hypocenter`（`name`, `latitude`, `longitude`, `depthKilometers`, `magnitude`）、`domesticTsunami`, `foreignTsunami`。
 - `points`: `name`, `prefecture`, `isArea`, `intensity`, `stationCode`, `municipalityCode`, `municipalityName`, `seismicAreaCode`, `seismicAreaName`。コード未取得は空文字。地域代表情報を観測点の位置だと解釈しない。
-- 震度は `0`～`4`, `5-`, `5+`, `6-`, `6+`, `7`, `5-?` の文字列。`5-?`は5弱以上と考えられるが詳細不明。不明はnull。深さはkm、マグニチュードは数値、不明はnull。震源位置の座標系は受信データの緯度・経度。
+- 長周期地震動情報では任意項目 `longPeriodIntensity` を付加する。`maximumClass` は1～4、`areas[]` は `prefecture`, `area`, `class`。対象外電文または情報なしではnull。
+- 震度は `0`～`4`, `5-`, `5+`, `6-`, `6+`, `7`, `5-?` の文字列。`5-?`は震度5弱以上と考えられるが詳細な震度が未入電の状態で、実測の `5-` と区別します。CDI字幕では「震度5弱以上 未入電」と表示します。不明はnull。深さはkm、マグニチュードは数値、不明はnull。震源位置の座標系は受信データの緯度・経度。
+- 観測点名末尾の全角 `＊` はCDI字幕の表示時だけ除去します。APIの `points[].name` とコードは元の正規化データを保持します。同じ市町村の実測震度と未入電は別の情報として扱ってください。
 - 津波判定は正規化した列挙名（例 `Unknown`, `None`, `Checking`, `Watch`, `Warning`）。未取得の `Unknown` を「津波なし」として描画しない。
 - `eew`: `apiVersion`, `revision`, `hasInformation`, `events[]`。電文に上記識別・時刻・震源のほか `isWarning`, `isFinal`, `isCancelled`, `expiresAt`, `isExpired`, `areas[]` を含む。各areaは `name`, `prefecture`, `intensityFrom`, `intensityTo`, `arrivalTime`。
 - EEWの `expiresAt` は発表時刻から10分のAPI上の保持目安であり公式解除ではない。受信元が明示した失効も `isExpired` に反映するため、この時刻より前にtrueになる場合がある。`isExpired=true` または `isCancelled=true` を発表中として表示しない。最大100イベントを保持。地震は最新電文1件であり現在進行中とは限らない。別EventIDの地震取消で現在保持する地震を置き換えない。
@@ -103,8 +105,8 @@ WS URLは上記コピーURLの `http` を `ws` に、パスを `/api/v1/events` 
 
 - `forecast`: 最後に採用された警報・予報電文（VTSE41、P2P等）。VTSE51/52では置き換えません。
 - `observation`: 最後に採用されたVTSE51またはVTSE52。両電文の独立した履歴ではありません。VTSE51は沿岸観測・地点予報、VTSE52は沖合観測を格納します。保持する `forecast` とEventIDが異なる場合は、組み合わせを防ぐためレスポンスの `observation` をnullにします。このnullは観測情報の取消・解除を意味しません。forecast未取得の場合は観測情報だけを返すことがあります。
-- 各電文に `eventId`, `provider`, `telegramType`, `issuedAt`, `receivedAt`, `expiresAt`, `observationAsOf`, `isCancelled`, `isTelegramCancellation`, `isExpired`, `sourceMode`, `areas`, `item` を持ちます。
-- 日時はオフセット付きISO 8601。値不明はnull。`areas`の`role`と`grade`は列挙名文字列です。高さは数値と原文を保持し、「巨大」「高い」等を無理に数値化しません。
+- 各電文に `eventId`, `provider`, `telegramType`, `issuedAt`, `receivedAt`, `expiresAt`, `observationAsOf`, `isCancelled`, `isTelegramCancellation`, `isExpired`, `sourceMode`, `headline`, `comment`, `areas`, `item` を持ちます。`headline` / `comment` は原電文に存在する範囲で保持し、空文字の場合があります。
+- 日時はオフセット付きISO 8601。値不明はnull。`areas`の`role`と`grade`は列挙名文字列です。各areaは任意の `code` と、地点情報では `parentAreaCode` / `parentAreaName` を持ちます。コードが原資料にない場合は空文字で、名称からCDI側が推測しません。高さは数値と原文を保持し、「巨大」「高い」等を無理に数値化しません。
 - `sourceMode` はproductionのみ。ManualTest / Sandbox / HistoryRehearsalや手動再掲はAPIを更新しません。本番の表示フィルターや字幕消去に関係なく、採用された受信情報を保持します。
 - 発表時刻が既存より古い同区分電文では上書きしません。重複・無効・無視された電文でも更新しません。
 - `isCancelled` は既存正規化の解除・取消フラグ。`isTelegramCancellation=true` は電文取消であり、警報解除と断定してはいけません。
@@ -133,3 +135,8 @@ CDI側だけの変更では、この既存ツールの接続先は変わりま�
 - `src/EEWTelop.Wpf/Obs/ExternalApiState.cs`: 本番受信の投影とDTO
 - `src/EEWTelop.Wpf/Obs/ExternalEarthquakeState.cs`: 地震・EEWの公開状態
 - `tests/EEWTelop.Wpf.Tests/ExternalApiTests.cs`: API・状態分離テスト
+
+
+## 共通テストデータ
+
+`fixtures/contracts/external-api-v1-phase3.json` は、外部APIの追加項目とシミュレーター入力の互換性を確認する回帰試験用データです。v1の既存項目を維持したうえで、追加項目の受け渡しを検証します。

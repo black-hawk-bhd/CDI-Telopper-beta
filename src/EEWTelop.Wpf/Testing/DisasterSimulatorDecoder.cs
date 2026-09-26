@@ -11,6 +11,16 @@ internal static class DisasterSimulatorDecoder
         value.ValueKind == JsonValueKind.Object && value.TryGetProperty(name, out var result) ? result : default;
     internal static string Text(JsonElement value, string name) => Get(value, name) is var v &&
         v.ValueKind is JsonValueKind.String or JsonValueKind.Number ? v.ToString() : "";
+    private static string TextAlias(JsonElement value, params string[] names)
+    {
+        foreach (string name in names)
+        {
+            string text = Text(value, name);
+            if (!string.IsNullOrWhiteSpace(text))
+                return text;
+        }
+        return string.Empty;
+    }
     internal static bool Flag(JsonElement value, string name) => Get(value, name).ValueKind == JsonValueKind.True;
     private static double? Number(JsonElement v, string name) => Get(v, name) is var n &&
         n.ValueKind == JsonValueKind.Number && n.TryGetDouble(out var d) && double.IsFinite(d) ? d : null;
@@ -76,7 +86,7 @@ internal static class DisasterSimulatorDecoder
             h.ValueKind == JsonValueKind.Object ? new HypocenterInfo(Text(h, "name"), Text(h, "name"),
                 Number(h, "latitude"), Number(h, "longitude"),
                 depth is >= 0 and <= 1000 ? (int)depth.Value : null,
-                Number(eq, "magnitude") ?? Number(h, "magnitude"), "") : null,
+                Number(h, "magnitude") ?? Number(eq, "magnitude"), "") : null,
             Scale(Text(eq, "maximumIntensity")), EnumValue<DomesticTsunami>(eq, "domesticTsunami"),
             EnumValue<ForeignTsunami>(eq, "foreignTsunami")) { OriginTimeIsKnown = Time(eq, "originTime") is not null };
         DisasterEvent result = kind switch
@@ -87,23 +97,40 @@ internal static class DisasterSimulatorDecoder
                     string.IsNullOrEmpty(Text(p, "municipalityName")), Scale(Text(p, "intensity")), Text(p, "name"))
                 {
                     MunicipalityName = Text(p, "municipalityName"), MunicipalityCode = Text(p, "municipalityCode"),
-                    SeismicAreaName = Text(p, "seismicAreaName"), SeismicAreaCode = Text(p, "areaCode"),
+                    SeismicAreaName = Text(p, "seismicAreaName"), SeismicAreaCode = TextAlias(p, "seismicAreaCode", "areaCode"),
                     StationCode = Text(p, "stationCode"), Latitude = Number(p, "latitude"), Longitude = Number(p, "longitude"),
-                }).ToArray(), "", longPeriodIntensity: DecodeLongPeriodIntensity(item),
+                }).ToArray(), Text(item, "comment"), longPeriodIntensity: DecodeLongPeriodIntensity(item),
                 isCancelled: cancelled, headline: Text(item, "headline")),
             "eew" => new EewEvent(eventId, provider, issued, receivedAt, "", SourceMode.ManualTest, issue,
-                earthquake, Array(item, "areas").Select(a => new EewArea(Text(a, "prefecture"), Text(a, "name"),
-                    Scale(Text(a, "intensity")), (int)Scale(Text(a, "intensity")), EewWarningKind.Unknown,
-                    Time(a, "arrivalTime"))).ToArray(), Flag(item, "isWarning"), Flag(item, "isFinal"), cancelled, true),
+                earthquake, Array(item, "areas").Select(a =>
+                {
+                    string from = TextAlias(a, "intensityFrom", "intensity");
+                    string to = TextAlias(a, "intensityTo", "intensityFrom", "intensity");
+                    return new EewArea(Text(a, "prefecture"), Text(a, "name"),
+                        Scale(from), (int)Scale(to), EewWarningKind.Unknown, Time(a, "arrivalTime"));
+                }).ToArray(), Flag(item, "isWarning"), Flag(item, "isFinal"), cancelled, true),
             "tsunami" => new TsunamiEvent(eventId, provider, issued, receivedAt, "", SourceMode.ManualTest, issue,
-                Array(item, "areas").Select(a => new TsunamiArea(EnumValue<TsunamiGrade>(a, "grade"), false,
-                    Text(a, "name"), Get(a, "firstHeight").ValueKind == JsonValueKind.Object
-                        ? new TsunamiFirstHeight(Time(Get(a, "firstHeight"), "arrivalTime"), Text(Get(a, "firstHeight"), "condition")) : null,
-                    Get(a, "maximumHeight").ValueKind == JsonValueKind.Object
-                        ? new TsunamiMaximumHeight(Text(Get(a, "maximumHeight"), "description"), Number(Get(a, "maximumHeight"), "valueMeters"),
-                            Time(Get(a, "maximumHeight"), "observedAt"), Text(Get(a, "maximumHeight"), "condition")) : null)
-                    { Role = EnumValue<TsunamiInformationRole>(a, "role"), ParentAreaName = Text(a, "parentAreaName"), HighTideAt = Time(a, "highTideAt") }).ToArray(),
-                cancelled || Flag(item, "isTelegramCancellation"), Time(item, "expiresAt")),
+                Array(item, "areas").Select(a =>
+                {
+                    JsonElement firstHeight = Get(a, "firstHeight");
+                    string firstHeightCondition = firstHeight.ValueKind == JsonValueKind.Object
+                        ? TextAlias(firstHeight, "condition", "initial")
+                        : string.Empty;
+                    bool immediate = Flag(a, "immediate") ||
+                        firstHeightCondition.Contains("ただちに", StringComparison.Ordinal) ||
+                        firstHeightCondition.Contains("既に", StringComparison.Ordinal);
+                    return new TsunamiArea(EnumValue<TsunamiGrade>(a, "grade"), immediate,
+                        Text(a, "name"), firstHeight.ValueKind == JsonValueKind.Object
+                            ? new TsunamiFirstHeight(Time(firstHeight, "arrivalTime"), firstHeightCondition) : null,
+                        Get(a, "maximumHeight").ValueKind == JsonValueKind.Object
+                            ? new TsunamiMaximumHeight(Text(Get(a, "maximumHeight"), "description"), Number(Get(a, "maximumHeight"), "valueMeters"),
+                                Time(Get(a, "maximumHeight"), "observedAt"), Text(Get(a, "maximumHeight"), "condition")) : null)
+                        { Role = EnumValue<TsunamiInformationRole>(a, "role"), Code = Text(a, "code"),
+                            ParentAreaName = Text(a, "parentAreaName"), ParentAreaCode = Text(a, "parentAreaCode"),
+                            HighTideAt = Time(a, "highTideAt") };
+                }).ToArray(),
+                cancelled || Flag(item, "isTelegramCancellation"), Time(item, "expiresAt"), Time(item, "observationAsOf"),
+                Text(item, "headline"), Text(item, "comment")),
             _ => throw new FormatException("未対応のシミュレーター情報種別です。"),
         };
         return result with { IsExpired = Flag(item, "isExpired") };

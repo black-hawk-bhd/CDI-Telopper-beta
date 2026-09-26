@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using EEWTelop.Domain.Events;
 using EEWTelop.Wpf.Testing;
@@ -138,6 +139,98 @@ public sealed class DisasterSimulatorTests
         Assert.IsTrue(item.IsExpired);
         Assert.AreEqual("取消", item.Issue.InformationType);
         Assert.AreEqual("VTSE51", item.Issue.RawType);
+    }
+
+
+    [TestMethod]
+    public void Phase2CanonicalQuakeAndSeismicAreaFieldsArePreferred()
+    {
+        using var json = JsonDocument.Parse("""
+            {
+              "eventId":"phase2-quake", "serial":2, "informationType":"DetailScale",
+              "issuedAt":"2026-09-26T01:00:00+09:00",
+              "earthquake":{
+                "originTime":"2026-09-26T00:59:00+09:00", "magnitude":9.9,
+                "hypocenter":{"name":"大阪府北部","magnitude":6.2}
+              },
+              "points":[{
+                "name":"大阪市北区","prefecture":"大阪府","municipalityName":"大阪市北区",
+                "seismicAreaName":"大阪府北部","seismicAreaCode":"350","areaCode":"legacy",
+                "stationCode":"2712700","intensity":"5+"
+              }]
+            }
+            """);
+        var quake = (QuakeEvent)DisasterSimulatorDecoder.Decode(
+            "earthquake", json.RootElement, DateTimeOffset.UtcNow);
+        Assert.AreEqual(6.2, quake.Earthquake.Hypocenter!.Magnitude);
+        Assert.AreEqual("350", quake.Points.Single().SeismicAreaCode);
+    }
+
+    [TestMethod]
+    public void Phase2EewUsesRangeAndArrivalWithLegacyFallback()
+    {
+        using var json = JsonDocument.Parse("""
+            {
+              "eventId":"phase2-eew", "serial":3, "informationType":"Forecast",
+              "issuedAt":"2026-09-26T01:00:00+09:00", "isWarning":false,
+              "earthquake":{"originTime":"2026-09-26T00:59:50+09:00"},
+              "areas":[
+                {"prefecture":"大阪府","name":"大阪府北部","intensityFrom":"5-","intensityTo":"6-","arrivalTime":"2026-09-26T01:00:20+09:00"},
+                {"prefecture":"兵庫県","name":"兵庫県南東部","intensity":"4"}
+              ]
+            }
+            """);
+        var eew = (EewEvent)DisasterSimulatorDecoder.Decode(
+            "eew", json.RootElement, DateTimeOffset.UtcNow);
+        Assert.HasCount(2, eew.Areas);
+        Assert.AreEqual(JmaScale.FiveLower, eew.Areas[0].ScaleFrom);
+        Assert.AreEqual((int)JmaScale.SixLower, eew.Areas[0].ScaleTo);
+        Assert.AreEqual(DateTimeOffset.Parse("2026-09-26T01:00:20+09:00", CultureInfo.InvariantCulture), eew.Areas[0].ArrivalTime);
+        Assert.AreEqual(JmaScale.Four, eew.Areas[1].ScaleFrom);
+        Assert.AreEqual((int)JmaScale.Four, eew.Areas[1].ScaleTo);
+    }
+
+    [TestMethod]
+    public void Phase2TsunamiRestoresInitialImmediateOffshoreAndObservationAsOf()
+    {
+        using var json = JsonDocument.Parse("""
+            {
+              "eventId":"phase2-tsunami", "serial":4, "telegramType":"VTSE52",
+              "issuedAt":"2026-08-11T01:10:00+09:00",
+              "observationAsOf":"2026-08-11T01:09:00+09:00",
+              "areas":[{
+                "name":"岩手沖GPS","parentAreaName":"岩手県","role":"OffshoreObservation",
+                "grade":"Unknown","immediate":true,
+                "firstHeight":{"arrivalTime":"2026-08-11T01:02:00+09:00","initial":"押し"},
+                "maximumHeight":{"observedAt":"2026-08-11T01:05:00+09:00","valueMeters":0.4}
+              }]
+            }
+            """);
+        var tsunami = (TsunamiEvent)DisasterSimulatorDecoder.Decode(
+            "tsunami", json.RootElement, DateTimeOffset.UtcNow);
+        TsunamiArea area = tsunami.Areas.Single();
+        Assert.AreEqual(TsunamiInformationRole.OffshoreObservation, area.Role);
+        Assert.IsTrue(area.Immediate);
+        Assert.AreEqual("押し", area.FirstHeight!.Condition);
+        Assert.AreEqual(DateTimeOffset.Parse("2026-08-11T01:09:00+09:00", CultureInfo.InvariantCulture), tsunami.ObservationAsOf);
+    }
+
+    [TestMethod]
+    public void Phase2TsunamiImmediateCanBeDerivedForOlderPayloads()
+    {
+        using var json = JsonDocument.Parse("""
+            {
+              "eventId":"phase2-tsunami-legacy", "telegramType":"VTSE51",
+              "areas":[{
+                "name":"宮古","role":"CoastalObservation","grade":"Unknown",
+                "firstHeight":{"initial":"既に津波到達と推測"}
+              }]
+            }
+            """);
+        var tsunami = (TsunamiEvent)DisasterSimulatorDecoder.Decode(
+            "tsunami", json.RootElement, DateTimeOffset.UtcNow);
+        Assert.IsTrue(tsunami.Areas.Single().Immediate);
+        Assert.AreEqual("既に津波到達と推測", tsunami.Areas.Single().FirstHeight!.Condition);
     }
 
     private static (IReadOnlyList<DisasterEvent> Events, bool Reset) Read(

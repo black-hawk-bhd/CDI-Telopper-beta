@@ -7,4 +7,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\EEWTelop.Wpf\EEWTelop.Wpf.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\fixtures\contracts\external-api-v1-phase3.json">
+      <Link>fixtures\contracts\external-api-v1-phase3.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

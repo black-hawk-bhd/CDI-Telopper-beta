@@ -81,7 +81,13 @@ public sealed record TsunamiArea(
 {
     public TsunamiInformationRole Role { get; init; } = TsunamiInformationRole.ForecastArea;
 
+    /// <summary>JMA forecast-area or observation-station code when supplied by the source.</summary>
+    public string Code { get; init; } = string.Empty;
+
     public string ParentAreaName { get; init; } = string.Empty;
+
+    /// <summary>JMA forecast-area code for station forecast/observation entries.</summary>
+    public string ParentAreaCode { get; init; } = string.Empty;
 
     public DateTimeOffset? HighTideAt { get; init; }
 }

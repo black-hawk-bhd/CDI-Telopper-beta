@@ -452,7 +452,7 @@ internal static class QuakePageComposer
     private static List<IntensityRow> BuildIntensityRows(
         IReadOnlyList<QuakePoint> points)
     {
-        var byPlace = new Dictionary<string, IndexedPoint>(StringComparer.Ordinal);
+        var byPlace = new Dictionary<(string DisplayName, bool IsUnreported), IndexedPoint>();
         for (int index = 0; index < points.Count; index++)
         {
             QuakePoint point = points[index];
@@ -464,13 +464,16 @@ internal static class QuakePageComposer
             string displayName = string.IsNullOrWhiteSpace(point.DisplayName)
                 ? PlaceNormalizer.BuildDisplayName(point.Prefecture, point.Address, point.IsArea)
                 : point.DisplayName;
-            if (!byPlace.TryGetValue(displayName, out IndexedPoint? current))
+            displayName = FormatIntensityPlaceNameForDisplay(displayName);
+            bool isUnreported = point.Scale == JmaScale.FiveLowerOrMore;
+            var key = (displayName, isUnreported);
+            if (!byPlace.TryGetValue(key, out IndexedPoint? current))
             {
-                byPlace.Add(displayName, new IndexedPoint(point.Scale, displayName, index));
+                byPlace.Add(key, new IndexedPoint(point.Scale, displayName, index));
             }
             else if ((int)point.Scale > (int)current.Scale)
             {
-                byPlace[displayName] = current with { Scale = point.Scale };
+                byPlace[key] = current with { Scale = point.Scale };
             }
         }
 
@@ -502,6 +505,14 @@ internal static class QuakePageComposer
         return rows;
     }
 
+    private static string FormatIntensityPlaceNameForDisplay(string value)
+    {
+        string display = value.Trim();
+        return display.EndsWith('＊')
+            ? display[..^1].TrimEnd()
+            : display;
+    }
+
     private static void AddIntensityPages(
         List<PageDraft> pages,
         IReadOnlyList<IntensityRow> rows,
@@ -529,7 +540,7 @@ internal static class QuakePageComposer
                 IntensityRow row = pageRows[index];
                 bool showBadge = index == 0 || row.Scale != pageRows[index - 1].Scale;
                 blocks[index] = new DisplayBlock(
-                    showBadge ? "震度" + ScaleFormatter.Format(row.Scale) : string.Empty,
+                    showBadge ? FormatIntensityBadge(row.Scale) : string.Empty,
                     string.Join('　', row.Names),
                     string.Empty,
                     DisplayStyleTokens.Intensity);
@@ -538,6 +549,11 @@ internal static class QuakePageComposer
             pages.Add(new PageDraft(blocks));
         }
     }
+
+    private static string FormatIntensityBadge(JmaScale scale) =>
+        scale == JmaScale.FiveLowerOrMore
+            ? "震度5弱以上 未入電"
+            : "震度" + ScaleFormatter.Format(scale);
 
     private static void AddAdvisoryPage(List<PageDraft> pages, string text)
     {

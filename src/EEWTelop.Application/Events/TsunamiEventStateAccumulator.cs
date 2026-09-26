@@ -75,7 +75,9 @@ public sealed class TsunamiEventStateAccumulator
                 mergedAreas,
                 isCancelled: false,
                 incoming.ExpireAt,
-                entry.ObservationAsOf)
+                entry.ObservationAsOf,
+                incoming.Headline,
+                incoming.Comment)
             {
                 // This is a property of the telegram currently being rendered.
                 // Do not retain it for later VTSE51/VTSE52 observation updates.

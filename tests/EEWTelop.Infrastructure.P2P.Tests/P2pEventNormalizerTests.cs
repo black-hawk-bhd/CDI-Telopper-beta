@@ -69,6 +69,27 @@ public sealed class P2pEventNormalizerTests
     }
 
     [TestMethod]
+    public void Code551Scale46NormalizesToUnreportedFiveLowerOrMore()
+    {
+        string json = ReadFixture("551-detail-scale.json")
+            .Replace("\"scale\": 50", "\"scale\": 46", StringComparison.Ordinal);
+
+        NormalizeResult result = _normalizer.Normalize(CreateRaw(json));
+
+        Assert.IsTrue(result.IsSuccess);
+        QuakeEvent quake = Assert.IsInstanceOfType<QuakeEvent>(result.Event);
+        Assert.IsTrue(quake.Points.Any(static point =>
+            point.Prefecture == "広島県" && point.Scale == JmaScale.FiveLowerOrMore));
+
+        DisplayProgram program = new PageComposer().Compose(
+            quake,
+            AppSettings.CreateDefault().Display);
+        Assert.IsTrue(program.Pages
+            .SelectMany(static page => page.Blocks)
+            .Any(static block => block.Badge == "震度5弱以上 未入電"));
+    }
+
+    [TestMethod]
     public void Code552NormalizesTsunamiAreasWithoutGuessingHeight()
     {
         NormalizeResult result = NormalizeFixture("552-tsunami.json");

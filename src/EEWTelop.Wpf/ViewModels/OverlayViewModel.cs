@@ -312,6 +312,7 @@ public sealed record OverlayBlockViewModel(
         "震度4" => "#FFFFB000",
         "震度5弱" => "#FFFF7A1A",
         "震度5弱以上" => "#FFFF5500",
+        "震度5弱以上 未入電" => "#FFFF5500",
         "震度5強" => "#FFFF8000",
         "震度6弱" => "#FFFF3B1F",
         "震度6強" => "#FFD0004A",

@@ -655,6 +655,84 @@ public sealed class JmaXmlEventNormalizerTests
     }
 
     [TestMethod]
+    [DataRow("震度５弱以上未入電")]
+    [DataRow("震度5弱以上未入電")]
+    [DataRow("５弱以上未入電")]
+    [DataRow("5弱以上未入電")]
+    [DataRow("震度５弱以上")]
+    [DataRow("震度5弱以上")]
+    [DataRow("５弱以上")]
+    [DataRow("5弱以上")]
+    [DataRow("!5-")]
+    [DataRow("5-?")]
+    public void Vxse53NormalizesFiveLowerOrMoreUnreportedAcrossJmaXmlAndDmdata(string unreported)
+    {
+        const string xml = """
+            <Report xmlns:jmx_eb="http://xml.kishou.go.jp/jmaxml1/elementBasis1/">
+              <Control><Title>震源・震度に関する情報</Title><Status>通常</Status><PublishingOffice>気象庁</PublishingOffice></Control>
+              <Head>
+                <ReportDateTime>2026-09-26T15:00:00+09:00</ReportDateTime>
+                <EventID>20260926145900</EventID><Serial>1</Serial><InfoType>発表</InfoType>
+              </Head>
+              <Body>
+                <Earthquake>
+                  <OriginTime>2026-09-26T14:59:00+09:00</OriginTime>
+                  <Hypocenter><Area><Name>能登半島沖</Name><jmx_eb:Coordinate>+37.5+137.2-10000/</jmx_eb:Coordinate></Area></Hypocenter>
+                  <jmx_eb:Magnitude>5.0</jmx_eb:Magnitude>
+                </Earthquake>
+                <Intensity><Observation><MaxInt>5+</MaxInt><Pref><Name>石川県</Name>
+                  <Area><Name>石川県能登</Name><Code>390</Code>
+                    <City><Name>輪島市</Name><Code>1720400</Code><MaxInt>5+</MaxInt>
+                      <IntensityStation><Name>輪島市鳳至町</Name><Code>1720402</Code><Int>5+</Int></IntensityStation>
+                      <IntensityStation><Name>輪島市門前町走出＊</Name><Code>1720431</Code><Int>震度５弱以上未入電</Int></IntensityStation>
+                    </City>
+                    <City><Name>能登町</Name><Code>1746300</Code><MaxInt>4</MaxInt><Condition>震度５弱以上未入電</Condition>
+                      <IntensityStation><Name>能登町宇出津</Name><Code>1746301</Code><Int>4</Int></IntensityStation>
+                    </City>
+                  </Area>
+                </Pref></Observation></Intensity>
+              </Body>
+            </Report>
+            """;
+
+        foreach (string provider in new[] { "jma-xml", "dmdata.jp" })
+        {
+            var normalizer = new JmaXmlEventNormalizer(new EventSignatureBuilder());
+            NormalizeResult result = normalizer.Normalize(new RawProviderMessage(
+                provider,
+                xml.Replace("震度５弱以上未入電", unreported, StringComparison.Ordinal),
+                SourceMode.Production,
+                DateTimeOffset.Parse("2026-09-26T06:00:01Z", CultureInfo.InvariantCulture))
+            {
+                ContentFormat = RawProviderContentFormat.JmaXml,
+            });
+
+            Assert.IsTrue(result.IsSuccess, provider);
+            QuakeEvent quake = Assert.IsInstanceOfType<QuakeEvent>(result.Event);
+            Assert.IsTrue(quake.Points.Any(point =>
+                point.StationCode == "1720431" &&
+                point.Scale == JmaScale.FiveLowerOrMore), provider);
+            Assert.IsTrue(quake.Points.Any(point =>
+                point.MunicipalityCode == "1746300" &&
+                string.IsNullOrEmpty(point.StationCode) &&
+                point.Scale == JmaScale.FiveLowerOrMore), provider);
+
+            DisplayProgram program = new PageComposer().Compose(
+                quake,
+                AppSettings.CreateDefault().Display);
+            DisplayBlock[] intensityBlocks = program.Pages
+                .SelectMany(static page => page.Blocks)
+                .Where(static block => block.StyleToken == DisplayStyleTokens.Intensity)
+                .ToArray();
+            Assert.IsTrue(intensityBlocks.Any(static block =>
+                block.Badge == "震度5強" && block.PrimaryText.Contains("輪島市", StringComparison.Ordinal)), provider);
+            Assert.IsTrue(intensityBlocks.Any(static block =>
+                block.Badge == "震度5弱以上 未入電" &&
+                block.PrimaryText.Contains("輪島市", StringComparison.Ordinal)), provider);
+        }
+    }
+
+    [TestMethod]
     public void Vxse52DisplaysMagnitudeDescriptionWhenMagnitudeIsUnknown()
     {
         const string xml = """

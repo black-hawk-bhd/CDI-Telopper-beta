@@ -115,7 +115,9 @@ public sealed record TsunamiEvent : DisasterEvent
         IReadOnlyList<TsunamiArea> areas,
         bool isCancelled,
         DateTimeOffset? expireAt,
-        DateTimeOffset? observationAsOf = null)
+        DateTimeOffset? observationAsOf = null,
+        string headline = "",
+        string comment = "")
         : base(
             id,
             provider,
@@ -132,6 +134,8 @@ public sealed record TsunamiEvent : DisasterEvent
         Areas = areas;
         ExpireAt = expireAt;
         ObservationAsOf = observationAsOf;
+        Headline = headline ?? string.Empty;
+        Comment = comment ?? string.Empty;
     }
 
     public IssueInfo Issue { get; }
@@ -145,6 +149,12 @@ public sealed record TsunamiEvent : DisasterEvent
     /// This is intentionally separate from the telegram issue time.
     /// </summary>
     public DateTimeOffset? ObservationAsOf { get; }
+
+    /// <summary>Headline text preserved from the source telegram.</summary>
+    public string Headline { get; }
+
+    /// <summary>Free-form/fixed tsunami comment text preserved for external consumers.</summary>
+    public string Comment { get; }
 
     /// <summary>
     /// True when a VTSE41 forecast item explicitly changes from its LastKind

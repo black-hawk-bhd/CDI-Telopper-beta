@@ -314,6 +314,90 @@ public sealed class QuakePageComposerTests
     }
 
     [TestMethod]
+    public void FiveLowerOrMoreIsExplicitlyLabeledAsUnreported()
+    {
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(
+            QuakeIssueType.DetailScale,
+            [DisplayEventFactory.Point(1, JmaScale.FiveLowerOrMore)]);
+
+        DisplayProgram program = Compose(quake);
+        DisplayBlock intensity = program.Pages
+            .SelectMany(ContentBlocks)
+            .Single(block => block.StyleToken == DisplayStyleTokens.Intensity);
+
+        Assert.AreEqual("震度5弱以上 未入電", intensity.Badge);
+    }
+
+    [TestMethod]
+    public void UnreportedStatusIsNotHiddenByHigherObservedScaleAtSamePlace()
+    {
+        var observed = new QuakePoint(
+            "石川県", "輪島市鳳至町", IsArea: false, JmaScale.FiveUpper, "石川県輪島市");
+        var unreported = new QuakePoint(
+            "石川県", "輪島市門前町走出＊", IsArea: false,
+            JmaScale.FiveLowerOrMore, "石川県輪島市");
+
+        DisplayProgram program = Compose(DisplayEventFactory.CreateQuake(
+            QuakeIssueType.DetailScale,
+            [observed, unreported]));
+        DisplayBlock[] intensityBlocks = program.Pages
+            .SelectMany(ContentBlocks)
+            .Where(static block => block.StyleToken == DisplayStyleTokens.Intensity)
+            .ToArray();
+
+        Assert.IsTrue(intensityBlocks.Any(static block =>
+            block.Badge == "震度5強" && block.PrimaryText.Contains("輪島市", StringComparison.Ordinal)));
+        Assert.IsTrue(intensityBlocks.Any(static block =>
+            block.Badge == "震度5弱以上 未入電" &&
+            block.PrimaryText.Contains("輪島市", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void IntensityDisplayRemovesOnlyTrailingJmaObservationMarker()
+    {
+        var marked = new QuakePoint(
+            "新潟県",
+            "糸魚川市大野＊",
+            IsArea: false,
+            JmaScale.Three,
+            "糸魚川市大野＊")
+        {
+            StationCode = "1521600",
+        };
+        var asciiAsterisk = new QuakePoint(
+            "新潟県",
+            "上越市中ノ俣*",
+            IsArea: false,
+            JmaScale.Three,
+            "上越市中ノ俣*");
+        var embeddedMarker = new QuakePoint(
+            "新潟県",
+            "上越市＊テスト地点",
+            IsArea: false,
+            JmaScale.Three,
+            "上越市＊テスト地点");
+
+        DisplayProgram program = Compose(DisplayEventFactory.CreateQuake(
+            QuakeIssueType.DetailScale,
+            [marked, asciiAsterisk, embeddedMarker]));
+        string intensityText = string.Join(
+            '　',
+            program.Pages
+                .SelectMany(ContentBlocks)
+                .Where(block => block.StyleToken == DisplayStyleTokens.Intensity)
+                .Select(block => block.PrimaryText));
+
+        StringAssert.Contains(intensityText, "糸魚川市大野");
+        Assert.DoesNotContain("糸魚川市大野＊", intensityText);
+        StringAssert.Contains(intensityText, "上越市中ノ俣*");
+        StringAssert.Contains(intensityText, "上越市＊テスト地点");
+
+        // Display formatting must not mutate the source event data.
+        Assert.AreEqual("糸魚川市大野＊", marked.DisplayName);
+        Assert.AreEqual("糸魚川市大野＊", marked.Address);
+    }
+
+    [TestMethod]
     public void ScaleAndDestinationIncludesIntensityButDestinationDoesNot()
     {
         QuakePoint point = DisplayEventFactory.Point(1, JmaScale.Four);

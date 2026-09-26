@@ -495,7 +495,10 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
         XElement reportHead = RequiredDescendant(document, "Head");
         DateTimeOffset issuedAt = ReadDateTime(reportHead, "ReportDateTime") ?? raw.ReceivedAt;
         string infoType = Text(Descendant(reportHead, "InfoType"));
-        string headline = Text(Descendant(reportHead, "Headline"));
+        string headline = ReadHeadlineText(reportHead);
+        string comment = MergeDisplayComments(
+            ReadCommentText(Descendant(document, "WarningComment")),
+            ReadCommentText(Descendant(document, "FreeFormComment")));
         string[] categoryNames = ReadTsunamiCategoryNames(document);
         bool hasActiveWarning = categoryNames.Any(static categoryName =>
             !IsTsunamiReleaseCategory(categoryName) &&
@@ -527,7 +530,9 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
             ReadTsunamiAreas(document, telegramType),
             cancelled,
             ReadDateTime(reportHead, "ValidDateTime"),
-            ReadTsunamiObservationAsOf(reportHead, issuedAt, telegramType))
+            ReadTsunamiObservationAsOf(reportHead, issuedAt, telegramType),
+            headline,
+            comment)
         {
             WarningStateChanged = telegramType == "VTSE41" &&
                 HasTsunamiWarningStateChange(document),
@@ -939,7 +944,7 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
             .Concat(Descendants(observation, "Area").Where(a =>
                 !Descendants(a, "City").Any() && !Descendants(a, "IntensityStation").Any())).ToArray();
 
-        return candidates
+        QuakePoint[] explicitPoints = candidates
             .Select(element =>
             {
                 bool isArea = element.Name.LocalName == "Area";
@@ -971,9 +976,92 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
             })
             .Where(static point => !string.IsNullOrWhiteSpace(point.Address) &&
                 point.Scale != JmaScale.Unknown)
+            .ToArray();
+
+        // JMA can also report "震度５弱以上未入電" at City/Area Condition level.
+        // Preserve it as the same provider-independent scale=46 value when no more detailed
+        // unreported station/city entry exists, instead of silently losing the condition.
+        QuakePoint[] conditionPoints = ReadFiveLowerOrMoreConditionPoints(observation);
+
+        return explicitPoints
+            .Concat(conditionPoints)
             .GroupBy(static point => (point.DisplayName, point.Scale, point.MunicipalityCode, point.StationCode))
             .Select(static group => group.First())
             .ToArray();
+    }
+
+    private static QuakePoint[] ReadFiveLowerOrMoreConditionPoints(XElement observation)
+    {
+        var points = new List<QuakePoint>();
+
+        foreach (XElement city in Descendants(observation, "City"))
+        {
+            if (ReadScale(Text(Child(city, "Condition"))) != JmaScale.FiveLowerOrMore)
+            {
+                continue;
+            }
+
+            bool hasDetailedUnreportedStation = Descendants(city, "IntensityStation")
+                .Any(station => ReadScale(Text(Child(station, "Int"))) == JmaScale.FiveLowerOrMore);
+            if (hasDetailedUnreportedStation)
+            {
+                continue;
+            }
+
+            XElement? area = city.Ancestors().FirstOrDefault(a => a.Name.LocalName == "Area");
+            string prefecture = city.Ancestors()
+                .FirstOrDefault(static ancestor => ancestor.Name.LocalName == "Pref") is { } pref
+                    ? Text(Child(pref, "Name"))
+                    : string.Empty;
+            string address = Text(Child(city, "Name"));
+            points.Add(new QuakePoint(
+                prefecture,
+                address,
+                IsArea: false,
+                JmaScale.FiveLowerOrMore,
+                PlaceNormalizer.BuildDisplayName(prefecture, address, isArea: false))
+            {
+                SeismicAreaCode = Text(area is null ? null : Child(area, "Code")),
+                SeismicAreaName = Text(area is null ? null : Child(area, "Name")),
+                MunicipalityCode = Text(Child(city, "Code")),
+                MunicipalityName = address,
+            });
+        }
+
+        foreach (XElement area in Descendants(observation, "Area"))
+        {
+            if (ReadScale(Text(Child(area, "Condition"))) != JmaScale.FiveLowerOrMore)
+            {
+                continue;
+            }
+
+            bool hasMoreDetailedUnreportedEntry = Descendants(area, "IntensityStation")
+                    .Any(station => ReadScale(Text(Child(station, "Int"))) == JmaScale.FiveLowerOrMore) ||
+                Descendants(area, "City")
+                    .Any(city => ReadScale(Text(Child(city, "Condition"))) == JmaScale.FiveLowerOrMore);
+            if (hasMoreDetailedUnreportedEntry)
+            {
+                continue;
+            }
+
+            string prefecture = area.Ancestors()
+                .FirstOrDefault(static ancestor => ancestor.Name.LocalName == "Pref") is { } pref
+                    ? Text(Child(pref, "Name"))
+                    : string.Empty;
+            string address = Text(Child(area, "Name"));
+            points.Add(new QuakePoint(
+                prefecture,
+                address,
+                IsArea: true,
+                JmaScale.FiveLowerOrMore,
+                PlaceNormalizer.BuildDisplayName(prefecture, address, isArea: true))
+            {
+                SeismicAreaCode = Text(Child(area, "Code")),
+                SeismicAreaName = address,
+            });
+        }
+
+        return points.ToArray();
     }
 
     private static LongPeriodIntensityInfo? ReadLongPeriodIntensity(XContainer document)
@@ -1139,9 +1227,11 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
 
                 XElement? area = Child(item, "Area");
                 string areaName = area is null ? string.Empty : Text(Descendant(area, "Name"));
+                string areaCode = area is null ? string.Empty : Text(Descendant(area, "Code"));
                 TsunamiArea forecastArea = ReadTsunamiArea(item, categoryName, areaName) with
                 {
                     Role = TsunamiInformationRole.ForecastArea,
+                    Code = areaCode,
                 };
                 if (!string.IsNullOrWhiteSpace(forecastArea.Name))
                 {
@@ -1154,7 +1244,9 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
                         .Select(station => ReadTsunamiArea(station, categoryName) with
                         {
                             Role = TsunamiInformationRole.StationForecast,
+                            Code = Text(Descendant(station, "Code")),
                             ParentAreaName = areaName,
+                            ParentAreaCode = areaCode,
                             HighTideAt = ReadDateTime(station, "HighTideDateTime"),
                         })
                         .Where(static station => !string.IsNullOrWhiteSpace(station.Name)));
@@ -1173,11 +1265,14 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
                 string categoryName = Text(Descendant(Descendant(item, "Category"), "Name"));
                 XElement? area = Child(item, "Area");
                 string areaName = area is null ? string.Empty : Text(Descendant(area, "Name"));
+                string areaCode = area is null ? string.Empty : Text(Descendant(area, "Code"));
                 areas.AddRange(Children(item, "Station")
                     .Select(station => ReadTsunamiArea(station, categoryName) with
                     {
                         Role = role,
+                        Code = Text(Descendant(station, "Code")),
                         ParentAreaName = areaName,
+                        ParentAreaCode = areaCode,
                     })
                     .Where(static station => !string.IsNullOrWhiteSpace(station.Name)));
             }
@@ -1448,20 +1543,31 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
         return (latitude, longitude, Math.Abs(depthMeters) / 1000);
     }
 
-    private static JmaScale ReadScale(string value) => value.Trim() switch
+    private static JmaScale ReadScale(string value)
     {
-        "0" => JmaScale.Zero,
-        "1" => JmaScale.One,
-        "2" => JmaScale.Two,
-        "3" => JmaScale.Three,
-        "4" => JmaScale.Four,
-        "5-" or "5弱" => JmaScale.FiveLower,
-        "5+" or "5強" => JmaScale.FiveUpper,
-        "6-" or "6弱" => JmaScale.SixLower,
-        "6+" or "6強" => JmaScale.SixUpper,
-        "7" => JmaScale.Seven,
-        _ => JmaScale.Unknown,
-    };
+        string normalized = value.Trim()
+            .Replace(" ", string.Empty, StringComparison.Ordinal)
+            .Replace("　", string.Empty, StringComparison.Ordinal);
+        return normalized switch
+        {
+            "0" => JmaScale.Zero,
+            "1" => JmaScale.One,
+            "2" => JmaScale.Two,
+            "3" => JmaScale.Three,
+            "4" => JmaScale.Four,
+            "5-" or "5弱" or "５弱" => JmaScale.FiveLower,
+            "5+" or "5強" or "５強" => JmaScale.FiveUpper,
+            "6-" or "6弱" or "６弱" => JmaScale.SixLower,
+            "6+" or "6強" or "６強" => JmaScale.SixUpper,
+            "7" or "７" => JmaScale.Seven,
+            "!5-" or "5-?" or
+            "5弱以上" or "５弱以上" or
+            "5弱以上未入電" or "５弱以上未入電" or
+            "震度5弱以上" or "震度５弱以上" or
+            "震度5弱以上未入電" or "震度５弱以上未入電" => JmaScale.FiveLowerOrMore,
+            _ => JmaScale.Unknown,
+        };
+    }
 
     private static DomesticTsunami ReadDomesticTsunami(string text)
     {

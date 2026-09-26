@@ -100,6 +100,8 @@ public sealed class EventSignatureBuilder : IEventSignatureBuilder
     {
         WriteIssue(writer, tsunami.Issue);
         WriteNullableDateTime(writer, "observationAsOf", tsunami.ObservationAsOf);
+        writer.WriteString("headline", tsunami.Headline);
+        writer.WriteString("comment", tsunami.Comment);
         writer.WriteStartArray("areas");
         foreach (TsunamiArea area in tsunami.Areas
                      .OrderBy(static area => area.Role)
@@ -108,8 +110,10 @@ public sealed class EventSignatureBuilder : IEventSignatureBuilder
                      .ThenBy(static area => area.Grade))
         {
             writer.WriteStartObject();
+            writer.WriteString("code", area.Code);
             writer.WriteString("name", area.Name);
             writer.WriteString("role", area.Role.ToString());
+            writer.WriteString("parentAreaCode", area.ParentAreaCode);
             writer.WriteString("parentArea", area.ParentAreaName);
             writer.WriteString("grade", area.Grade.ToString());
             writer.WriteBoolean("immediate", area.Immediate);

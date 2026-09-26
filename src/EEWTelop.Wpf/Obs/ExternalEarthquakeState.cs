@@ -56,6 +56,14 @@ internal sealed class ExternalEarthquakeState
                         municipalityCode = p.MunicipalityCode, municipalityName = p.MunicipalityName,
                         seismicAreaCode = p.SeismicAreaCode, seismicAreaName = p.SeismicAreaName,
                     }).ToArray(),
+                    longPeriodIntensity = _quake.LongPeriodIntensity is null ? null : new
+                    {
+                        maximumClass = _quake.LongPeriodIntensity.MaximumClass,
+                        areas = _quake.LongPeriodIntensity.Areas.Select(static a => new
+                        {
+                            prefecture = a.Prefecture, area = a.Area, @class = a.Class,
+                        }).ToArray(),
+                    },
                     headline = _quake.Headline, comment = _quake.FreeFormComment,
                 },
             };

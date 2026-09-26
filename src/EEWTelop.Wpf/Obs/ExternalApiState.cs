@@ -126,8 +126,8 @@ public sealed class ExternalApiState
         });
         return new(value.Id.ToString(), value.Provider, value.Issue.RawType,
             value.IssuedAt, value.ReceivedAt, value.ExpireAt, value.ObservationAsOf,
-            value.IsCancelled, cancellation, expired, "production",
-            areas.Select(a => new ExternalTsunamiArea(a.Name, a.ParentAreaName,
+            value.IsCancelled, cancellation, expired, "production", value.Headline, value.Comment,
+            areas.Select(a => new ExternalTsunamiArea(a.Code, a.Name, a.ParentAreaCode, a.ParentAreaName,
                 a.Role.ToString(), a.Grade.ToString(), a.Immediate,
                 a.FirstHeight, a.MaximumHeight, a.HighTideAt)).ToArray(),
             value.IsCancelled || cancellation || expired || observation ? [] : value.Areas
@@ -154,8 +154,8 @@ public sealed record ExternalInitialization(string State, DateTimeOffset? Starte
 public sealed record ExternalTsunamiTelegram(string EventId, string Provider, string TelegramType,
     DateTimeOffset IssuedAt, DateTimeOffset ReceivedAt, DateTimeOffset? ExpiresAt,
     DateTimeOffset? ObservationAsOf, bool IsCancelled, bool IsTelegramCancellation, bool IsExpired,
-    string SourceMode, ExternalTsunamiArea[] Areas, ExternalMapItem[] Item);
-public sealed record ExternalTsunamiArea(string Name, string ParentAreaName, string Role,
+    string SourceMode, string Headline, string Comment, ExternalTsunamiArea[] Areas, ExternalMapItem[] Item);
+public sealed record ExternalTsunamiArea(string Code, string Name, string ParentAreaCode, string ParentAreaName, string Role,
     string Grade, bool Immediate, TsunamiFirstHeight? FirstHeight,
     TsunamiMaximumHeight? MaximumHeight, DateTimeOffset? HighTideAt);
 public sealed record ExternalMapItem(ExternalMapArea Area, ExternalMapKind Kind);
