@@ -21,6 +21,7 @@ public sealed class RoutedProviderEventSource : IEventSource,
     private int _readerActive;
     private bool _disposed;
     private readonly JmaFallbackRouting? _fallback;
+    private ProviderSettings _settings;
     private CancellationTokenSource? _runCancellation;
 
     public RoutedProviderEventSource(
@@ -36,6 +37,7 @@ public sealed class RoutedProviderEventSource : IEventSource,
         }
 
         _sources = sources;
+        _settings = settings;
         _fallback = sources.ContainsKey(ReceptionProvider.JmaXml) ? fallback : null;
         _selectedProviders = ResolveProviders(settings, sources, _fallback is not null);
         foreach (IEventSource source in sources.Values.Distinct())
@@ -58,6 +60,17 @@ public sealed class RoutedProviderEventSource : IEventSource,
     }
 
     public event EventHandler<ProviderConnectionSnapshot>? ConnectionChanged;
+
+    public (bool Configured, ProviderConnectionState? State) GetDataConnection(EEWTelop.Domain.Events.EventKind kind)
+    {
+        lock (_gate)
+        {
+            if (_settings.Mode != ProviderMode.Production) return (false, null);
+            var provider = (_fallback?.GetRouting() ?? _settings.Routing).GetProvider(kind);
+            if (provider == ReceptionProvider.Disabled) return (false, null);
+            return (true, _sources.TryGetValue(provider, out var source) ? source.Connection.State : null);
+        }
+    }
 
     public IReadOnlyList<ProviderBranchConnectionSnapshot> GetProviderConnections()
     {
@@ -94,6 +107,7 @@ public sealed class RoutedProviderEventSource : IEventSource,
         lock (_gate)
         {
             _selectedProviders = selected;
+            _settings = settings;
             snapshot = AggregateConnection(selected);
             _connection = snapshot;
         }

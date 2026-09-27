@@ -598,6 +598,23 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
     public string ExternalApiUrlText => _obsServer?.ExternalApiUrl ?? string.Empty;
 
+    private string? _manualApiSession;
+    private string? _historyApiSession;
+    public bool RehearsalApiEnabled
+    {
+        get => _obsServer?.RehearsalApiEnabled == true;
+        set
+        {
+            if (_obsServer is null) return;
+            _obsServer.RehearsalApiEnabled = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(RehearsalApiUrlText));
+        }
+    }
+    public string RehearsalApiUrlText => _obsServer?.RehearsalApiUrl ?? string.Empty;
+    public RelayCommand EndApiRehearsalCommand => new(() => _obsServer?.EndApiRehearsal());
+    public RelayCommand ResetApiRehearsalCommand => new(() => _obsServer?.BeginApiRehearsal("unknownTraining"));
+
     public bool IsHistoryRehearsalRunning
     {
         get => _isHistoryRehearsalRunning;
@@ -1249,6 +1266,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         CancelTestScenario();
         var cancellation = new CancellationTokenSource();
         _testScenarioCancellation = cancellation;
+        _manualApiSession = _obsServer?.BeginApiRehearsal("manualTest");
         _testScenarioTask = RunTestScenarioAsync(scenario, cancellation);
     }
 
@@ -1297,6 +1315,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         PriorityCoordinator previewCoordinator)
     {
         DisasterEvent disasterEvent = step.Event;
+        if (scenario.Id != "disaster-simulator" && _manualApiSession is not null)
+            _obsServer?.ObserveApiRehearsal(disasterEvent, _manualApiSession);
         DisplayProgram program = _services.PageComposer.Compose(disasterEvent, _settings.Display) with
         {
             ProgramId = $"{disasterEvent.Id.Value}:{_services.IdGenerator.NewId()}",
@@ -1430,6 +1450,11 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 item.Event.IssuedAt,
                 _services.Clock.UtcNow);
             DisplayRehearsal(item.Event, item.Program, label);
+            if (_telegramReplayMode == TelegramReplayMode.Training)
+            {
+                _obsServer?.BeginApiRehearsal("manualReplay");
+                _obsServer?.ObserveApiRehearsal(item.Event, manualReplay: true);
+            }
             TelegramReviewStatusText = $"{GetTelegramReplayModeText(_telegramReplayMode)}として再表示しました。";
         }
     }
@@ -1796,6 +1821,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         _historyCancellationStatus = "停止しました";
         IsHistoryRehearsalRunning = true;
         HistoryRehearsalStatusText = "履歴を取得中…";
+        _historyApiSession = _obsServer?.BeginApiRehearsal("historyRehearsal");
         _historyReplayTask = RunHistoryRehearsalAsync(requested, cancellation);
     }
 
@@ -1821,6 +1847,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         _historyCancellationStatus = "停止しました";
         IsHistoryRehearsalRunning = true;
         HistoryRehearsalStatusText = "選択した履歴を再生します…";
+        _historyApiSession = _obsServer?.BeginApiRehearsal("historyRehearsal");
         _historyReplayTask = RunSelectedHistoryRehearsalAsync(selected, requested, cancellation);
     }
 
@@ -1835,6 +1862,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         _historyCancellationStatus = status;
         HistoryRehearsalStatusText = status;
         cancellation.Cancel();
+        if (_historyApiSession is not null) _obsServer?.EndApiRehearsal(_historyApiSession);
     }
 
     private async Task RunHistoryRehearsalAsync(
@@ -1943,6 +1971,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 }
 
                 HistoryRehearsalStatusText = finalStatus;
+                if (_historyApiSession is not null) _obsServer?.EndApiRehearsal(_historyApiSession);
                 IsHistoryRehearsalRunning = false;
             }).ConfigureAwait(false);
             cancellation.Dispose();
@@ -2007,6 +2036,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 await _dispatcher.InvokeAsync(() =>
                 {
                     SelectedHistoryItem = item;
+                    if (_historyApiSession is not null) _obsServer?.ObserveApiRehearsal(disasterEvent, _historyApiSession);
                     Volatile.Write(ref _historyCoordinator, coordinator);
                     Volatile.Write(ref _activeCoordinator, coordinator);
                     _obsSnapshotStore.PublishProgram(
@@ -2075,6 +2105,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             }
 
             HistoryRehearsalStatusText = finalStatus;
+            if (_historyApiSession is not null) _obsServer?.EndApiRehearsal(_historyApiSession);
             IsHistoryRehearsalRunning = false;
             cancellation.Dispose();
         });
@@ -3018,6 +3049,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             OnPropertyChanged(nameof(TsunamiObsUrlText));
             OnPropertyChanged(nameof(WeatherObsUrlText));
             OnPropertyChanged(nameof(ExternalApiUrlText));
+            OnPropertyChanged(nameof(RehearsalApiUrlText));
             CopyObsUrlCommand.RaiseCanExecuteChanged();
             SyncObsBrowserSourcesCommand.RaiseCanExecuteChanged();
         });

@@ -67,6 +67,7 @@ public sealed partial class ControlWindowViewModel
         var coordinator = new PriorityCoordinator(_services.Clock, _settings.Display);
         var eewComposer = new ConcurrentEewProgramComposer();
         int presentationGeneration = _simulatorPresentationGeneration;
+        string? apiSession = _obsServer?.BeginApiRehearsal("simulator");
         try
         {
             await DisasterSimulatorClient.RunAsync(address, token, async (events, reset) =>
@@ -102,7 +103,13 @@ public sealed partial class ControlWindowViewModel
             {
                 _simulatorConnected = true;
                 SimulatorStatus = "接続済み・新着訓練待ち（初期状態は再表示しません）";
-            }), stop.Token).ConfigureAwait(false);
+            }), stop.Token, (snapshot, reset) =>
+            {
+                if (reset) apiSession = _obsServer?.BeginApiRehearsal("simulator");
+                if (apiSession is null) return;
+                _obsServer?.SetApiRehearsalHealth(apiSession, "healthy");
+                _obsServer?.ReplaceApiRehearsalSnapshot(apiSession, snapshot);
+            }).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -116,6 +123,8 @@ public sealed partial class ControlWindowViewModel
         }
         finally
         {
+            if (stop.IsCancellationRequested && apiSession is not null) _obsServer?.EndApiRehearsal(apiSession);
+            else _obsServer?.SetApiRehearsalHealth(apiSession, "failed");
             await StopAudioAsync().ConfigureAwait(false);
             await _dispatcher.InvokeAsync(() =>
             {

@@ -6,6 +6,9 @@ namespace EEWTelop.Wpf.Obs;
 /// <summary>Production reception state, independent of subtitle visibility and test playback.</summary>
 public sealed class ExternalApiState
 {
+    private readonly bool _training;
+    public ExternalApiState() { }
+    internal ExternalApiState(bool training) => _training = training;
     private readonly object _gate = new();
     private TsunamiEvent? _forecast;
     private TsunamiEvent? _observation;
@@ -30,7 +33,7 @@ public sealed class ExternalApiState
         lock (_gate)
         {
             if (ticket.Id != _initializationId) return;
-            bool apply = forecast.SourceMode == SourceMode.Production &&
+            bool apply = !_training && forecast.SourceMode == SourceMode.Production &&
                 ticket.ForecastRevision == _forecastRevision &&
                 (_forecast is null || forecast.IssuedAt > _forecast.IssuedAt);
             if (apply)
@@ -68,10 +71,11 @@ public sealed class ExternalApiState
         }
     }
 
-    public void Observe(EventIngestionResult result)
+    public void Observe(EventIngestionResult result, bool manualReplay = false)
     {
         if (result.Status != EventIngestionStatus.Accepted ||
-            result.Event is not TsunamiEvent { SourceMode: SourceMode.Production } tsunami) return;
+            result.Event is not TsunamiEvent tsunami ||
+            !(ExternalChannelSource.Accepts(tsunami, _training) || (_training && manualReplay))) return;
 
         lock (_gate)
         {
@@ -83,7 +87,7 @@ public sealed class ExternalApiState
             else
             {
                 _forecast = tsunami;
-                _forecastOrigin = "live";
+                _forecastOrigin = _training ? "rehearsal" : "live";
                 _forecastRevision++;
             }
             _revision++;
@@ -126,7 +130,7 @@ public sealed class ExternalApiState
         });
         return new(value.Id.ToString(), value.Provider, value.Issue.RawType,
             value.IssuedAt, value.ReceivedAt, value.ExpireAt, value.ObservationAsOf,
-            value.IsCancelled, cancellation, expired, "production", value.Headline, value.Comment,
+            value.IsCancelled, cancellation, expired, ExternalChannelSource.Mode(value), value.Headline, value.Comment,
             areas.Select(a => new ExternalTsunamiArea(a.Code, a.Name, a.ParentAreaCode, a.ParentAreaName,
                 a.Role.ToString(), a.Grade.ToString(), a.Immediate,
                 a.FirstHeight, a.MaximumHeight, a.HighTideAt)).ToArray(),

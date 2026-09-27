@@ -324,6 +324,8 @@ public sealed record DisplaySettings(
     // The 0.2 m class is normally omitted so warnings and watches remain prominent.
     public bool ShowTsunamiForecast { get; init; }
 
+    public bool SeparateIntensityPagesByScale { get; init; } = true;
+
     public OutputTransformSettings OutputTransform { get; init; } =
         OutputTransformSettings.Default;
 

@@ -1,4 +1,4 @@
-# CDI External API v1（beta.46）
+# CDI External API v1（最新ソース仕様）
 
 CDI-Telopper が正規化した本番受信情報を、同じPCの外部ツールへ提供する読み取り専用APIです。外部ツールからの字幕操作、設定変更、受信電文の投入はできません。内蔵地図機能の廃止後も、外部プラグイン・地図ツールへの情報提供に利用できます。
 
@@ -40,7 +40,49 @@ CDI-Telopper が正規化した本番受信情報を、同じPCの外部ツー�
 | `GET /api/v1/eew` | `sessionId`、`status`、`eew`（複数イベントのEEW状態） |
 | `WS /api/v1/events` | 初回 `snapshot`、変更時 `update`、15秒程度ごとの `heartbeat`。status・tsunami・earthquake・eewの全スナップショット |
 
-`status.capabilities` は `tsunami`, `earthquake`, `eew`, `events.websocket`。新しい任意項目はv1内で追加し、破壊的変更は別バージョンとする。クライアントは未知のフィールドを無視し、未対応の列挙値は「不明」として扱う。CDIの内部クラスのJSON直列化ではなく、外部向けに定義した値を返す。色・描画位置・特定プラグインの設定を含めない。
+`status.capabilities` は `tsunami`, `earthquake`, `eew`, `events.websocket`, `dataHealth`。訓練API有効時のみ `rehearsal` を追加します。任意項目はv1内で追加し、破壊的変更は別バージョンとします。未知のフィールドは無視し、未対応の列挙値は「不明」として扱ってください。特定プラグインの描画設定は含めません。
+
+## 上流受信状態（dataHealth）
+
+`status.dataHealth` は `tsunami`, `earthquake`, `eew` ごとに `configured`（受信設定の有無）、`state`、`lastAcceptedAt`（最後に採用した電文の受信時刻、未受信はnull）を返します。
+
+| state | 意味 |
+| --- | --- |
+| `disabled` | 受信設定なし・本番受信モードでない、または訓練終了 |
+| `connecting` | 接続を試行中 |
+| `healthy` | 該当情報の受信経路が正常 |
+| `stale` | 接続停止・通信停滞・再接続中 |
+| `failed` | 接続エラー |
+| `unknown` | 受信経路の状態を確認できない |
+
+情報種別ごとに選択された受信元を参照します。自動JMA XML切替が作動中なら切替先の状態を使います（EEWは対象外）。災害電文が長時間ないことだけで異常とは判定しません。`healthy` はすべての電文の取得を保証しません。初期津波JSON取得の成否は `tsunamiInitialization` で別途確認します。
+
+`status.connection` は従来どおり受信サービス全体の状態です。HTTPやWS heartbeatが正常でも、上流の `dataHealth` は異常になり得ます。「CDI接続済み／津波情報更新停止」のように区別してください。個別状態の変化もWS updateの対象です。
+
+## 訓練・リハーサル専用API
+
+「表示・出力」→「訓練・リハーサル専用API」で有効化し、専用URLをコピーします。初期OFF・今回の起動中のみ有効です。本番APIと独立して有効化でき、本番キー・OBSキーは使用できません。
+
+| 接続 | 内容 |
+| --- | --- |
+| `GET /api/v1/rehearsal/status` | 訓練セッション・受信状態 |
+| `GET /api/v1/rehearsal/tsunami` | 訓練津波スナップショット |
+| `GET /api/v1/rehearsal/earthquake` | 訓練地震スナップショット |
+| `GET /api/v1/rehearsal/eew` | 訓練EEWスナップショット |
+| `WS /api/v1/rehearsal/events` | 全リソースのsnapshot / update / heartbeat |
+
+- 全応答に `channel="rehearsal"`, `isTraining=true`, `sessionId`, `rehearsalSessionId` を付加します。本番は `channel="production"`, `isTraining=false` です。
+- 手動テスト、Sandbox、履歴訓練、Simulator、電文確認の「動作訓練」での明示的再表示が対象です。本番再掲・過去情報としての紹介は対象外です。元電文は変更しません。
+- 訓練の `sourceMode` は `manualTest`, `sandbox`, `historyRehearsal`, `simulator`, `manualReplay`, `unknownTraining`。`production` へ変換しません。訓練バナー非表示操作でも区分を維持します。
+- 開始・明示的リセット・Simulatorセッション変更で `rehearsalSessionId` が変わります。外部ツールは以前の状態を破棄してください。API有効化後にテスト・履歴再生・Simulator接続を開始してください。
+- 「訓練APIのセッションを終了」やSimulatorの手動切断で `rehearsal.active=false` を通知します。外部の訓練表示を消去してください。APIの終了・リセット自体は字幕・音声・Simulator接続を操作しません。実行中にAPIを終了・リセットした場合はテスト・履歴再生・Simulator接続を開始し直してください。
+- Simulator通信断・異常終了は訓練終了に変換しません。最終データとactiveを保持し、`dataHealth` を `failed` にします。CDI側の字幕・音声は従来どおり停止します。外部ツールでも通信異常を明示してください。
+- Simulator初期スナップショットはAPIのみ同期し、字幕・音声は再実行しません。完全スナップショットから消えたリソースは未取得状態になります（津波の正常解除とは別）。
+- 本番とは別ストアです。訓練APIの有効化による気象庁の現況取得はありません。
+- OFFでキーを失効し、訓練WSを終了します。本番APIは継続します。無効中404、別キー403。ローカル限定・Origin制限・no-store・読み取り専用は共通です。
+- 最大16のWS接続は両チャネル合計。初回・更新・約15秒のheartbeatは完全スナップショット、送信期限は5秒です。
+- `revision` は起動中に単調非減少ですがメタデータ変更でも増えます。連番・電文件数・チャネル間比較には使わないでください。`sequence` はWS接続ごとの連番です。
+- 外部ツールでも訓練を明示し、本番表示へ混入させないでください。利用条件・免責事項は訓練チャネルにも適用します。
 
 ### 地震・EEWの共通データ
 
@@ -107,7 +149,7 @@ WS URLは上記コピーURLの `http` を `ws` に、パスを `/api/v1/events` 
 - `observation`: 最後に採用されたVTSE51またはVTSE52。両電文の独立した履歴ではありません。VTSE51は沿岸観測・地点予報、VTSE52は沖合観測を格納します。保持する `forecast` とEventIDが異なる場合は、組み合わせを防ぐためレスポンスの `observation` をnullにします。このnullは観測情報の取消・解除を意味しません。forecast未取得の場合は観測情報だけを返すことがあります。
 - 各電文に `eventId`, `provider`, `telegramType`, `issuedAt`, `receivedAt`, `expiresAt`, `observationAsOf`, `isCancelled`, `isTelegramCancellation`, `isExpired`, `sourceMode`, `headline`, `comment`, `areas`, `item` を持ちます。`headline` / `comment` は原電文に存在する範囲で保持し、空文字の場合があります。
 - 日時はオフセット付きISO 8601。値不明はnull。`areas`の`role`と`grade`は列挙名文字列です。各areaは任意の `code` と、地点情報では `parentAreaCode` / `parentAreaName` を持ちます。コードが原資料にない場合は空文字で、名称からCDI側が推測しません。高さは数値と原文を保持し、「巨大」「高い」等を無理に数値化しません。
-- `sourceMode` はproductionのみ。ManualTest / Sandbox / HistoryRehearsalや手動再掲はAPIを更新しません。本番の表示フィルターや字幕消去に関係なく、採用された受信情報を保持します。
+- 本番チャネルの `sourceMode` はproductionのみ。ManualTest / Sandbox / HistoryRehearsalや手動再掲は本番APIを更新しません（訓練APIは上記参照）。本番の表示フィルターや字幕消去に関係なく、採用された受信情報を保持します。
 - 発表時刻が既存より古い同区分電文では上書きしません。重複・無効・無視された電文でも更新しません。
 - `isCancelled` は既存正規化の解除・取消フラグ。`isTelegramCancellation=true` は電文取消であり、警報解除と断定してはいけません。
 - `isExpired=true` は電文に明示された有効期限を過ぎた状態、または受信元が明示した失効状態です。後者では `expiresAt` がnullの場合もあります。期限がない電文の鮮度を自動保証するものではありません。失効は警報解除・電文取消と別の状態です。

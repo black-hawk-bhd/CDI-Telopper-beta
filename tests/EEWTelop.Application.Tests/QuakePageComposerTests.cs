@@ -11,6 +11,31 @@ public sealed class QuakePageComposerTests
     private readonly PageComposer _composer = new();
 
     [TestMethod]
+    [DataRow(QuakeIssueType.ScalePrompt)]
+    [DataRow(QuakeIssueType.DetailScale)]
+    [DataRow(QuakeIssueType.ScaleAndDestination)]
+    public void IntensityPagesSeparateScalesByDefaultAndAllowLegacyMixing(QuakeIssueType kind)
+    {
+        var quake = DisplayEventFactory.CreateQuake(kind,
+            [DisplayEventFactory.Point(1, JmaScale.SixUpper),
+             DisplayEventFactory.Point(2, JmaScale.FiveLowerOrMore),
+             DisplayEventFactory.Point(3, JmaScale.FiveLower)]);
+        var settings = AppSettings.CreateDefault().Display;
+        Assert.IsTrue(settings.SeparateIntensityPagesByScale);
+        var split = _composer.Compose(quake, settings).Pages
+            .Where(p => p.Blocks.Any(b => b.StyleToken == DisplayStyleTokens.Intensity)).ToArray();
+        Assert.HasCount(3, split);
+        string[] badges = split.Select(p => p.Blocks.First(b => b.StyleToken == DisplayStyleTokens.Intensity).Badge).ToArray();
+        Assert.AreEqual("震度6強", badges[0]);
+        Assert.AreEqual("震度5弱以上 未入電", badges[1]);
+        Assert.AreEqual("震度5弱", badges[2]);
+        var mixed = _composer.Compose(quake, settings with { SeparateIntensityPagesByScale = false }).Pages
+            .Where(p => p.Blocks.Any(b => b.StyleToken == DisplayStyleTokens.Intensity)).ToArray();
+        Assert.HasCount(2, mixed);
+        Assert.AreEqual(2, mixed[0].Blocks.Count(b => b.StyleToken == DisplayStyleTokens.Intensity));
+    }
+
+    [TestMethod]
     public void ScalePromptUsesSafePageOrderAndCheckingOverride()
     {
         QuakeEvent quake = DisplayEventFactory.CreateQuake(

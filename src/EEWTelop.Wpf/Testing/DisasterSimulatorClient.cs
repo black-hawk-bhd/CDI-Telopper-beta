@@ -23,7 +23,8 @@ internal sealed class DisasterSimulatorClient
     }
 
     internal static async Task RunAsync(string address, string token,
-        Func<IReadOnlyList<DisasterEvent>, bool, Task> onUpdate, Action connected, CancellationToken ct)
+        Func<IReadOnlyList<DisasterEvent>, bool, Task> onUpdate, Action connected, CancellationToken ct,
+        Action<IReadOnlyList<DisasterEvent>, bool>? onState = null)
     {
         var uri = ValidateEndpoint(address);
         if (string.IsNullOrWhiteSpace(token) || token.Length > 4096 || token.Any(char.IsControl))
@@ -66,6 +67,7 @@ internal sealed class DisasterSimulatorClient
             } while (!part.EndOfMessage);
             using var json = JsonDocument.Parse(message.ToArray());
             var update = tracker.Read(json.RootElement, DateTimeOffset.UtcNow);
+            if (tracker.AcceptedFrame && tracker.SnapshotChanged) onState?.Invoke(tracker.Snapshot, update.Reset);
             if (update.Reset || update.Events.Count > 0)
                 await onUpdate(update.Events, update.Reset).ConfigureAwait(false);
         }
@@ -78,8 +80,13 @@ internal sealed class SimulatorUpdateTracker
     private Dictionary<string, string> _previous = new();
     private string? _session;
     private long _sequence = -1;
+    internal bool AcceptedFrame { get; private set; }
+    internal bool SnapshotChanged { get; private set; }
+    internal IReadOnlyList<DisasterEvent> Snapshot { get; private set; } = [];
     internal (IReadOnlyList<DisasterEvent> Events, bool Reset) Read(JsonElement root, DateTimeOffset now)
     {
+        AcceptedFrame = false;
+        SnapshotChanged = false;
         if (Text(root, "apiVersion") != "1") throw new FormatException("未対応のAPIバージョンです。");
         string session = Text(root, "sessionId"), type = Text(root, "type");
         if (session.Length == 0 || type is not ("snapshot" or "update" or "heartbeat") ||
@@ -90,13 +97,16 @@ internal sealed class SimulatorUpdateTracker
         if (reset) _previous.Clear();
         var current = new Dictionary<string, string>();
         var events = new List<DisasterEvent>();
+        var snapshot = new List<DisasterEvent>();
         void Add(string key, string kind, JsonElement item)
         {
             if (item.ValueKind != JsonValueKind.Object) return;
             string raw = item.GetRawText();
             current[key] = raw;
+            var decoded = Decode(kind, item, now);
+            snapshot.Add(decoded);
             if (!initial && type != "snapshot" && (!_previous.TryGetValue(key, out var old) || old != raw))
-                events.Add(Decode(kind, item, now));
+                events.Add(decoded);
         }
         var quake = Get(root, "earthquake");
         if (Flag(quake, "hasInformation")) Add("quake", "earthquake", Get(quake, "earthquake"));
@@ -109,9 +119,13 @@ internal sealed class SimulatorUpdateTracker
         var eew = Get(root, "eew");
         if (Flag(eew, "hasInformation") && Get(eew, "events") is var array && array.ValueKind == JsonValueKind.Array)
             foreach (var item in array.EnumerateArray()) Add("eew:" + Text(item, "eventId"), "eew", item);
+        SnapshotChanged = initial || reset || current.Count != _previous.Count ||
+            current.Any(entry => !_previous.TryGetValue(entry.Key, out var old) || old != entry.Value);
         _previous = current;
         _session = session;
         _sequence = sequence;
+        Snapshot = snapshot;
+        AcceptedFrame = true;
         return (events, reset);
     }
 }

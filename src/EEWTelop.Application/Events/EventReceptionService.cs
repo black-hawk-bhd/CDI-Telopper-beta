@@ -29,6 +29,9 @@ public sealed class EventReceptionService
 
     public ProviderConnectionSnapshot Connection => _eventSource.Connection;
 
+    public (bool Configured, ProviderConnectionState? State) GetDataConnection(EventKind kind) =>
+        _eventSource is RoutedProviderEventSource routed ? routed.GetDataConnection(kind) : (true, null);
+
     public event EventHandler<EventIngestionResult>? EventProcessed;
 
     public async Task RunAsync(CancellationToken cancellationToken = default)

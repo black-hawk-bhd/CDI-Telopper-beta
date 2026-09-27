@@ -60,6 +60,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private double _pageDurationSeconds;
     private bool _showPageIndicator;
     private bool _showTsunamiForecast;
+    private bool _separateIntensityPagesByScale;
     private double _outputScale;
     private double _outputOffsetX;
     private double _outputOffsetY;
@@ -215,6 +216,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _pageDurationSeconds = settings.Display.PageDurationSeconds;
         _showPageIndicator = settings.Display.ShowPageIndicator;
         _showTsunamiForecast = settings.Display.ShowTsunamiForecast;
+        _separateIntensityPagesByScale = settings.Display.SeparateIntensityPagesByScale;
         _outputScale = OutputTransformSettings.Default.Scale;
         _outputOffsetX = OutputTransformSettings.Default.OffsetX;
         _outputOffsetY = OutputTransformSettings.Default.OffsetY;
@@ -614,6 +616,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public double PageDurationSeconds { get => _pageDurationSeconds; set => SetProperty(ref _pageDurationSeconds, value); }
     public bool ShowPageIndicator { get => _showPageIndicator; set => SetProperty(ref _showPageIndicator, value); }
     public bool ShowTsunamiForecast { get => _showTsunamiForecast; set => SetProperty(ref _showTsunamiForecast, value); }
+    public bool SeparateIntensityPagesByScale { get => _separateIntensityPagesByScale; set => SetProperty(ref _separateIntensityPagesByScale, value); }
     public double OutputScale { get => _outputScale; set => SetProperty(ref _outputScale, OutputTransformSettings.Default.Scale); }
     public double OutputOffsetX { get => _outputOffsetX; set => SetProperty(ref _outputOffsetX, OutputTransformSettings.Default.OffsetX); }
     public double OutputOffsetY { get => _outputOffsetY; set => SetProperty(ref _outputOffsetY, OutputTransformSettings.Default.OffsetY); }
@@ -834,6 +837,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
                     0,
                     3600),
                 ShowTsunamiForecast = ShowTsunamiForecast,
+                SeparateIntensityPagesByScale = SeparateIntensityPagesByScale,
                 SubtitlePhraseOverrides = new Dictionary<string, string>(
                     _subtitlePhraseOverrides,
                     StringComparer.Ordinal),
@@ -1274,6 +1278,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         PageDurationSeconds = defaults.PageDurationSeconds;
         ShowPageIndicator = defaults.ShowPageIndicator;
         ShowTsunamiForecast = defaults.ShowTsunamiForecast;
+        SeparateIntensityPagesByScale = defaults.SeparateIntensityPagesByScale;
         LetterSpacingEm = defaults.LetterSpacingEm;
         LineSpacing = defaults.LineSpacing;
         FontScale = defaults.FontScale;

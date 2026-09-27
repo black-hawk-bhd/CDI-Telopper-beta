@@ -34,12 +34,12 @@ internal static class QuakePageComposer
         IReadOnlyList<IntensityRow> intensityRows = BuildIntensityRows(quake.Points);
         IReadOnlyList<PageDraft> pages = quake.IssueType switch
         {
-            QuakeIssueType.ScalePrompt => ComposeScalePrompt(quake, intensityRows),
-            QuakeIssueType.DetailScale => ComposeDetailed(quake, intensityRows, includeIntensity: true),
+            QuakeIssueType.ScalePrompt => ComposeScalePrompt(quake, intensityRows, settings.SeparateIntensityPagesByScale),
+            QuakeIssueType.DetailScale => ComposeDetailed(quake, intensityRows, includeIntensity: true, settings.SeparateIntensityPagesByScale),
             QuakeIssueType.ScaleAndDestination =>
-                ComposeDetailed(quake, intensityRows, includeIntensity: true),
+                ComposeDetailed(quake, intensityRows, includeIntensity: true, settings.SeparateIntensityPagesByScale),
             QuakeIssueType.Destination =>
-                ComposeDetailed(quake, intensityRows, includeIntensity: false),
+                ComposeDetailed(quake, intensityRows, includeIntensity: false, settings.SeparateIntensityPagesByScale),
             QuakeIssueType.Foreign => ComposeForeign(quake),
             QuakeIssueType.Other => ComposeOther(quake),
             QuakeIssueType.LongPeriodObservation => ComposeLongPeriodObservation(quake),
@@ -60,7 +60,8 @@ internal static class QuakePageComposer
 
     private static List<PageDraft> ComposeScalePrompt(
         QuakeEvent quake,
-        IReadOnlyList<IntensityRow> intensityRows)
+        IReadOnlyList<IntensityRow> intensityRows,
+        bool separateByScale)
     {
         string time = FormatOriginTime(quake.Earthquake);
         var pages = new List<PageDraft>
@@ -81,7 +82,7 @@ internal static class QuakePageComposer
         AddIntensityPages(
             pages,
             intensityRows,
-            "震度速報の対象地域情報はありません");
+            "震度速報の対象地域情報はありません", separateByScale);
         AddCommentPage(pages, quake.FreeFormComment);
         return pages;
     }
@@ -89,7 +90,8 @@ internal static class QuakePageComposer
     private static List<PageDraft> ComposeDetailed(
         QuakeEvent quake,
         IReadOnlyList<IntensityRow> intensityRows,
-        bool includeIntensity)
+        bool includeIntensity,
+        bool separateByScale)
     {
         // 大規模噴火の遠地情報もVXSE53で届く。地震の定型ページを付けず、
         // 津波到達予想を含む実際の噴火情報を本文から表示する。
@@ -121,7 +123,7 @@ internal static class QuakePageComposer
             AddIntensityPages(
                 pages,
                 intensityRows,
-                "各地の詳しい震度情報はありません");
+                "各地の詳しい震度情報はありません", separateByScale);
         }
 
         AddCommentPage(pages, quake.FreeFormComment);
@@ -516,7 +518,8 @@ internal static class QuakePageComposer
     private static void AddIntensityPages(
         List<PageDraft> pages,
         IReadOnlyList<IntensityRow> rows,
-        string emptyMessage)
+        string emptyMessage,
+        bool separateByScale)
     {
         if (rows.Count == 0)
         {
@@ -531,9 +534,11 @@ internal static class QuakePageComposer
             return;
         }
 
-        for (int offset = 0; offset < rows.Count; offset += IntensityRowsPerPage)
+        for (int offset = 0; offset < rows.Count;)
         {
-            IntensityRow[] pageRows = rows.Skip(offset).Take(IntensityRowsPerPage).ToArray();
+            IntensityRow[] pageRows = rows.Skip(offset).Take(IntensityRowsPerPage)
+                .TakeWhile(row => !separateByScale || row.Scale == rows[offset].Scale).ToArray();
+            offset += pageRows.Length;
             var blocks = new DisplayBlock[pageRows.Length];
             for (int index = 0; index < pageRows.Length; index++)
             {

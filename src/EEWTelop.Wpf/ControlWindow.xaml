@@ -474,6 +474,9 @@
                                         <TextBlock Text="ページ秒数（1.0〜30.0 / 0.5刻み）" Foreground="{StaticResource MutedBrush}" />
                                         <TextBox Text="{Binding Settings.PageDurationSeconds}" />
                                         <CheckBox Content="ページ番号を表示" IsChecked="{Binding Settings.ShowPageIndicator}" />
+                                        <CheckBox Content="震度階級ごとにページを分ける"
+                                                  IsChecked="{Binding Settings.SeparateIntensityPagesByScale}"
+                                                  ToolTip="初期値はONです。OFFにすると異なる震度を同じページに表示します。保存して反映後、新しく生成する震度ページに適用します。" />
                                         <CheckBox Content="津波予報（0.2m／若干の海面変動）を表示"
                                                   IsChecked="{Binding Settings.ShowTsunamiForecast}" />
                                         <TextBlock Text="緊急地震速報（EEW）の自動消去秒（0は消さない）" Foreground="{StaticResource MutedBrush}" />
@@ -491,7 +494,7 @@
                                         <Button Content="ページと文字を初期設定に戻す"
                                                 Command="{Binding ResetDisplaySettingsCommand}"
                                                 Margin="0,8,0,0"
-                                                ToolTip="ページ時間、自動消去時間、津波予報表示、受信前の定型文編集を初期化します。" />
+                                                ToolTip="ページ時間、自動消去時間、震度階級別ページ分割、津波予報表示、受信前の定型文編集を初期化します。" />
                                     </StackPanel>
                                 </GroupBox>
                                 <GroupBox Header="本番情報の繰り返し表示">
@@ -584,6 +587,15 @@
                                                 CommandParameter="{Binding ExternalApiUrlText}" />
                                         <TextBlock Text="同一PC・読み取り専用。ON時に気象庁から津波の現況を取得（字幕・音声なし）。以後の更新には津波の本番受信を有効にしてください。初期取得失敗時は60秒後に再試行。OBS Local Viewが必要です。OFFで接続キーも失効します。"
                                                    TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
+                                    </StackPanel>
+                                </GroupBox>
+                                <GroupBox Header="訓練・リハーサル専用API">
+                                    <StackPanel>
+                                        <CheckBox Content="訓練APIを有効化（今回の起動中のみ・本番とは別キー）" IsChecked="{Binding RehearsalApiEnabled}" />
+                                        <Button Content="訓練API 接続URLをコピー" IsEnabled="{Binding RehearsalApiEnabled}" Command="{Binding CopyObsOutputUrlCommand}" CommandParameter="{Binding RehearsalApiUrlText}" />
+                                        <Button Content="訓練APIの状態をリセット" IsEnabled="{Binding RehearsalApiEnabled}" Command="{Binding ResetApiRehearsalCommand}" />
+                                        <Button Content="訓練APIのセッションを終了" IsEnabled="{Binding RehearsalApiEnabled}" Command="{Binding EndApiRehearsalCommand}" />
+                                        <TextBlock Text="手動テスト・Sandbox・履歴訓練・Simulator専用。連携先にも訓練表示が必要です。通信異常時はAPIの最終データを保持し更新停止を通知します。本番APIには送りません。終了・リセットはAPIのみで、字幕やSimulator接続は変更しません。" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
                                     </StackPanel>
                                 </GroupBox>
                                 <GroupBox Header="OBS WebSocket 自動登録">

@@ -216,6 +216,222 @@ public sealed class ExternalApiTests
         socket.Abort();
     }
 
+    [TestMethod]
+    public void RehearsalFailureRetainsStateAndResetRejectsOldSession()
+    {
+        var store = new ExternalRehearsalState();
+        string session = store.Begin("simulator");
+        store.Observe(Telegram(mode: SourceMode.ManualTest), session);
+        store.SetHealth(session, "failed");
+        var failed = store.Read(Now);
+        Assert.IsTrue(failed["rehearsal"]!["active"]!.GetValue<bool>());
+        Assert.IsTrue(failed["tsunami"]!["hasForecast"]!.GetValue<bool>());
+        Assert.AreEqual("failed", failed["dataHealth"]!["tsunami"]!["state"]!.GetValue<string>());
+        long revision = failed["tsunami"]!["revision"]!.GetValue<long>();
+        string next = store.Begin("simulator");
+        Assert.AreNotEqual(session, next);
+        store.Observe(Telegram(mode: SourceMode.ManualTest), session);
+        store.SetHealth(session, "failed");
+        store.End(session);
+        var reset = store.Read(Now);
+        Assert.IsTrue(reset["rehearsal"]!["active"]!.GetValue<bool>());
+        Assert.IsFalse(reset["tsunami"]!["hasForecast"]!.GetValue<bool>());
+        Assert.IsTrue(reset["tsunami"]!["revision"]!.GetValue<long>() > revision);
+        store.End(next);
+        Assert.IsFalse(store.Read(Now)["rehearsal"]!["active"]!.GetValue<bool>());
+    }
+
+    [TestMethod]
+    [DataRow(SourceMode.ManualTest, "manualTest")]
+    [DataRow(SourceMode.Sandbox, "sandbox")]
+    [DataRow(SourceMode.HistoryRehearsal, "historyRehearsal")]
+    public void RehearsalSourcesStayOutOfProduction(SourceMode source, string expected)
+    {
+        var live = new ExternalApiState();
+        var rehearsal = new ExternalRehearsalState();
+        var item = Telegram(mode: source);
+        live.Observe(Result(item));
+        rehearsal.Observe(item);
+        Assert.IsFalse(live.Read(Now).HasForecast);
+        Assert.AreEqual(expected, rehearsal.Read(Now)["tsunami"]!["forecast"]!["sourceMode"]!.GetValue<string>());
+        Assert.AreEqual(source, item.SourceMode);
+    }
+
+    [TestMethod]
+    public void OnlyExplicitManualReplayCanCopyProductionIntoRehearsal()
+    {
+        var rehearsal = new ExternalRehearsalState();
+        var live = Telegram();
+        rehearsal.Observe(live);
+        Assert.IsFalse(rehearsal.Read(Now)["tsunami"]!["hasForecast"]!.GetValue<bool>());
+        rehearsal.Observe(live, manualReplay: true);
+        Assert.AreEqual("manualReplay", rehearsal.Read(Now)["tsunami"]!["forecast"]!["sourceMode"]!.GetValue<string>());
+        Assert.AreEqual(SourceMode.Production, live.SourceMode);
+        Assert.AreEqual("signature", live.Signature);
+    }
+
+    [TestMethod]
+    public void SimulatorFullSnapshotRemovesAbsentResourcesWithoutEndingSession()
+    {
+        var rehearsal = new ExternalRehearsalState();
+        string session = rehearsal.Begin("simulator");
+        rehearsal.Observe(Telegram(mode: SourceMode.ManualTest), session);
+        rehearsal.ReplaceSnapshot(session, []);
+        var state = rehearsal.Read(Now);
+        Assert.IsFalse(state["tsunami"]!["hasForecast"]!.GetValue<bool>());
+        Assert.AreEqual("unknown", state["tsunami"]!["forecastState"]!.GetValue<string>());
+        Assert.IsTrue(state["rehearsal"]!["active"]!.GetValue<bool>());
+    }
+
+    [TestMethod]
+    public void HealthTracksRouteNotDisasterAge()
+    {
+        var health = new ExternalApiHealth();
+        Assert.AreEqual("unknown", health.Read(EventKind.Tsunami, true, null).State);
+        Assert.AreEqual("connecting", health.Read(EventKind.Tsunami, true, ProviderConnectionState.Connecting).State);
+        health.Observe(Result(Telegram(issued: Now.AddYears(-1))));
+        var connected = health.Read(EventKind.Tsunami, true, ProviderConnectionState.Connected);
+        Assert.AreEqual("healthy", connected.State);
+        Assert.AreEqual(Now.AddYears(-1), connected.LastAcceptedAt);
+        Assert.AreEqual("stale", health.Read(EventKind.Tsunami, true, ProviderConnectionState.Reconnecting).State);
+        Assert.AreEqual("failed", health.Read(EventKind.Tsunami, true, ProviderConnectionState.Faulted).State);
+        Assert.AreEqual("disabled", health.Read(EventKind.Tsunami, false, ProviderConnectionState.Connected).State);
+        Assert.IsNull(health.Read(EventKind.Eew, true, ProviderConnectionState.Connected).LastAcceptedAt);
+    }
+
+    [TestMethod]
+    public async Task RehearsalAuthenticationAndRevocationAreIndependent()
+    {
+        await using var server = CreateServer();
+        await server.StartAsync(0);
+        server.ExternalApiEnabled = true;
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        string root = $"http://127.0.0.1:{server.Port}";
+        using var disabled = await http.GetAsync(root + "/api/v1/rehearsal/status");
+        Assert.AreEqual(HttpStatusCode.NotFound, disabled.StatusCode);
+        server.RehearsalApiEnabled = true;
+        string rehearsalUrl = server.RehearsalApiUrl;
+        using var wrongLive = await http.GetAsync(root + "/api/v1/status" + new Uri(rehearsalUrl).Query);
+        using var wrongTraining = await http.GetAsync(root + "/api/v1/rehearsal/status" + new Uri(server.ExternalApiUrl).Query);
+        using var obs = await http.GetAsync(root + "/api/v1/rehearsal/status" + new Uri(server.OverlayUrl).Query);
+        Assert.AreEqual(HttpStatusCode.Forbidden, wrongLive.StatusCode);
+        Assert.AreEqual(HttpStatusCode.Forbidden, wrongTraining.StatusCode);
+        Assert.AreEqual(HttpStatusCode.Forbidden, obs.StatusCode);
+        using var status = JsonDocument.Parse(await http.GetStringAsync(rehearsalUrl));
+        Assert.IsTrue(status.RootElement.GetProperty("isTraining").GetBoolean());
+        Assert.AreEqual("rehearsal", status.RootElement.GetProperty("channel").GetString());
+        server.BeginApiRehearsal("manualTest");
+        server.ObserveApiRehearsal(Telegram(mode: SourceMode.ManualTest));
+        using var production = JsonDocument.Parse(await http.GetStringAsync(server.ExternalApiUrl.Replace("/status?", "/tsunami?", StringComparison.Ordinal)));
+        Assert.IsFalse(production.RootElement.GetProperty("tsunami").GetProperty("hasForecast").GetBoolean());
+        server.RehearsalApiEnabled = false;
+        using var off = await http.GetAsync(rehearsalUrl);
+        Assert.AreEqual(HttpStatusCode.NotFound, off.StatusCode);
+        server.RehearsalApiEnabled = true;
+        using var revoked = await http.GetAsync(rehearsalUrl);
+        Assert.AreEqual(HttpStatusCode.Forbidden, revoked.StatusCode);
+        using var liveStillEnabled = await http.GetAsync(server.ExternalApiUrl);
+        Assert.AreEqual(HttpStatusCode.OK, liveStillEnabled.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task RehearsalWebSocketNotifiesFailureAndExplicitEnd()
+    {
+        await using var server = CreateServer();
+        await server.StartAsync(0);
+        server.RehearsalApiEnabled = true;
+        string session = server.BeginApiRehearsal("simulator")!;
+        server.ObserveApiRehearsal(Telegram(mode: SourceMode.ManualTest), session);
+        using var socket = new ClientWebSocket();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await socket.ConnectAsync(new Uri(server.RehearsalApiUrl.Replace("http:", "ws:", StringComparison.Ordinal)
+            .Replace("/status?", "/events?", StringComparison.Ordinal)), timeout.Token);
+        async Task<JsonDocument> Receive()
+        {
+            byte[] bytes = new byte[65536];
+            var received = await socket.ReceiveAsync(bytes.AsMemory(), timeout.Token);
+            Assert.IsTrue(received.EndOfMessage);
+            return JsonDocument.Parse(bytes.AsMemory(0, received.Count));
+        }
+        using var first = await Receive();
+        Assert.AreEqual("snapshot", first.RootElement.GetProperty("type").GetString());
+        Assert.AreEqual(session, first.RootElement.GetProperty("rehearsalSessionId").GetString());
+        server.SetApiRehearsalHealth(session, "failed");
+        using var failed = await Receive();
+        Assert.AreEqual("update", failed.RootElement.GetProperty("type").GetString());
+        Assert.IsTrue(failed.RootElement.GetProperty("rehearsal").GetProperty("active").GetBoolean());
+        Assert.AreEqual("failed", failed.RootElement.GetProperty("status").GetProperty("dataHealth").GetProperty("tsunami").GetProperty("state").GetString());
+        server.EndApiRehearsal(session);
+        using var ended = await Receive();
+        Assert.IsFalse(ended.RootElement.GetProperty("rehearsal").GetProperty("active").GetBoolean());
+        Assert.IsTrue(ended.RootElement.GetProperty("sequence").GetInt64() > failed.RootElement.GetProperty("sequence").GetInt64());
+        server.RehearsalApiEnabled = false;
+        try { await socket.ReceiveAsync(new byte[256].AsMemory(), timeout.Token); }
+        catch (WebSocketException) { }
+        Assert.IsFalse(timeout.IsCancellationRequested);
+    }
+
+    [TestMethod]
+    public async Task RehearsalNeverStartsProductionInitialization()
+    {
+        int calls = 0;
+        await using var server = new ObsLocalViewServer(new ObsSnapshotStore(AppSettings.CreateDefault().Display, Now),
+            new Clock(), new UiLogBuffer(), initialTsunamiFetcher: _ =>
+            {
+                Interlocked.Increment(ref calls);
+                return Task.FromResult(Telegram());
+            });
+        server.RehearsalApiEnabled = true;
+        await server.StartAsync(0);
+        server.BeginApiRehearsal("manualTest");
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        using var state = await http.GetAsync(server.RehearsalApiUrl);
+        Assert.AreEqual(HttpStatusCode.OK, state.StatusCode);
+        Assert.AreEqual(0, calls);
+    }
+
+    [TestMethod]
+    public async Task DomainHealthChangeEmitsUpdateWhileAggregateIsUnchanged()
+    {
+        var settings = AppSettings.CreateDefault();
+        var quake = new IdleSource();
+        var tsunami = new IdleSource();
+        var providers = new Dictionary<ReceptionProvider, IEventSource>
+        {
+            [ReceptionProvider.P2pQuake] = quake, [ReceptionProvider.Axis] = tsunami,
+        };
+        await using var routed = new RoutedProviderEventSource(settings.Provider with
+        {
+            JmaXmlAutoFallback = false,
+            Routing = ProviderRoutingSettings.FromLegacy(ReceptionProvider.Disabled) with
+                { Quake = ReceptionProvider.P2pQuake, Tsunami = ReceptionProvider.Axis },
+        }, providers);
+        var clock = new Clock();
+        var pipeline = new EventIngestionPipeline(new FixedNormalizer(), new EventVersionCache(),
+            new PageComposer(), new PriorityCoordinator(clock, settings.Display), settings.Display);
+        var reception = new EventReceptionService(routed, pipeline);
+        await using var server = new ObsLocalViewServer(new ObsSnapshotStore(settings.Display, Now), clock,
+            new UiLogBuffer(), receptionService: reception);
+        await server.StartAsync(0);
+        server.ExternalApiEnabled = true;
+        using var socket = new ClientWebSocket();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        await socket.ConnectAsync(new UriBuilder(server.ExternalApiUrl) { Scheme = "ws", Path = "/api/v1/events" }.Uri, timeout.Token);
+        byte[] buffer = new byte[32768];
+        await socket.ReceiveAsync(buffer.AsMemory(), timeout.Token);
+        var aggregate = reception.Connection;
+        tsunami.Connection = new(ProviderConnectionState.Faulted, Now);
+        Assert.AreEqual(aggregate, reception.Connection);
+        var message = await socket.ReceiveAsync(buffer.AsMemory(), timeout.Token);
+        using var result = JsonDocument.Parse(buffer.AsMemory(0, message.Count));
+        Assert.AreEqual("update", result.RootElement.GetProperty("type").GetString());
+        var health = result.RootElement.GetProperty("status").GetProperty("dataHealth");
+        Assert.AreEqual("failed", health.GetProperty("tsunami").GetProperty("state").GetString());
+        Assert.AreEqual("healthy", health.GetProperty("earthquake").GetProperty("state").GetString());
+        Assert.AreEqual("disabled", health.GetProperty("eew").GetProperty("state").GetString());
+        socket.Abort();
+    }
+
     private sealed class FixedNormalizer : IEventNormalizer
     {
         public NormalizeResult Normalize(RawProviderMessage raw) => NormalizeResult.Success(Telegram());
@@ -223,7 +439,7 @@ public sealed class ExternalApiTests
 
     private sealed class IdleSource : IEventSource
     {
-        public ProviderConnectionSnapshot Connection => new(ProviderConnectionState.Connected, Now);
+        public ProviderConnectionSnapshot Connection { get; set; } = new(ProviderConnectionState.Connected, Now);
         public event EventHandler<ProviderConnectionSnapshot>? ConnectionChanged { add { } remove { } }
         public async IAsyncEnumerable<RawProviderMessage> ReadAllAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)

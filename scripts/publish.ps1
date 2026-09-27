@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '2.0.0-beta.50',
+    [string]$Version = '2.0.0-beta.51',
     [string]$RuntimeIdentifier = 'win-x64',
     [string]$OutputLabel = '',
     [ValidateSet('true', 'false')]
@@ -126,6 +126,7 @@ function Add-DistributionFiles {
         Copy-Item -LiteralPath $readmePath -Destination (Join-Path $Directory $readmeName)
     }
     Copy-Item -LiteralPath (Join-Path $workspaceRoot 'docs\disaster-simulator.md') -Destination (Join-Path $Directory 'SIMULATOR_GUIDE.md')
+    Copy-Item -LiteralPath (Join-Path $workspaceRoot 'docs\external-api-v1.md') -Destination (Join-Path $Directory 'EXTERNAL_API_V1.md')
     $manualName = "MANUAL_CDI-Telopper_$Version.txt"
     $manualPath = Join-Path $workspaceRoot $manualName
     if (Test-Path -LiteralPath $manualPath) {

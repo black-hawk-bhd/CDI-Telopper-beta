@@ -119,10 +119,16 @@ public sealed class DisasterSimulatorTests
     {
         var tracker = new SimulatorUpdateTracker();
         Assert.AreEqual(0, Read(tracker, "snapshot", "one", 1, "1").Events.Count);
+        Assert.IsTrue(tracker.AcceptedFrame);
+        Assert.IsTrue(tracker.SnapshotChanged);
+        Assert.HasCount(1, tracker.Snapshot);
         Assert.AreEqual(0, Read(tracker, "heartbeat", "one", 2, "1").Events.Count);
+        Assert.IsTrue(tracker.AcceptedFrame);
+        Assert.IsFalse(tracker.SnapshotChanged);
         Assert.AreEqual(1, Read(tracker, "update", "one", 3, "2").Events.Count);
         Assert.AreEqual(0, Read(tracker, "update", "one", 4, "2").Events.Count);
         Assert.AreEqual(0, Read(tracker, "update", "one", 3, "1").Events.Count);
+        Assert.IsFalse(tracker.AcceptedFrame);
         var reset = Read(tracker, "update", "two", 1, "1");
         Assert.IsTrue(reset.Reset);
         Assert.AreEqual(1, reset.Events.Count);

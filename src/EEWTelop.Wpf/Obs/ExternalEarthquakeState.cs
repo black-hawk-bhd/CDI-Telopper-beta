@@ -6,14 +6,17 @@ namespace EEWTelop.Wpf.Obs;
 /// <summary>Provider-neutral, read-only state. No rendering or plugin-specific fields.</summary>
 internal sealed class ExternalEarthquakeState
 {
+    private readonly bool _training;
+    internal ExternalEarthquakeState(bool training = false) => _training = training;
     private readonly object _gate = new();
     private QuakeEvent? _quake;
     private readonly Dictionary<string, EewEvent> _eew = new(StringComparer.Ordinal);
     private long _revision;
 
-    public void Observe(EventIngestionResult result)
+    public void Observe(EventIngestionResult result, bool manualReplay = false)
     {
-        if (result.Status != EventIngestionStatus.Accepted || result.Event?.SourceMode != SourceMode.Production) return;
+        if (result.Status != EventIngestionStatus.Accepted || result.Event is null ||
+            !(ExternalChannelSource.Accepts(result.Event, _training) || (_training && manualReplay))) return;
         lock (_gate)
         {
             if (result.Event is QuakeEvent { IsCancelled: true } cancelled && _quake is not null && _quake.Id != cancelled.Id) return;
@@ -22,7 +25,7 @@ internal sealed class ExternalEarthquakeState
                 _quake = quake;
                 _revision++;
             }
-            if (result.Event is EewEvent { IsTest: false } eew)
+            if (result.Event is EewEvent eew && (_training || !eew.IsTest))
             {
                 string id = eew.Id.ToString();
                 if (_eew.TryGetValue(id, out var previous) && eew.IssuedAt < previous.IssuedAt) return;
@@ -46,7 +49,7 @@ internal sealed class ExternalEarthquakeState
                     issuedAt = _quake.IssuedAt, receivedAt = _quake.ReceivedAt,
                     serial = _quake.Issue.Serial, isCancelled = _quake.IsCancelled,
                     isExpired = _quake.IsExpired,
-                    informationType = _quake.IssueType.ToString(), sourceMode = "production",
+                    informationType = _quake.IssueType.ToString(), sourceMode = ExternalChannelSource.Mode(_quake),
                     earthquake = ProjectEarthquake(_quake.Earthquake),
                     points = _quake.Points.Select(static p => new
                     {
@@ -81,7 +84,7 @@ internal sealed class ExternalEarthquakeState
                 {
                     eventId = e.Id.ToString(), provider = e.Provider, issuedAt = e.IssuedAt,
                     receivedAt = e.ReceivedAt, serial = e.Issue.Serial, isCancelled = e.IsCancelled,
-                    isWarning = e.IsWarning, isFinal = e.IsFinal, sourceMode = "production",
+                    isWarning = e.IsWarning, isFinal = e.IsFinal, sourceMode = ExternalChannelSource.Mode(e),
                     // Expiry is a CDI display lifetime, not an official cancellation.
                     expiresAt = e.IssuedAt.AddMinutes(10), isExpired = e.IsExpired || now >= e.IssuedAt.AddMinutes(10),
                     earthquake = e.Earthquake is null ? null : ProjectEarthquake(e.Earthquake),

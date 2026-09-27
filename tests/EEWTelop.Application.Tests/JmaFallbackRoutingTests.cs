@@ -100,10 +100,34 @@ public sealed class JmaFallbackRoutingTests
         Assert.AreEqual(1, backup.Starts);
     }
 
+    [TestMethod]
+    public async Task DataConnectionFollowsFallbackButNeverForEew()
+    {
+        var settings = Settings() with
+        {
+            Routing = ProviderRoutingSettings.FromLegacy(ReceptionProvider.Disabled) with
+                { Quake = ReceptionProvider.Axis, Eew = ReceptionProvider.Axis },
+        };
+        var clock = new Clock();
+        var fallback = new JmaFallbackRouting(settings, clock);
+        var sources = new Dictionary<ReceptionProvider, IEventSource>
+        {
+            [ReceptionProvider.Axis] = new TestSource(false) { Connection = new(ProviderConnectionState.Faulted, clock.UtcNow) },
+            [ReceptionProvider.JmaXml] = new TestSource(false) { Connection = new(ProviderConnectionState.Connected, clock.UtcNow) },
+        };
+        await using var router = new RoutedProviderEventSource(settings, sources, fallback);
+        fallback.Observe(ReceptionProvider.Axis, ProviderConnectionState.Faulted);
+        Assert.AreEqual(ProviderConnectionState.Faulted, router.GetDataConnection(EEWTelop.Domain.Events.EventKind.Quake).State);
+        clock.Advance(31);
+        Assert.AreEqual(ProviderConnectionState.Connected, router.GetDataConnection(EEWTelop.Domain.Events.EventKind.Quake).State);
+        Assert.AreEqual(ProviderConnectionState.Faulted, router.GetDataConnection(EEWTelop.Domain.Events.EventKind.Eew).State);
+        Assert.IsFalse(router.GetDataConnection(EEWTelop.Domain.Events.EventKind.Tsunami).Configured);
+    }
+
     private sealed class TestSource(bool fail) : IEventSource
     {
         public int Starts { get; private set; }
-        public ProviderConnectionSnapshot Connection { get; } = new(ProviderConnectionState.Stopped, DateTimeOffset.UtcNow);
+        public ProviderConnectionSnapshot Connection { get; init; } = new(ProviderConnectionState.Stopped, DateTimeOffset.UtcNow);
         public event EventHandler<ProviderConnectionSnapshot>? ConnectionChanged { add { } remove { } }
         public async IAsyncEnumerable<RawProviderMessage> ReadAllAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
