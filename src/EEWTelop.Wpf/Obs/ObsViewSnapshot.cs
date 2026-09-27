@@ -59,7 +59,7 @@ public enum ObsViewChannel
 [JsonSerializable(typeof(OutputTransformSettings))]
 internal sealed partial class ObsJsonContext : JsonSerializerContext;
 
-public sealed class ObsSnapshotStore
+public sealed partial class ObsSnapshotStore
 {
     internal static readonly TimeSpan AudioRetention = TimeSpan.FromSeconds(60);
     private readonly object _gate = new();

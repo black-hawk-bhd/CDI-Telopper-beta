@@ -16,7 +16,8 @@ const pageIndicator = document.getElementById("pageIndicator");
 const alertAudio = document.getElementById("alertAudio");
 // Dedicated EEW/tsunami/weather sources receive their own state stream. Only the
 // general source owns audio so OBS never mixes duplicate copies of one cue.
-const handlesAudio = view === "general";
+const monitorMode = window.location.pathname === "/monitor/view";
+const handlesAudio = !monitorMode && view === "general";
 let lastAudioSequence = 0;
 let activeAudioSequence = 0;
 const lastReportedAudioResults = new Map();
@@ -241,4 +242,11 @@ function connect() {
 
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
-void loadCurrentState().then(connect, connect);
+if (monitorMode) {
+  window.addEventListener("message", event => {
+    if (event.origin !== window.location.origin || event.source !== window.parent || event.data?.type !== "cdi-monitor") return;
+    applySnapshot(event.data.state);
+  });
+} else {
+  void loadCurrentState().then(connect, connect);
+}

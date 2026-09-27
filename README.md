@@ -5,11 +5,11 @@
 
 Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津波・気象・火山・南海トラフに関する防災情報を受信し、OBS向け字幕として出力するWindowsアプリです。
 
-現在の公開版は **2.0.0-beta.51** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
+現在の公開版は **2.0.0-beta.52** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
 本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
 
-- [2.0.0-beta.51をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.51)
-- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.51.txt)
+- [2.0.0-beta.52をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.52)
+- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.52.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
 - [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
 
@@ -187,16 +187,26 @@ powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 配布物を作成する場合は次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.51
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.52
 ```
 
-フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.51\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
+フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.52\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
 
 ## 開発者向け資料
 
 コードを変更する場合は、最初に[開発者ガイド](docs/DEVELOPER_GUIDE.md)を参照してください。アーキテクチャ、機能別の実装・テスト対応表、対応電文、設定保存の流れ、安全な変更手順、読解負荷が高い箇所の案内を `docs` にまとめています。
 
 beta.51: [外部API](docs/external-api-v1.md)に情報種別ごとの上流受信状態 `dataHealth` と、別キー・初期OFFの訓練専用チャネルを追加しています。Simulator通信断時は訓練APIの最終データを保持して異常を通知し、本番APIへは混入させません。外部ツール側でも訓練表示と更新停止の明示が必要です。
+
+## ブラウザープレビューモニター（beta.52）
+
+「表示・出力」でOBS Local Viewを有効にして保存後、操作画面の「ブラウザーモニターを開く（無音）」を押してください。Chromeを優先し、見つからない場合は案内後に既定ブラウザーで開きます。外部APIの有効化は不要です。
+
+- 地震・火山、EEW、津波、気象の4出力を並べて確認できます。見出しをクリックすると拡大します。OBSと同じ描画処理・出力設定を使用します。
+- 下部の受信済み電文一覧（この起動中に確認画面へ登録された最新500件）から、同じ種別の複数電文も個別確認・ページ送りできます。字幕や音声は再送出しません。
+- 常に無音で、OBSの音声接続数に加算しません。本番／訓練、表示終了、受信接続状態、モニター更新停止を表示します。
+- 地震と火山は従来の共通出力枠です。各枠はその出力の現在の1プログラムを表示し、すべての過去電文を同時送出する機能ではありません。OBSアプリ自身の合成結果・配信状態を取得する機能でもありません。
+- ローカル専用です。接続URLにはOBS用の認証キーを含むため公開しないでください。接続停止時の表示は最後に確認した内容です。
 
 ## 外部API連携機能の利用条件・免責事項
 

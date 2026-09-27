@@ -597,6 +597,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     }
 
     public string ExternalApiUrlText => _obsServer?.ExternalApiUrl ?? string.Empty;
+    public string MonitorUrlText => _obsServer?.MonitorUrl ?? string.Empty;
 
     private string? _manualApiSession;
     private string? _historyApiSession;
@@ -1332,6 +1333,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             program = program with { HideSimulatorTrainingBanner = true };
 
         CoordinatorSnapshot snapshot = previewCoordinator.Apply(program);
+        _obsSnapshotStore.AddMonitorTelegram(disasterEvent, program, _settings.Display, "訓練表示");
         _obsSnapshotStore.PublishProgram(
             disasterEvent,
             program,
@@ -1499,6 +1501,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         DisplayProgram program,
         string displayResult = "表示済み")
     {
+        _obsSnapshotStore.AddMonitorTelegram(disasterEvent, program, _settings.Display, displayResult);
         ReceivedTelegramViewModel? duplicate = ReceivedTelegrams.FirstOrDefault(item =>
             item.Event.SourceMode == disasterEvent.SourceMode &&
             string.Equals(item.Event.Provider, disasterEvent.Provider, StringComparison.Ordinal) &&

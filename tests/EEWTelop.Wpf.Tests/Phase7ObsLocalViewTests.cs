@@ -165,7 +165,7 @@ public sealed class Phase7ObsLocalViewTests
         StringAssert.Contains(script, "pageIndicator.hidden = !indicatorText");
         StringAssert.Contains(script, "new EventSource");
         StringAssert.Contains(script, "alertAudio.play()");
-        StringAssert.Contains(script, "const handlesAudio = view === \"general\"");
+        StringAssert.Contains(script, "const handlesAudio = !monitorMode && view === \"general\"");
         StringAssert.Contains(script, "if (handlesAudio) applyAudioCommand(state)");
         StringAssert.Contains(script, "alertAudio.volume = 1");
         StringAssert.Contains(script, "`/audio/${sequence}?token=");

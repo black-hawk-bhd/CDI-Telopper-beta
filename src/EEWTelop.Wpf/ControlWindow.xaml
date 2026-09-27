@@ -195,6 +195,7 @@
                     <StackPanel>
                         <TextBlock Text="出力" FontSize="18" FontWeight="Bold" Margin="0,0,0,12" />
                         <Button Content="プレビューを表示" Style="{StaticResource PrimaryButton}" Command="{Binding ShowPreviewCommand}" />
+                        <Button Content="ブラウザーモニターを開く（無音）" Click="OnOpenBrowserMonitor" />
                         <Button Content="表示中の字幕を編集"
                                 ToolTip="バッジ・本文・補足文をページごとに編集します。新着・更新情報の受信時に元の表示へ戻ります。"
                                 Command="{Binding EditSubtitleCommand}" />

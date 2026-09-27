@@ -167,6 +167,39 @@ public partial class ControlWindow : Window, IAsyncDisposable
         _previewWindow.Activate();
     }
 
+    private void OnOpenBrowserMonitor(object sender, RoutedEventArgs e)
+    {
+        string url = _viewModel.MonitorUrlText;
+        if (string.IsNullOrEmpty(url))
+        {
+            MessageBox.Show(this, "「表示・出力」でOBS Local Viewを有効にして「保存して反映」してください。外部APIの有効化は不要です。", "ブラウザーモニター");
+            return;
+        }
+        try
+        {
+            string? chrome = new[] { Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolder.ProgramFilesX86,
+                Environment.SpecialFolder.LocalApplicationData }
+                .Select(folder => System.IO.Path.Combine(Environment.GetFolderPath(folder), "Google", "Chrome", "Application", "chrome.exe"))
+                .FirstOrDefault(System.IO.File.Exists);
+            if (chrome is null)
+            {
+                MessageBox.Show(this, "Chromeが見つからないため、既定のブラウザーで開きます。", "ブラウザーモニター");
+                using var browser = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+            }
+            else
+            {
+                var start = new System.Diagnostics.ProcessStartInfo(chrome) { UseShellExecute = false };
+                start.ArgumentList.Add("--new-window");
+                start.ArgumentList.Add(url);
+                using var browser = System.Diagnostics.Process.Start(start);
+            }
+        }
+        catch (Exception exception) when (exception is Win32Exception or InvalidOperationException or System.IO.IOException)
+        {
+            MessageBox.Show(this, "ブラウザーを開けませんでした。Chromeのインストール状態を確認してください。", "ブラウザーモニター");
+        }
+    }
+
     private void OnShowTelegramReviewRequested()
     {
         ShowTelegramReviewWindow();

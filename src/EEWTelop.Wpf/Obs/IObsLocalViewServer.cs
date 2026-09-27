@@ -28,6 +28,7 @@ public interface IObsLocalViewServer : IAsyncDisposable
     DateTimeOffset? LastAudioPlaybackAtUtc { get; }
 
     string OverlayUrl { get; }
+    string MonitorUrl => string.Empty;
 
     string EewUrl { get; }
 

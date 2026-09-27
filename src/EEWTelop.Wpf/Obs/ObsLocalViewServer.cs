@@ -357,7 +357,7 @@ public sealed partial class ObsLocalViewServer : IObsLocalViewServer
                 return;
             }
 
-            if (path == "/assets/overlay.js")
+            if (path is "/assets/overlay.js" or "/assets/monitor.js")
             {
                 if (!string.Equals(request.Method, "GET", StringComparison.Ordinal))
                 {
@@ -369,7 +369,7 @@ public sealed partial class ObsLocalViewServer : IObsLocalViewServer
                     stream,
                     200,
                     "text/javascript; charset=utf-8",
-                    ReadResource(ScriptResource),
+                    ReadResource(path == "/assets/monitor.js" ? "EEWTelop.Wpf.Obs.Assets.monitor.js" : ScriptResource),
                     cancellationToken,
                     securityPolicy: false).ConfigureAwait(false);
                 return;
@@ -396,6 +396,12 @@ public sealed partial class ObsLocalViewServer : IObsLocalViewServer
             if (!string.Equals(request.Method, "GET", StringComparison.Ordinal))
             {
                 await WriteMethodNotAllowedAsync(stream, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            if (path == "/monitor" || path.StartsWith("/monitor/", StringComparison.Ordinal))
+            {
+                await HandleMonitorAsync(stream, uri, cancellationToken).ConfigureAwait(false);
                 return;
             }
 
@@ -755,7 +761,8 @@ public sealed partial class ObsLocalViewServer : IObsLocalViewServer
         string contentType,
         string content,
         CancellationToken cancellationToken,
-        bool securityPolicy = false)
+        bool securityPolicy = false,
+        bool monitorFrames = false)
     {
         string reason = statusCode switch
         {
@@ -784,7 +791,7 @@ public sealed partial class ObsLocalViewServer : IObsLocalViewServer
                 "Content-Security-Policy: default-src 'none'; script-src 'self'; " +
                 "style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; " +
                 "media-src 'self'; font-src 'none'; base-uri 'none'; form-action 'none'; " +
-                "frame-ancestors 'none'\r\n");
+                (monitorFrames ? "frame-src 'self'; frame-ancestors 'self'\r\n" : "frame-ancestors 'none'\r\n"));
         }
 
         headers.Append("\r\n");
