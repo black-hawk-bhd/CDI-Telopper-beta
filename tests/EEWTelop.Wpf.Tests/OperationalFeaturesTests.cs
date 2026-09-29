@@ -459,6 +459,19 @@ public sealed class OperationalFeaturesTests
     }
 
     [TestMethod]
+    public void MainHeaderUsesTransparentIconBesideProductName()
+    {
+        string controlWindow = File.ReadAllText(FindRepositoryFile(
+            "src", "EEWTelop.Wpf", "ControlWindow.xaml"));
+
+        StringAssert.Contains(controlWindow, "Source=\"Assets/CDI-Telopper.png\"");
+        StringAssert.Contains(controlWindow, "Text=\"CDI-Telopper\"");
+        Assert.IsFalse(controlWindow.Contains(
+            "Source=\"Assets/CDI-Telopper-BrandHeader.png\"",
+            StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public async Task DmdataArchiveCreatesOneCasePerOfficialXmlAndKeepsJsonAsReferenceOnly()
     {
         string source = Path.Combine(_directory, "dmdata");

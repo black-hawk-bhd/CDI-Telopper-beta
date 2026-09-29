@@ -146,8 +146,8 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal">
-                    <Image Source="Assets/CDI-Telopper-BrandHeader.png"
-                           Width="180" Height="116" HorizontalAlignment="Left" Stretch="Uniform" />
+                    <Image Source="Assets/CDI-Telopper.png"
+                           Width="80" Height="80" HorizontalAlignment="Left" Stretch="Uniform" />
                     <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
                         <TextBlock Text="CDI-Telopper" FontSize="28" FontWeight="Bold" />
                         <TextBlock Text="Comprehensive Disaster Information Telopper"
