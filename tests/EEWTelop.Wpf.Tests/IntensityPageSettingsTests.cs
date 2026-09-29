@@ -34,4 +34,21 @@ public sealed class IntensityPageSettingsTests
         loaded.ResetDisplaySettings();
         Assert.IsTrue(loaded.ToSettings(saved).Display.SeparateIntensityPagesByScale);
     }
+
+    [TestMethod]
+    public void WeatherAreaRowsSettingDefaultsToTwoAndPersistsThreeRowChoice()
+    {
+        var settings = AppSettings.CreateDefault();
+        var json = JsonNode.Parse(JsonSerializer.Serialize(settings.Display))!.AsObject();
+        json.Remove(nameof(DisplaySettings.LimitActiveWeatherAreaRowsToTwo));
+        Assert.IsTrue(JsonSerializer.Deserialize<DisplaySettings>(json.ToJsonString())!.LimitActiveWeatherAreaRowsToTwo);
+
+        var editor = new SettingsEditorViewModel(settings) { LimitActiveWeatherAreaRowsToTwo = false };
+        var saved = editor.ToSettings(settings);
+        Assert.IsFalse(saved.Display.LimitActiveWeatherAreaRowsToTwo);
+        var loaded = new SettingsEditorViewModel(saved);
+        Assert.IsFalse(loaded.LimitActiveWeatherAreaRowsToTwo);
+        loaded.ResetDisplaySettings();
+        Assert.IsTrue(loaded.ToSettings(saved).Display.LimitActiveWeatherAreaRowsToTwo);
+    }
 }

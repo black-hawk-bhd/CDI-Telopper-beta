@@ -9,7 +9,6 @@ internal static partial class WeatherWarningPageComposer
 {
     private const int ReleaseRowsPerPage = 3;
     private const int ReleaseAreasPerRow = 6;
-    private const int ActiveWarningRowsPerPage = 3;
     private const int AreasPerWarningRow = 3;
     private const int HeadlineLinesPerPage = 2;
     private const int HeadlineCharactersPerLine = 24;
@@ -143,7 +142,7 @@ internal static partial class WeatherWarningPageComposer
 
         var pages = new List<PageDraft>();
         pages.AddRange(CreateWarningHeadlinePages(weather, active));
-        pages.AddRange(CreateActiveWarningPages(active));
+        pages.AddRange(CreateActiveWarningPages(active, settings.LimitActiveWeatherAreaRowsToTwo ? 2 : 3));
 
         pages.AddRange(CreateReleasePages(releasedWarnings));
 
@@ -156,7 +155,8 @@ internal static partial class WeatherWarningPageComposer
     }
 
     private static IEnumerable<PageDraft> CreateActiveWarningPages(
-        WeatherWarningItem[] active)
+        WeatherWarningItem[] active,
+        int rowsPerPage)
     {
         IOrderedEnumerable<IGrouping<ActiveWarningKey, WeatherWarningItem>> warningGroups =
             active
@@ -179,7 +179,7 @@ internal static partial class WeatherWarningPageComposer
             {
                 string heading = JoinWeatherRowParts(group.Key.PrefectureName, "｜" + FormatStatus(group.Key.Status));
                 string[] rows = CreateGroupedAreaRows(group).Select(row => row.PrimaryText).ToArray();
-                foreach (var chunk in rows.Chunk(ActiveWarningRowsPerPage))
+                foreach (var chunk in rows.Chunk(rowsPerPage))
                     yield return CreateAreaListPage(warningGroup.Key.KindName, heading, chunk, warningGroup.Key.StyleToken);
             }
         }

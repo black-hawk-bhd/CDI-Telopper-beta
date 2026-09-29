@@ -405,6 +405,31 @@ public sealed class WeatherWarningPageComposerTests
     }
 
     [TestMethod]
+    public void ActiveWeatherAreaRowsUseTwoLinesByDefaultAndThreeWhenDisabled()
+    {
+        string[] names = ["三宅村", "世田谷区", "千代田区", "御蔵島村", "文京区", "新宿区", "渋谷区", "目黒区", "荒川区"];
+        WeatherWarningEvent weather = CreateWeather(
+            names.Select((name, index) => Active(name, $"13{index + 101:00000}", "レベル3土砂災害警報", "継続")).ToArray(),
+            isCancelled: false);
+        DisplaySettings defaults = AppSettings.CreateDefault().Display;
+        DisplayProgram twoRows = new PageComposer().Compose(weather, defaults);
+        DisplayProgram threeRows = new PageComposer().Compose(weather, defaults with { LimitActiveWeatherAreaRowsToTwo = false });
+
+        Assert.HasCount(2, twoRows.Pages);
+        Assert.HasCount(1, threeRows.Pages);
+        Assert.HasCount(2, WeatherBlocks(twoRows.Pages[0]));
+        Assert.HasCount(1, WeatherBlocks(twoRows.Pages[1]));
+        Assert.HasCount(3, WeatherBlocks(threeRows.Pages[0]));
+        Assert.AreEqual(WeatherBlocks(twoRows.Pages[1])[0].PrimaryText.Split('\n').Last(),
+            WeatherBlocks(threeRows.Pages[0])[2].PrimaryText);
+        Assert.AreEqual("東京都　｜継続中", WeatherBlocks(twoRows.Pages[1])[0].PrimaryText.Split('\n')[0]);
+        CollectionAssert.AreEquivalent(names,
+            twoRows.Pages.SelectMany(WeatherBlocks)
+                .SelectMany(block => block.PrimaryText.Split('\n').Last().Split('　'))
+                .ToArray());
+    }
+
+    [TestMethod]
     public void PrefectureLevelWarningDoesNotRepeatPrefectureName()
     {
         WeatherWarningEvent weather = CreateWeather(
@@ -478,13 +503,13 @@ public sealed class WeatherWarningPageComposerTests
             weather,
             AppSettings.CreateDefault().Display);
 
-        Assert.HasCount(3, program.Pages);
+        Assert.HasCount(4, program.Pages);
         Assert.IsTrue(WeatherBlocks(program.Pages[0])[0].PrimaryText.Split('\n')[0].EndsWith("新たに発表", StringComparison.Ordinal));
         Assert.IsTrue(WeatherBlocks(program.Pages[1])[0].PrimaryText.Split('\n')[0].EndsWith("更新", StringComparison.Ordinal));
         Assert.IsTrue(WeatherBlocks(program.Pages[2])[0].PrimaryText.Split('\n')[0].EndsWith("継続中", StringComparison.Ordinal));
         Assert.IsTrue(program.Pages.All(static page =>
             page.Blocks.Count(static block =>
-                block.StyleToken != DisplayStyleTokens.PageIndicator) <= 3));
+                block.StyleToken != DisplayStyleTokens.PageIndicator) <= 2));
     }
 
     [TestMethod]

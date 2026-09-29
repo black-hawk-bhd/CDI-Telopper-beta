@@ -61,6 +61,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private bool _showPageIndicator;
     private bool _showTsunamiForecast;
     private bool _separateIntensityPagesByScale;
+    private bool _limitActiveWeatherAreaRowsToTwo;
     private double _outputScale;
     private double _outputOffsetX;
     private double _outputOffsetY;
@@ -217,6 +218,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _showPageIndicator = settings.Display.ShowPageIndicator;
         _showTsunamiForecast = settings.Display.ShowTsunamiForecast;
         _separateIntensityPagesByScale = settings.Display.SeparateIntensityPagesByScale;
+        _limitActiveWeatherAreaRowsToTwo = settings.Display.LimitActiveWeatherAreaRowsToTwo;
         _outputScale = OutputTransformSettings.Default.Scale;
         _outputOffsetX = OutputTransformSettings.Default.OffsetX;
         _outputOffsetY = OutputTransformSettings.Default.OffsetY;
@@ -617,6 +619,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public bool ShowPageIndicator { get => _showPageIndicator; set => SetProperty(ref _showPageIndicator, value); }
     public bool ShowTsunamiForecast { get => _showTsunamiForecast; set => SetProperty(ref _showTsunamiForecast, value); }
     public bool SeparateIntensityPagesByScale { get => _separateIntensityPagesByScale; set => SetProperty(ref _separateIntensityPagesByScale, value); }
+    public bool LimitActiveWeatherAreaRowsToTwo { get => _limitActiveWeatherAreaRowsToTwo; set => SetProperty(ref _limitActiveWeatherAreaRowsToTwo, value); }
     public double OutputScale { get => _outputScale; set => SetProperty(ref _outputScale, OutputTransformSettings.Default.Scale); }
     public double OutputOffsetX { get => _outputOffsetX; set => SetProperty(ref _outputOffsetX, OutputTransformSettings.Default.OffsetX); }
     public double OutputOffsetY { get => _outputOffsetY; set => SetProperty(ref _outputOffsetY, OutputTransformSettings.Default.OffsetY); }
@@ -838,6 +841,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
                     3600),
                 ShowTsunamiForecast = ShowTsunamiForecast,
                 SeparateIntensityPagesByScale = SeparateIntensityPagesByScale,
+                LimitActiveWeatherAreaRowsToTwo = LimitActiveWeatherAreaRowsToTwo,
                 SubtitlePhraseOverrides = new Dictionary<string, string>(
                     _subtitlePhraseOverrides,
                     StringComparer.Ordinal),
@@ -1279,6 +1283,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         ShowPageIndicator = defaults.ShowPageIndicator;
         ShowTsunamiForecast = defaults.ShowTsunamiForecast;
         SeparateIntensityPagesByScale = defaults.SeparateIntensityPagesByScale;
+        LimitActiveWeatherAreaRowsToTwo = defaults.LimitActiveWeatherAreaRowsToTwo;
         LetterSpacingEm = defaults.LetterSpacingEm;
         LineSpacing = defaults.LineSpacing;
         FontScale = defaults.FontScale;

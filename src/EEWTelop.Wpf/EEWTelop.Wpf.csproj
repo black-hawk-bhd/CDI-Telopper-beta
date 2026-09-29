@@ -11,11 +11,11 @@
     <Title>Comprehensive Disaster Information Telopper</Title>
     <Product>CDI-Telopper</Product>
     <Description>Comprehensive Disaster Information Telopper</Description>
-    <ApplicationIcon>Assets\QTelopper.ico</ApplicationIcon>
-    <Version Condition="'$(Version)' == ''">2.0.0-beta.52</Version>
+    <ApplicationIcon>Assets\CDI-Telopper.ico</ApplicationIcon>
+    <Version Condition="'$(Version)' == ''">2.0.0-beta.53</Version>
     <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">2.0.0.0</AssemblyVersion>
     <FileVersion Condition="'$(FileVersion)' == ''">2.0.0.0</FileVersion>
-    <InformationalVersion Condition="'$(InformationalVersion)' == ''">2.0.0-beta.52</InformationalVersion>
+    <InformationalVersion Condition="'$(InformationalVersion)' == ''">2.0.0-beta.53</InformationalVersion>
     <AxisProviderEnabled Condition="'$(AxisProviderEnabled)' == ''">true</AxisProviderEnabled>
     <DefineConstants Condition="'$(AxisProviderEnabled)' == 'true'">$(DefineConstants);QTELOPPER_AXIS_PROVIDER</DefineConstants>
     <DmdataProviderEnabled Condition="'$(DmdataProviderEnabled)' == ''">true</DmdataProviderEnabled>
@@ -38,8 +38,10 @@
     <ProjectReference Include="..\EEWTelop.Infrastructure.Wolfx\EEWTelop.Infrastructure.Wolfx.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="Assets\QTelopper.ico" />
-    <Resource Include="Assets\QTelopper.png" />
+    <Resource Include="Assets\CDI-Telopper.ico" />
+    <Resource Include="Assets\CDI-Telopper.png" />
+    <Resource Include="Assets\CDI-Telopper-Brand.png" />
+    <Resource Include="Assets\CDI-Telopper-BrandHeader.png" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Assets\place-readings.tsv" />

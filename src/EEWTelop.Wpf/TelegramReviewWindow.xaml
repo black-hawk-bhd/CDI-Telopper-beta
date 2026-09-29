@@ -4,7 +4,7 @@
         xmlns:local="clr-namespace:EEWTelop.Wpf"
         xmlns:controls="clr-namespace:EEWTelop.Wpf.Controls"
         Title="CDI-Telopper 受信・過去電文確認"
-        Icon="Assets/QTelopper.ico"
+        Icon="Assets/CDI-Telopper.ico"
         Width="1180" Height="760" MinWidth="900" MinHeight="600"
         Background="#FF0F141B" Foreground="White"
         WindowStartupLocation="CenterScreen">

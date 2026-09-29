@@ -4,7 +4,7 @@
         xmlns:local="clr-namespace:EEWTelop.Wpf"
         xmlns:audio="clr-namespace:EEWTelop.Application.Audio;assembly=EEWTelop.Application"
         Title="CDI-Telopper 操作画面"
-        Icon="Assets/QTelopper.ico"
+        Icon="Assets/CDI-Telopper.ico"
         Width="1240" Height="820" MinWidth="1040" MinHeight="700"
         Background="#FF0F141B" Foreground="White"
         WindowStartupLocation="CenterScreen">
@@ -145,11 +145,15 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <StackPanel>
-                    <TextBlock Text="CDI-Telopper" FontSize="28" FontWeight="Bold" />
-                    <TextBlock Text="Comprehensive Disaster Information Telopper"
-                               Foreground="#FFFFE6D8" FontSize="12" />
-                    <TextBlock Text="{Binding ApplicationVersionText}" Foreground="#FFFFE6D8" />
+                <StackPanel Orientation="Horizontal">
+                    <Image Source="Assets/CDI-Telopper-BrandHeader.png"
+                           Width="180" Height="116" HorizontalAlignment="Left" Stretch="Uniform" />
+                    <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
+                        <TextBlock Text="CDI-Telopper" FontSize="28" FontWeight="Bold" />
+                        <TextBlock Text="Comprehensive Disaster Information Telopper"
+                                   Foreground="#FFFFE6D8" FontSize="12" />
+                        <TextBlock Text="{Binding ApplicationVersionText}" Foreground="#FFFFE6D8" />
+                    </StackPanel>
                 </StackPanel>
                 <StackPanel Grid.Column="1" HorizontalAlignment="Right">
                     <TextBlock Text="{Binding ConnectionStateText}" FontSize="18" FontWeight="Bold" HorizontalAlignment="Right" />
@@ -478,6 +482,9 @@
                                         <CheckBox Content="震度階級ごとにページを分ける"
                                                   IsChecked="{Binding Settings.SeparateIntensityPagesByScale}"
                                                   ToolTip="初期値はONです。OFFにすると異なる震度を同じページに表示します。保存して反映後、新しく生成する震度ページに適用します。" />
+                                        <CheckBox Content="気象警報・注意報の地名を1ページ2行で表示"
+                                                  IsChecked="{Binding Settings.LimitActiveWeatherAreaRowsToTwo}"
+                                                  ToolTip="初期値はONです。OFFでは従来の3行表示です。発表中・継続中の地名一覧のみ対象で、余った地名は次ページに表示します。" />
                                         <CheckBox Content="津波予報（0.2m／若干の海面変動）を表示"
                                                   IsChecked="{Binding Settings.ShowTsunamiForecast}" />
                                         <TextBlock Text="緊急地震速報（EEW）の自動消去秒（0は消さない）" Foreground="{StaticResource MutedBrush}" />

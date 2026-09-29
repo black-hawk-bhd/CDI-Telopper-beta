@@ -326,6 +326,8 @@ public sealed record DisplaySettings(
 
     public bool SeparateIntensityPagesByScale { get; init; } = true;
 
+    public bool LimitActiveWeatherAreaRowsToTwo { get; init; } = true;
+
     public OutputTransformSettings OutputTransform { get; init; } =
         OutputTransformSettings.Default;
 
