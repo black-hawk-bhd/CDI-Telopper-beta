@@ -12,6 +12,7 @@ Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津�
 - [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.54.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
 - [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
+- [利用規約・免責事項](TERMS.md) / [プライバシーポリシー](PRIVACY.md)
 
 ## 主な機能
 
