@@ -51,4 +51,4 @@ DMDATA.JPのOAuth認証は利用者が同サービスの画面で行い、CDI-Te
 
 情報の取扱いは[プライバシーポリシー](PRIVACY.md)を参照してください。本書を変更した場合は、この公開ページに変更内容を反映します。
 
-問い合わせ先：[CDI-Telopper GitHub Issues](https://github.com/black-hawk-bhd/CDI-Telopper-beta/issues)。認証情報や個人情報は公開Issueへ投稿しないでください。OAuth登録画面の公開メール連絡先は、製作者が別途登録します。
+公開メール連絡先：[cdi.telopper.contact@proton.me](mailto:cdi.telopper.contact@proton.me)。不具合報告は[CDI-Telopper GitHub Issues](https://github.com/black-hawk-bhd/CDI-Telopper-beta/issues)でも受け付けます。認証情報や個人情報は公開Issueへ投稿せず、メールにもパスワード・APIキー・トークンを添付しないでください。

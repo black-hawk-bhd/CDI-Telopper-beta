@@ -47,6 +47,8 @@ OBS、ブラウザーモニター、外部API、Simulator等の連携では、�
 
 ## 7. 問い合わせ・変更
 
-問い合わせ先：[CDI-Telopper GitHub Issues](https://github.com/black-hawk-bhd/CDI-Telopper-beta/issues)。公開の場で個人情報・認証情報を送らないでください。OAuth登録画面の公開メール連絡先は、製作者が別途登録します。
+公開メール連絡先：[cdi.telopper.contact@proton.me](mailto:cdi.telopper.contact@proton.me)。問い合わせメールの送信元アドレス・本文等は、対応のため製作者が利用するProton Mail上で受信・保管します。問い合わせ対応に必要な範囲で使用し、不要になった情報は削除します。Protonによる情報の取扱いは[Protonプライバシーポリシー](https://proton.me/legal/privacy)を参照してください。
+
+不具合報告は[CDI-Telopper GitHub Issues](https://github.com/black-hawk-bhd/CDI-Telopper-beta/issues)でも受け付けます。公開の場で個人情報・認証情報を送らず、メールにもパスワード・APIキー・トークンを添付しないでください。
 
 情報の取扱いが変わる場合は本ページを更新します。[利用規約・免責事項](TERMS.md)も併せて確認してください。
