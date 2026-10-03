@@ -159,6 +159,10 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             ? "履歴取得機能を利用できません"
             : "停止中";
         Settings = new SettingsEditorViewModel(settings);
+        DmdataContracts = new DmdataContractsViewModel(services.DmdataContractService,
+            () => Settings.ToSettings(_settings).Provider, dispatcher);
+        Settings.PropertyChanged += OnDmdataContractSettingsChanged;
+        DmdataContracts.PropertyChanged += OnDmdataContractsChanged;
         Overlay = new OverlayViewModel();
         Overlay.ApplySettings(settings.Display);
         _obsSnapshotStore.PublishSettings(settings.Display, services.Clock.UtcNow);
@@ -879,8 +883,11 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         }
 
         _disposed = true;
+        Settings.PropertyChanged -= OnDmdataContractSettingsChanged;
+        DmdataContracts.PropertyChanged -= OnDmdataContractsChanged;
         _dmdataOAuthStop.Cancel();
         await _dmdataOAuthTask.ConfigureAwait(false);
+        await DmdataContracts.DisposeAsync().ConfigureAwait(false);
         DisconnectSimulator();
         await _simulatorTask.ConfigureAwait(false);
         _axisTokenRefreshStop.Cancel();
@@ -1273,7 +1280,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             return;
         }
 
-        bool productionConnected = Settings.ProviderMode == ProviderMode.Production &&
+        bool productionConnected = _settings.Provider.Mode == ProviderMode.Production &&
             ConnectionState is ProviderConnectionState.Connected or ProviderConnectionState.Stale;
         if (productionConnected && !_confirmationService.ConfirmProductionTest())
         {
@@ -1823,7 +1830,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             return;
         }
 
-        bool productionConnected = Settings.ProviderMode == ProviderMode.Production &&
+        bool productionConnected = _settings.Provider.Mode == ProviderMode.Production &&
             ConnectionState is ProviderConnectionState.Connected or ProviderConnectionState.Stale;
         if (productionConnected)
         {
@@ -1853,7 +1860,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             return;
         }
 
-        bool productionConnected = Settings.ProviderMode == ProviderMode.Production &&
+        bool productionConnected = _settings.Provider.Mode == ProviderMode.Production &&
             ConnectionState is ProviderConnectionState.Connected or ProviderConnectionState.Stale;
         if (productionConnected)
         {

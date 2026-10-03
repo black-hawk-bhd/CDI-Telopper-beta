@@ -15,7 +15,13 @@ public sealed record StoredEventSignature(
     string Provider,
     EventKind Kind,
     string EventId,
-    string Signature);
+    string Signature)
+{
+    // Preserve the legacy production interpretation when a state document omits this field.
+    public SourceMode SourceMode { get; init; } = SourceMode.Production;
+
+    public bool IsTest { get; init; }
+}
 
 public sealed class EventVersionCache : IEventVersionCache
 {
@@ -108,14 +114,20 @@ public sealed class EventVersionCache : IEventVersionCache
             foreach (string key in _recentKeys)
             {
                 string[] parts = key.Split('\u001f');
-                if (parts.Length != 3 || !Enum.TryParse(parts[1], out EventKind kind))
+                if (parts.Length != 5 || !Enum.TryParse(parts[1], out EventKind kind) ||
+                    !Enum.TryParse(parts[3], out SourceMode sourceMode) ||
+                    !bool.TryParse(parts[4], out bool isTest))
                 {
                     continue;
                 }
 
                 CacheEntry entry = _entries[key];
                 result.AddRange(entry.Signatures.Select(signature =>
-                    new StoredEventSignature(parts[0], kind, parts[2], signature)));
+                    new StoredEventSignature(parts[0], kind, parts[2], signature)
+                    {
+                        SourceMode = sourceMode,
+                        IsTest = isTest,
+                    }));
             }
 
             return result;
@@ -137,12 +149,13 @@ public sealed class EventVersionCache : IEventVersionCache
                 if (string.IsNullOrWhiteSpace(item.Provider) ||
                     string.IsNullOrWhiteSpace(item.EventId) ||
                     string.IsNullOrWhiteSpace(item.Signature) ||
-                    !Enum.IsDefined(item.Kind))
+                    !Enum.IsDefined(item.Kind) || !Enum.IsDefined(item.SourceMode))
                 {
                     continue;
                 }
 
-                string key = string.Join('\u001f', item.Provider, item.Kind.ToString(), item.EventId);
+                string key = BuildKey(item.Provider, item.Kind, item.EventId, item.SourceMode,
+                    item.Kind == EventKind.Eew && item.IsTest);
                 if (!_entries.TryGetValue(key, out CacheEntry? entry))
                 {
                     LinkedListNode<string> node = _recentKeys.AddLast(key);
@@ -172,7 +185,9 @@ public sealed class EventVersionCache : IEventVersionCache
             return true;
         }
 
-        string eventId = eew.Id.Value;
+        // A training report must not suppress a live report or advance its serial.
+        string eventId = string.Join('\u001f', eew.SourceMode.ToString(),
+            eew.IsTest.ToString(), eew.Id.Value);
         if (_highestEewSerials.TryGetValue(eventId, out int highestSerial) &&
             reportNumber < highestSerial)
         {
@@ -213,11 +228,25 @@ public sealed class EventVersionCache : IEventVersionCache
         return true;
     }
 
-    private static string BuildKey(DisasterEvent disasterEvent) => string.Join(
-        '\u001f',
+    private static string BuildKey(DisasterEvent disasterEvent) => BuildKey(
         disasterEvent.Provider,
-        disasterEvent.Kind.ToString(),
-        disasterEvent.Id.Value);
+        disasterEvent.Kind,
+        disasterEvent.Id.Value,
+        disasterEvent.SourceMode,
+        disasterEvent is EewEvent { IsTest: true });
+
+    private static string BuildKey(
+        string provider,
+        EventKind kind,
+        string eventId,
+        SourceMode sourceMode,
+        bool isTest) => string.Join(
+        '\u001f',
+        provider,
+        kind.ToString(),
+        eventId,
+        sourceMode.ToString(),
+        isTest.ToString());
 
     private static int? GetSerialNumber(DisasterEvent disasterEvent)
     {

@@ -135,11 +135,13 @@ public static class AppComposition
             { FallbackRouting = fallbackRouting };
         #endif
         IDmdataOAuthService? dmdataOAuthService = null;
+        IDmdataContractService? dmdataContractService = null;
         if (BuildFeatures.DmdataProviderEnabled)
         {
 #if QTELOPPER_DMDATA_PROVIDER
             dmdataOAuthService = new DmdataOAuthService(
                 Path.Combine(applicationDataDirectory, "dmdata-oauth.json"), clock);
+            dmdataContractService = new DmdataContractService(dmdataOAuthService, clock);
             DmdataProviderOptions dmdataOptions = DmdataProviderOptions.FromSettings(
                 settings.Provider,
                 BuildFeatures.ExtendedFeaturesEnabled);
@@ -177,6 +179,7 @@ public static class AppComposition
             IdGenerator: new GuidIdGenerator(),
             SettingsStore: settingsStore,
             DmdataOAuthService: dmdataOAuthService,
+            DmdataContractService: dmdataContractService,
             LogWriter: logWriter,
             UiLogs: uiLogs,
             Provider: provider,
@@ -288,11 +291,14 @@ public sealed record AppServices(
     ISettingsProfileStore? ProfileStore = null,
     ITestCaseLibrary? TestCaseLibrary = null,
     IAxisTokenRefreshService? AxisTokenRefreshService = null,
-    IDmdataOAuthService? DmdataOAuthService = null) : IAsyncDisposable
+    IDmdataOAuthService? DmdataOAuthService = null,
+    IDmdataContractService? DmdataContractService = null) : IAsyncDisposable
 {
     public async ValueTask DisposeAsync()
     {
         await EventSource.DisposeAsync().ConfigureAwait(false);
+        if (DmdataContractService is IDisposable contractDisposable)
+            contractDisposable.Dispose();
         if (DmdataOAuthService is IDisposable oauthDisposable)
             oauthDisposable.Dispose();
         if (AxisTokenRefreshService is IDisposable tokenRefreshDisposable)

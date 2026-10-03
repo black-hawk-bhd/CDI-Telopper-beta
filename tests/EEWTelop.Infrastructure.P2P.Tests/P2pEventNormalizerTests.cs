@@ -128,6 +128,33 @@ public sealed class P2pEventNormalizerTests
     }
 
     [TestMethod]
+    [DataRow("551-detail-scale.json", "points", "[null]")]
+    [DataRow("551-detail-scale.json", "points", "[1]")]
+    [DataRow("551-detail-scale.json", "points", "[\"unexpected\"]")]
+    [DataRow("552-tsunami.json", "areas", "[null]")]
+    [DataRow("552-tsunami.json", "areas", "[1]")]
+    [DataRow("552-tsunami.json", "areas", "[\"unexpected\"]")]
+    [DataRow("556-eew.json", "areas", "[null]")]
+    [DataRow("556-eew.json", "areas", "[1]")]
+    [DataRow("556-eew.json", "areas", "[\"unexpected\"]")]
+    public void InvalidArrayEntriesRejectTheMessageAndAllowTheNextValidMessage(
+        string fixture,
+        string arrayProperty,
+        string invalidArray)
+    {
+        System.Text.Json.Nodes.JsonObject payload =
+            System.Text.Json.Nodes.JsonNode.Parse(ReadFixture(fixture))!.AsObject();
+        payload[arrayProperty] = System.Text.Json.Nodes.JsonNode.Parse(invalidArray);
+
+        NormalizeResult result = _normalizer.Normalize(CreateRaw(payload.ToJsonString()));
+
+        Assert.AreEqual(NormalizeStatus.Invalid, result.Status);
+        Assert.IsNull(result.Event);
+        Assert.IsTrue(result.Issues.Any(static issue => issue.Severity == ValidationSeverity.Error));
+        Assert.IsTrue(NormalizeFixture(fixture).IsSuccess);
+    }
+
+    [TestMethod]
     public void UnknownCodeIsIgnoredWithDiagnosticIssue()
     {
         NormalizeResult result = NormalizeFixture("unknown-code.json");

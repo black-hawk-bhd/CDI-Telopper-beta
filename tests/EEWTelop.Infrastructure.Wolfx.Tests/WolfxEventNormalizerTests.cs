@@ -69,6 +69,28 @@ public sealed class WolfxEventNormalizerTests
     }
 
     [TestMethod]
+    [DataRow("[null]")]
+    [DataRow("[1]")]
+    [DataRow("[\"unexpected\"]")]
+    [DataRow("null")]
+    [DataRow("{}")]
+    public void InvalidWarningAreasAreRejectedWithoutStoppingLaterNormalization(string warningAreas)
+    {
+        string json = "{\"type\":\"jma_eew\",\"EventID\":\"review-test\",\"isWarn\":true,\"WarnArea\":" +
+            warningAreas + "}";
+
+        NormalizeResult result = _normalizer.Normalize(Raw(json));
+
+        Assert.AreEqual(NormalizeStatus.Invalid, result.Status);
+        Assert.IsNull(result.Event);
+        Assert.HasCount(1, result.Issues);
+        Assert.AreEqual("WarnArea", result.Issues[0].Path);
+        Assert.AreEqual(ValidationSeverity.Error, result.Issues[0].Severity);
+        Assert.IsTrue(_normalizer.Normalize(Raw(
+            "{\"type\":\"jma_eew\",\"EventID\":\"next-valid\",\"isWarn\":true,\"WarnArea\":[]}")).IsSuccess);
+    }
+
+    [TestMethod]
     public void LatestEarthquakeListEntryNormalizesAsQuake()
     {
         const string json = """

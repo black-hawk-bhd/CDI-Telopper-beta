@@ -255,14 +255,9 @@
             </StackPanel>
 
             <TabControl Grid.Column="2" Background="{StaticResource PanelBrush}" BorderBrush="#FF344555">
-                <TabItem Header="受信・フィルター">
+                <TabItem Header="受信">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="18" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
+                        <StackPanel>
                             <GroupBox Header="受信元">
                                 <StackPanel>
                                     <TextBlock Text="情報種別ごとの受信元" Foreground="{StaticResource MutedBrush}" />
@@ -385,6 +380,39 @@
                                                   IsChecked="{Binding Settings.DmdataIncludeTestTelegrams}" />
                                         <TextBlock Text="DMDATA.JPに割り当てた情報種別が契約範囲に含まれることを確認してください。認証情報はWindows DPAPI（CurrentUser）で暗号化して保存します。"
                                                    Foreground="#FFFFC66D" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                        <GroupBox Header="DMDATA.JP 契約情報" Margin="0,12,0,0">
+                                            <StackPanel Margin="8">
+                                                <WrapPanel>
+                                                    <Button Content="契約情報を更新" Command="{Binding DmdataContracts.RefreshCommand}" />
+                                                    <Button Content="契約情報も認可" Click="OnDmdataOAuthContractsAuthorize"
+                                                            IsEnabled="{Binding CanManageDmdataOAuth}"
+                                                            Visibility="{Binding Settings.IsDmdataOAuthAuthentication, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                </WrapPanel>
+                                                <TextBlock Text="{Binding DmdataContracts.StatusText}" Foreground="#FFFFC66D" TextWrapping="Wrap" Margin="0,4" />
+                                                <TextBlock Text="{Binding DmdataContracts.RetrievedAtText}" Foreground="{StaticResource MutedBrush}" />
+                                                <ItemsControl ItemsSource="{Binding DmdataContracts.Items}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border BorderBrush="#FF40505F" BorderThickness="1" Padding="8" Margin="0,6,0,0">
+                                                                <StackPanel>
+                                                                    <TextBlock Text="{Binding PlanName}" FontWeight="Bold" TextWrapping="Wrap" />
+                                                                    <TextBlock Text="{Binding Status}" Foreground="{Binding StatusColor}" />
+                                                                    <TextBlock Text="{Binding Classification}" Foreground="{StaticResource MutedBrush}" />
+                                                                    <TextBlock Text="{Binding Price}" TextWrapping="Wrap" />
+                                                                    <TextBlock Text="{Binding StartedAt}" TextWrapping="Wrap" />
+                                                                    <TextBlock Text="{Binding ConnectionCount}" TextWrapping="Wrap" />
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Text="表示は取得時点の契約状態・料金で、今月の請求額ではありません。定期巡回や契約変更は行いません。閲覧権限 contract.list が必要です。APIキーは管理画面で権限を追加してください。OAuthの追加認可は受信を停止してから行い、クライアント登録にも contract.list を許可してください。"
+                                                           Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                                                <TextBlock Margin="0,4,0,0">
+                                                    <Hyperlink NavigateUri="{Binding About.DmdataControlPanel}" RequestNavigate="OnExternalLinkRequestNavigate">DMDATA.JP 管理画面を開く</Hyperlink>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </GroupBox>
                                     </StackPanel>
                                     <StackPanel Visibility="{Binding Settings.IsAxisProvider, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <TextBlock Text="AXIS（試験的プロバイダー）" FontWeight="Bold" />
@@ -426,7 +454,23 @@
                                             ToolTip="プロバイダー、接続先、契約区分、認証入力を初期化します。保存して反映するまでは運用設定に反映されません。" />
                                 </StackPanel>
                             </GroupBox>
-                            <StackPanel Grid.Column="2">
+                            <GroupBox Header="互換・安全">
+                                <StackPanel>
+                                    <CheckBox Content="/jma/quake/{id} 補完（7秒制限）" IsChecked="{Binding Settings.EnrichQuakeById}" />
+                                    <CheckBox Content="本番中のテストを確認" IsChecked="{Binding Settings.ConfirmTestInProduction}" />
+                                    <TextBlock Text="Productionでは確認を無効化できません。" Foreground="#FFFFC66D" />
+                                    <Button Content="互換・安全設定を初期設定に戻す"
+                                            Command="{Binding ResetCompatibilityAndSafetySettingsCommand}"
+                                            Margin="0,8,0,0" />
+                                </StackPanel>
+                            </GroupBox>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="フィルター">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18">
+                            <StackPanel>
                                 <GroupBox Header="表示フィルター">
                                     <StackPanel>
                                         <CheckBox Content="緊急地震速報" IsChecked="{Binding Settings.FilterEew}" />
@@ -482,22 +526,11 @@
                                                 Margin="0,8,0,0" />
                                     </StackPanel>
                                 </GroupBox>
-                                <GroupBox Header="互換・安全">
-                                    <StackPanel>
-                                        <CheckBox Content="/jma/quake/{id} 補完（7秒制限）" IsChecked="{Binding Settings.EnrichQuakeById}" />
-                                        <CheckBox Content="本番中のテストを確認" IsChecked="{Binding Settings.ConfirmTestInProduction}" />
-                                        <TextBlock Text="Productionでは確認を無効化できません。" Foreground="#FFFFC66D" />
-                                        <Button Content="互換・安全設定を初期設定に戻す"
-                                                Command="{Binding ResetCompatibilityAndSafetySettingsCommand}"
-                                                Margin="0,8,0,0" />
-                                    </StackPanel>
-                                </GroupBox>
                             </StackPanel>
-                        </Grid>
                     </ScrollViewer>
                 </TabItem>
 
-                <TabItem Header="表示・出力">
+                <TabItem Header="表示">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -537,6 +570,8 @@
                                                 ToolTip="ページ時間、自動消去時間、震度階級別ページ分割、津波予報表示、受信前の定型文編集を初期化します。" />
                                     </StackPanel>
                                 </GroupBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
                                 <GroupBox Header="本番情報の繰り返し表示">
                                     <StackPanel>
                                         <TextBlock Text="表示回数は初回を含みます。全ページを1周して1回と数え、設定回数で必ず消去します。新しい更新報は別に数えます。"
@@ -586,7 +621,19 @@
                                     </StackPanel>
                                 </GroupBox>
                             </StackPanel>
-                            <StackPanel Grid.Column="2">
+                        </Grid>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="出力">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="18" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
                                 <GroupBox Header="キャンバス">
                                     <StackPanel>
                                         <TextBlock Text="背景" Foreground="{StaticResource MutedBrush}" />
@@ -617,6 +664,8 @@
                                                 Margin="0,8,0,0" />
                                     </StackPanel>
                                 </GroupBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
                                 <GroupBox Header="CDI External API v1">
                                     <StackPanel>
                                         <CheckBox Content="外部APIを有効化（今回の起動中のみ・即時反映）"

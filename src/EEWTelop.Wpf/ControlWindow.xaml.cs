@@ -54,6 +54,13 @@ public partial class ControlWindow : Window, IAsyncDisposable
     private async void OnDmdataOAuthRevoke(object sender, RoutedEventArgs e) =>
         await _viewModel.RevokeDmdataOAuthAsync();
 
+    private async void OnDmdataOAuthContractsAuthorize(object sender, RoutedEventArgs e) =>
+        await _viewModel.AuthorizeDmdataOAuthAsync(uri =>
+        {
+            using var browser = System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+        }, includeContractList: true);
+
     private void OnDmdataOAuthCancel(object sender, RoutedEventArgs e) => _viewModel.CancelDmdataOAuth();
 
     private void OnExternalLinkRequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
@@ -198,7 +205,7 @@ public partial class ControlWindow : Window, IAsyncDisposable
         string url = _viewModel.MonitorUrlText;
         if (string.IsNullOrEmpty(url))
         {
-            MessageBox.Show(this, "「表示・出力」でOBS Local Viewを有効にして「保存して反映」してください。外部APIの有効化は不要です。", "ブラウザーモニター");
+            MessageBox.Show(this, "「出力」でOBS Local Viewを有効にして「保存して反映」してください。外部APIの有効化は不要です。", "ブラウザーモニター");
             return;
         }
         try

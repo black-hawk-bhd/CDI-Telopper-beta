@@ -125,7 +125,8 @@ public sealed partial class ControlWindowViewModel
     {
         RunSelfCheckCommand = new RelayCommand(() => _ = RunSelfCheckAsync(), () => !IsSelfCheckRunning);
         SaveProfileCommand = new RelayCommand(() => _ = SaveProfileAsync(NewProfileName));
-        ApplyProfileCommand = new RelayCommand(() => _ = ApplyProfileAsync(), () => SelectedProfileName is not null);
+        ApplyProfileCommand = new RelayCommand(() => _ = ApplyProfileAsync(),
+            () => SelectedProfileName is not null && !IsDmdataOAuthBusy);
         DuplicateProfileCommand = new RelayCommand(() => _ = DuplicateProfileAsync(), () => SelectedProfileName is not null);
         DeleteProfileCommand = new RelayCommand(() => _ = DeleteProfileAsync(), () => SelectedProfileName is not null);
         ImportProfileCommand = new RelayCommand(() => ImportProfileRequested?.Invoke());
@@ -199,7 +200,7 @@ public sealed partial class ControlWindowViewModel
 
     private async Task ApplyProfileAsync()
     {
-        if (_services.ProfileStore is null || SelectedProfileName is null) return;
+        if (IsDmdataOAuthBusy || _services.ProfileStore is null || SelectedProfileName is null) return;
         try
         {
             SettingsProfileDocument profile = await _services.ProfileStore.LoadAsync(SelectedProfileName, _settings).ConfigureAwait(false);
@@ -207,17 +208,23 @@ public sealed partial class ControlWindowViewModel
             if (profile.MigrationIssues.Count > 0)
                 differences = "移行・適用上の注意:\n- " +
                     string.Join("\n- ", profile.MigrationIssues) + "\n\n" + differences;
-            bool confirmed = false;
-            _dispatcher.Invoke(() => confirmed = _confirmationService.ConfirmProfileApply(differences));
-            if (!confirmed) return;
+            Task? saveTask = null;
             _dispatcher.Invoke(() =>
             {
+                // OAuth may have started while the profile was being loaded.
+                // Keep the settings editor and its authorization context together.
+                if (IsDmdataOAuthBusy || !_confirmationService.ConfirmProfileApply(differences) || IsDmdataOAuthBusy) return;
                 SettingsEditorViewModel oldEditor = Settings;
+                oldEditor.PropertyChanged -= OnDmdataContractSettingsChanged;
                 Settings = new SettingsEditorViewModel(profile.Settings);
+                Settings.PropertyChanged += OnDmdataContractSettingsChanged;
+                DmdataContracts.Invalidate();
                 OnPropertyChanged(nameof(Settings));
                 SettingsEditorChanged?.Invoke(oldEditor, Settings);
+                saveTask = SaveSettingsAsync();
             });
-            await SaveSettingsAsync().ConfigureAwait(false);
+            if (saveTask is null) return;
+            await saveTask.ConfigureAwait(false);
             _dispatcher.Invoke(() => OperationalStatusText = "プロファイルを適用しました。端末の認証情報は維持されています。" );
         }
         catch (Exception exception) when (exception is not StackOverflowException)

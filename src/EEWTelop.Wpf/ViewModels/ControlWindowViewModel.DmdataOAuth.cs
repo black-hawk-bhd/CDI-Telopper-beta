@@ -16,13 +16,14 @@ public sealed partial class ControlWindowViewModel
 
     public bool IsDmdataOAuthBusy => _isDmdataOAuthBusy;
     public bool CanManageDmdataOAuth => _services.DmdataOAuthService is not null &&
-        !_isDmdataOAuthBusy && !_dmdataOAuthReceptionActive && !IsConnectedOrConnecting;
+        !_isDmdataOAuthBusy && !DmdataContracts.IsBusy && !_dmdataOAuthReceptionActive && !IsConnectedOrConnecting;
     public string DmdataOAuthStatusText => _dmdataOAuthStatusText;
+    public DmdataContractsViewModel DmdataContracts { get; }
 
-    public Task AuthorizeDmdataOAuthAsync(Action<Uri> openBrowser)
+    public Task AuthorizeDmdataOAuthAsync(Action<Uri> openBrowser, bool includeContractList = false)
     {
         if (!CanManageDmdataOAuth) return Task.CompletedTask;
-        _dmdataOAuthTask = RunDmdataOAuthOperationAsync(openBrowser);
+        _dmdataOAuthTask = RunDmdataOAuthOperationAsync(openBrowser, includeContractList);
         return _dmdataOAuthTask;
     }
 
@@ -35,11 +36,12 @@ public sealed partial class ControlWindowViewModel
 
     public void CancelDmdataOAuth() => _dmdataOAuthOperation?.Cancel();
 
-    private async Task RunDmdataOAuthOperationAsync(Action<Uri>? openBrowser)
+    private async Task RunDmdataOAuthOperationAsync(Action<Uri>? openBrowser, bool includeContractList = false)
     {
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(_dmdataOAuthStop.Token);
         _dmdataOAuthOperation = stop;
         _isDmdataOAuthBusy = true;
+        DmdataContracts.Invalidate();
         UpdateDmdataOAuthUi(openBrowser is null ? "認可を解除しています…" : "ブラウザーでDMDATA.JPへの認可を完了してください（5分以内）。");
         try
         {
@@ -61,7 +63,8 @@ public sealed partial class ControlWindowViewModel
                     return;
                 }
                 await _services.DmdataOAuthService!.AuthorizeAsync(options.OAuthClientId,
-                    options.OAuthScopes, openBrowser, stop.Token).ConfigureAwait(false);
+                    includeContractList ? options.OAuthScopes.Append("contract.list").ToArray() : options.OAuthScopes,
+                    openBrowser, stop.Token).ConfigureAwait(false);
                 UpdateDmdataOAuthUi("OAuth認証済み。設定を保存してから受信を開始してください。");
 #endif
             }
@@ -95,8 +98,22 @@ public sealed partial class ControlWindowViewModel
         OnPropertyChanged(nameof(DmdataOAuthStatusText));
         OnPropertyChanged(nameof(IsDmdataOAuthBusy));
         OnPropertyChanged(nameof(CanManageDmdataOAuth));
+        DmdataContracts.SetAuthorizationBusy(_isDmdataOAuthBusy);
         ConnectCommand.RaiseCanExecuteChanged();
         DisconnectCommand.RaiseCanExecuteChanged();
         SaveSettingsCommand.RaiseCanExecuteChanged();
+        ApplyProfileCommand.RaiseCanExecuteChanged();
     });
+
+    private void OnDmdataContractSettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(SettingsEditorViewModel.DmdataCredential) or
+            nameof(SettingsEditorViewModel.DmdataAuthenticationMode) or nameof(SettingsEditorViewModel.DmdataOAuthClientId) or
+            nameof(SettingsEditorViewModel.DmdataApiBaseUrl)) DmdataContracts.Invalidate();
+    }
+
+    private void OnDmdataContractsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(DmdataContractsViewModel.IsBusy)) OnPropertyChanged(nameof(CanManageDmdataOAuth));
+    }
 }

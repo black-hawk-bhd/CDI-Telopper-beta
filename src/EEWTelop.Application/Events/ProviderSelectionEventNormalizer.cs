@@ -57,7 +57,8 @@ public sealed class ProviderSelectionEventNormalizer :
         if (selectedProvider != actualProvider) return NormalizeResult.Ignored();
         if (FallbackRouting is not null && result.Event.Kind != EventKind.Eew && !raw.IsStateSnapshot)
         {
-            string fingerprint = EventSignatureBuilder.BuildCrossProvider(result.Event);
+            string fingerprint = string.Join('\u001f', result.Event.SourceMode.ToString(),
+                EventSignatureBuilder.BuildCrossProvider(result.Event));
             lock (_recentProviders)
             {
                 if (_recentProviders.TryGetValue(fingerprint, out var previous))

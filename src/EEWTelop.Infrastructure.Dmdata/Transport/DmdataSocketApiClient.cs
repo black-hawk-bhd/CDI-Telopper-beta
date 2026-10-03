@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -88,48 +87,9 @@ internal sealed class DmdataSocketApiClient
         }
     }
 
-    private async Task<HttpResponseMessage> SendAuthorizedAsync(
-        Func<HttpRequestMessage> createRequest, CancellationToken cancellationToken)
-    {
-        for (int attempt = 0; ; attempt++)
-        {
-            using HttpRequestMessage request = createRequest();
-            DmdataCredential credential = await _credentialProvider.GetCredentialAsync(cancellationToken).ConfigureAwait(false);
-            AddAuthorization(request, credential);
-            HttpResponseMessage response = await _httpClient.SendAsync(request,
-                HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-            if (response.StatusCode != System.Net.HttpStatusCode.Unauthorized || attempt != 0 ||
-                credential.AuthenticationMode != DmdataAuthenticationMode.OAuthAccessToken)
-                return response;
-            bool refreshed;
-            try
-            {
-                refreshed = await _credentialProvider.RefreshAfterUnauthorizedAsync(
-                    credential.Secret, cancellationToken).ConfigureAwait(false);
-            }
-            catch
-            {
-                response.Dispose();
-                throw;
-            }
-            if (!refreshed) return response;
-            response.Dispose();
-        }
-    }
-
-    private static void AddAuthorization(HttpRequestMessage request, DmdataCredential credential)
-    {
-        request.Headers.Authorization = credential.AuthenticationMode switch
-        {
-            DmdataAuthenticationMode.ApiKey => new AuthenticationHeaderValue(
-                "Basic",
-                Convert.ToBase64String(Encoding.UTF8.GetBytes(credential.Secret + ":"))),
-            DmdataAuthenticationMode.OAuthAccessToken => new AuthenticationHeaderValue(
-                "Bearer",
-                credential.Secret),
-            _ => throw new InvalidOperationException("Unsupported DMDATA.JP authentication mode."),
-        };
-    }
+    private Task<HttpResponseMessage> SendAuthorizedAsync(
+        Func<HttpRequestMessage> createRequest, CancellationToken cancellationToken) =>
+        DmdataAuthorizedHttpClient.SendAsync(_httpClient, _credentialProvider, createRequest, cancellationToken);
 
     private static string ReadSocketId(JsonElement id) => id.ValueKind switch
     {

@@ -13,6 +13,74 @@ namespace EEWTelop.Infrastructure.Dmdata.Tests;
 public sealed class JmaXmlEventNormalizerTests
 {
     [TestMethod]
+    [DataRow("VXSE43")]
+    [DataRow("VXSE45")]
+    [DataRow("VXSE51")]
+    [DataRow("VXSE52")]
+    [DataRow("VXSE53")]
+    [DataRow("VXSE62")]
+    [DataRow("VYSE50")]
+    [DataRow("VYSE60")]
+    [DataRow("VTSE41")]
+    [DataRow("VTSE51")]
+    [DataRow("VTSE52")]
+    [DataRow("VFVO50")]
+    [DataRow("VFVO56")]
+    [DataRow("VPWW53")]
+    [DataRow("VPWW54")]
+    [DataRow("VPWW55")]
+    [DataRow("VPWW56")]
+    [DataRow("VPWW57")]
+    [DataRow("VPWW58")]
+    [DataRow("VPWW59")]
+    [DataRow("VPWW60")]
+    [DataRow("VPWW61")]
+    [DataRow("VPWS50")]
+    [DataRow("VPOA50")]
+    [DataRow("VPBS50")]
+    [DataRow("VPBS51")]
+    [DataRow("VPHW50")]
+    [DataRow("VPHW51")]
+    [DataRow("VXKO50")]
+    [DataRow("VXKO89")]
+    public void OfficialXmlTrainingStatusSeparatesEveryTelegramFamilyAndPreservesExplicitModes(string telegramType)
+    {
+        var normalizer = new JmaXmlEventNormalizer(new EventSignatureBuilder());
+        foreach (string provider in new[] { "jma-xml", "dmdata.jp", "axis" })
+        foreach (string status in new[] { "通常", "訓練", "試験" })
+        foreach (SourceMode sourceMode in Enum.GetValues<SourceMode>())
+        {
+            string xml = $$"""
+                <Report>
+                  <Control><Title>気象防災速報</Title><Type>{{telegramType}}</Type><Status>{{status}}</Status><PublishingOffice>気象庁</PublishingOffice></Control>
+                  <Head><Title>東京都気象防災速報</Title><ReportDateTime>2026-10-03T12:00:00+09:00</ReportDateTime><EventID>training-separation</EventID><InfoType>発表</InfoType>
+                    <Headline><Text>対象地域の情報です。</Text><Information><Item><Kind><Name>緊急地震速報（警報）</Name><Code>31</Code></Kind></Item></Information></Headline>
+                    <Information type="指定河川洪水予報（予報区域）"><Item><Kind><Name>氾濫警報</Name><Code>31</Code></Kind><Area><Name>試験河川</Name></Area></Item></Information>
+                  </Head>
+                  <Body><Intensity><Observation><MaxInt>3</MaxInt><Pref><Name>東京都</Name><Area><Name>東京都２３区</Name><Code>350</Code><MaxInt>3</MaxInt></Area></Pref></Observation></Intensity>
+                    <Warning type="気象警報・注意報（市町村等）"><Item><Kind><Name>大雨警報</Name><Code>03</Code><Status>継続</Status></Kind><Area><Name>千代田区</Name><Code>1310100</Code></Area></Item></Warning>
+                  </Body>
+                </Report>
+                """;
+            var raw = new RawProviderMessage(provider, xml, sourceMode,
+                new DateTimeOffset(2026, 10, 3, 3, 0, 1, TimeSpan.Zero))
+            { ContentFormat = RawProviderContentFormat.JmaXml };
+            NormalizeResult result = normalizer.Normalize(raw);
+            string context = $"{provider}/{telegramType}/{status}/{sourceMode}";
+            Assert.IsTrue(result.IsSuccess, context);
+            SourceMode expected = sourceMode == SourceMode.Production && status != "通常"
+                ? SourceMode.Sandbox : sourceMode;
+            Assert.AreEqual(expected, result.Event!.SourceMode, context);
+            Assert.AreEqual(sourceMode, raw.SourceMode, context);
+            Assert.AreEqual(xml, raw.Payload, context);
+            if (result.Event is EewEvent eew)
+            {
+                Assert.AreEqual(expected != SourceMode.Production, eew.IsTest, context);
+            }
+        }
+    }
+
+    [TestMethod]
     public void XmlProvidersRetainMunicipalityAndStationMetadataIncludingMixedGranularity()
     {
         const string xml = """
@@ -39,6 +107,46 @@ public sealed class JmaXmlEventNormalizerTests
             Assert.IsTrue(quake.Points.Any(p => p.MunicipalityName == "日向市" && p.Scale == JmaScale.Three));
             Assert.IsTrue(quake.Points.Any(p => p.IsArea && p.Scale == JmaScale.Two));
         }
+    }
+
+    [TestMethod]
+    [DataRow("発表")]
+    [DataRow("継続")]
+    [DataRow("解除")]
+    public void PartialReleaseHeadlineKeepsActiveWarningPagesAndAllReleaseStillCancels(string firstStatus)
+    {
+        string xml = $$"""
+            <Report>
+              <Control><Title>気象警報・注意報（Ｒ０６）（大雨）</Title><Type>VPWW55</Type><Status>通常</Status><PublishingOffice>鹿児島地方気象台</PublishingOffice></Control>
+              <Head><ReportDateTime>2026-10-03T12:00:00+09:00</ReportDateTime><InfoType>発表</InfoType><Headline><Text>一部地域の大雨警報を解除します。引き続き大雨に警戒してください。</Text></Headline></Head>
+              <Body><Warning type="気象警報・注意報（市町村等）">
+                <Item><Kind><Name>レベル３大雨警報</Name><Code>03</Code><Status>{{firstStatus}}</Status></Kind><Area><Name>鹿児島市</Name><Code>4620100</Code></Area></Item>
+                <Item><Kind><Name>レベル３大雨警報</Name><Code>03</Code><Status>解除</Status></Kind><Area><Name>薩摩川内市</Name><Code>4621500</Code></Area></Item>
+              </Warning></Body>
+            </Report>
+            """;
+        WeatherWarningEvent weather = NormalizeAxisWeather(xml);
+        bool allReleased = firstStatus == "解除";
+        Assert.AreEqual(allReleased, weather.IsCancelled);
+        Assert.AreEqual(!allReleased, weather.Items.Single(item => item.AreaName == "鹿児島市").IsActive);
+        Assert.IsFalse(weather.Items.Single(item => item.AreaName == "薩摩川内市").IsActive);
+        DisplayProgram program = new PageComposer().Compose(weather, AppSettings.CreateDefault().Display);
+        string[] captions = program.Pages.Select(page => page.AccessibleText).ToArray();
+        Assert.IsTrue(captions.Any(text => text.Contains("薩摩川内市", StringComparison.Ordinal) &&
+            text.Contains("｜解除", StringComparison.Ordinal)));
+        string expectedState = firstStatus == "発表" ? "｜新たに発表" : firstStatus == "継続" ? "｜継続中" : "｜解除";
+        Assert.IsTrue(captions.Any(text => text.Contains("鹿児島市", StringComparison.Ordinal) &&
+            text.Contains(expectedState, StringComparison.Ordinal)));
+
+        // Explicit telegram cancellation still overrides active body entries.
+        WeatherWarningEvent cancellation = NormalizeAxisWeather(xml.Replace(
+            "<InfoType>発表</InfoType>", "<InfoType>取消</InfoType>", StringComparison.Ordinal));
+        Assert.IsTrue(cancellation.IsCancelled);
+        string cancellationCaption = string.Join(" ", new PageComposer()
+            .Compose(cancellation, AppSettings.CreateDefault().Display).Pages.Select(page => page.AccessibleText));
+        StringAssert.Contains(cancellationCaption, "取り消");
+        Assert.IsFalse(cancellationCaption.Contains("｜継続中", StringComparison.Ordinal));
+        Assert.IsFalse(cancellationCaption.Contains("｜新たに発表", StringComparison.Ordinal));
     }
 
     [TestMethod]

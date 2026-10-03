@@ -86,6 +86,35 @@ public sealed class EventIngestionPipelineTests
     }
 
     [TestMethod]
+    public void TrainingEventCannotSuppressMatchingProductionEvent()
+    {
+        QuakeEvent training = DisplayEventFactory.CreateQuake(
+            QuakeIssueType.DetailScale, sourceMode: SourceMode.Sandbox);
+        QuakeEvent production = DisplayEventFactory.CreateQuake(QuakeIssueType.DetailScale);
+        var signatureBuilder = new EventSignatureBuilder();
+        training = training with { Signature = signatureBuilder.Build(training) };
+        production = production with { Signature = signatureBuilder.Build(production) };
+        Assert.AreEqual(training.Signature, production.Signature);
+        var clock = new FakeClock();
+        var pipeline = new EventIngestionPipeline(
+            new QueueNormalizer(training, production, production),
+            new EventVersionCache(),
+            new PageComposer(),
+            new PriorityCoordinator(clock, DisplayEventFactory.Settings),
+            DisplayEventFactory.Settings);
+
+        EventIngestionResult trainingResult = pipeline.Process(CreateRaw(clock, "training"));
+        EventIngestionResult productionResult = pipeline.Process(CreateRaw(clock, "production"));
+        EventIngestionResult duplicate = pipeline.Process(CreateRaw(clock, "duplicate"));
+
+        Assert.AreEqual(EventIngestionStatus.Accepted, trainingResult.Status);
+        Assert.AreEqual(EventIngestionStatus.Accepted, productionResult.Status);
+        Assert.IsNotNull(productionResult.Program);
+        Assert.AreEqual(SourceMode.Production, productionResult.Program.SourceMode);
+        Assert.AreEqual(EventIngestionStatus.Duplicate, duplicate.Status);
+    }
+
+    [TestMethod]
     public void PreDisplayEditingHoldsComposedProgramOutsideCoordinator()
     {
         QuakeEvent disasterEvent = DisplayEventFactory.CreateQuake(QuakeIssueType.DetailScale);

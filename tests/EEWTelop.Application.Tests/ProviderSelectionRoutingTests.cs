@@ -166,6 +166,34 @@ public sealed class ProviderSelectionRoutingTests
         Assert.AreEqual(NormalizeStatus.Ignored, normalizer.Normalize(Message("p2pquake")).Status);
     }
 
+    [TestMethod]
+    [DataRow(SourceMode.Sandbox)]
+    [DataRow(SourceMode.ManualTest)]
+    [DataRow(SourceMode.HistoryRehearsal)]
+    public void TrainingReportCannotSuppressMatchingProductionBackup(SourceMode trainingMode)
+    {
+        var clock = new FallbackClock();
+        var settings = AppSettings.CreateDefault().Provider with { Mode = ProviderMode.Production };
+        QuakeEvent training = CreateQuake(QuakeIssueType.DetailScale, trainingMode);
+        QuakeEvent production = CreateQuake(QuakeIssueType.DetailScale);
+        Assert.AreEqual(EventSignatureBuilder.BuildCrossProvider(training),
+            EventSignatureBuilder.BuildCrossProvider(production));
+        var fallback = new JmaFallbackRouting(settings, clock);
+        var normalizer = new ProviderSelectionEventNormalizer(
+            new QueueNormalizer(training, production, production), settings)
+        {
+            FallbackRouting = fallback,
+        };
+
+        // The normalized telegram's mode can differ from its production transport.
+        Assert.AreEqual(NormalizeStatus.Success, normalizer.Normalize(Message("p2pquake")).Status);
+        fallback.Observe(ReceptionProvider.P2pQuake, ProviderConnectionState.Reconnecting);
+        clock.UtcNow += JmaFallbackRouting.FailureDelay;
+        Assert.AreEqual(NormalizeStatus.Success, normalizer.Normalize(Message("jma-xml")).Status);
+        fallback.Observe(ReceptionProvider.P2pQuake, ProviderConnectionState.Connected);
+        Assert.AreEqual(NormalizeStatus.Ignored, normalizer.Normalize(Message("p2pquake")).Status);
+    }
+
     private sealed class FallbackClock : EEWTelop.Application.Abstractions.IClock
     {
         public DateTimeOffset UtcNow { get; set; } = Now;
@@ -179,7 +207,9 @@ public sealed class ProviderSelectionRoutingTests
         SourceMode.Production,
         Now);
 
-    private static QuakeEvent CreateQuake(QuakeIssueType issueType)
+    private static QuakeEvent CreateQuake(
+        QuakeIssueType issueType,
+        SourceMode sourceMode = SourceMode.Production)
     {
         var issue = new IssueInfo(
             "気象庁",
@@ -201,7 +231,7 @@ public sealed class ProviderSelectionRoutingTests
             Now,
             Now,
             "routing-signature",
-            SourceMode.Production,
+            sourceMode,
             issue,
             issueType,
             earthquake,
@@ -213,6 +243,14 @@ public sealed class ProviderSelectionRoutingTests
     {
         public NormalizeResult Normalize(RawProviderMessage raw) =>
             NormalizeResult.Success(disasterEvent);
+    }
+
+    private sealed class QueueNormalizer(params DisasterEvent[] events) : IEventNormalizer
+    {
+        private readonly Queue<DisasterEvent> _events = new(events);
+
+        public NormalizeResult Normalize(RawProviderMessage raw) =>
+            NormalizeResult.Success(_events.Dequeue());
     }
 
     private sealed class FakeSource(string provider) : IEventSource

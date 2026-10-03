@@ -47,6 +47,13 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
         try
         {
             XDocument document = LoadSafe(raw.Payload);
+            // Official pull feeds do not have a transport-level test flag. Apply the
+            // XML's training/test status to every event type, without changing
+            // the original message or an explicitly selected rehearsal mode.
+            if (raw.SourceMode == SourceMode.Production && IsTestTelegram(document))
+            {
+                raw = raw with { SourceMode = SourceMode.Sandbox };
+            }
             string telegramType = DetectTelegramType(document);
             return telegramType switch
             {
@@ -566,8 +573,10 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
                 ValidationSeverity.Warning));
         }
 
-        bool cancelled = telegramCancelled || explicitRelease ||
-            items.All(static item => !item.IsActive);
+        // A headline can describe a partial release while other municipalities
+        // remain under an alert. Only an explicit telegram cancellation or the
+        // absence of active items makes the complete event a release.
+        bool cancelled = telegramCancelled || items.All(static item => !item.IsActive);
         var issue = new IssueInfo(
             Text(Descendant(document, "PublishingOffice")),
             issuedAt,

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using EEWTelop.Application.Events;
@@ -83,6 +84,13 @@ public sealed partial class WolfxEventNormalizer : IEventNormalizer
                 "isWarn",
                 "Wolfx forecast-only EEW was ignored because CDI-Telopper displays warnings.",
                 ValidationSeverity.Warning));
+        }
+
+        if (TryGetProperty(root, "WarnArea", out JsonElement warningAreas) &&
+            (warningAreas.ValueKind != JsonValueKind.Array ||
+             warningAreas.EnumerateArray().Any(static area => area.ValueKind != JsonValueKind.Object)))
+        {
+            return Invalid("WarnArea", "Wolfx warning areas must be an array of objects.");
         }
 
         DateTimeOffset issuedAt = ParseJapanTime(
@@ -374,6 +382,12 @@ public sealed partial class WolfxEventNormalizer : IEventNormalizer
         string name,
         out JsonElement value)
     {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            value = default;
+            return false;
+        }
+
         foreach (JsonProperty property in element.EnumerateObject())
         {
             if (property.Name.Equals(name, StringComparison.OrdinalIgnoreCase))

@@ -163,7 +163,9 @@ public sealed class Phase6ViewModelTests
     }
 
     [TestMethod]
-    public async Task DmdataOAuthAuthorizationUsesSelectedCategoriesAndKeepsTokensOutOfSettings()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task DmdataOAuthAuthorizationUsesSelectedCategoriesAndKeepsTokensOutOfSettings(bool includeContracts)
     {
         AppSettings settings = AppSettings.CreateDefault();
         var oauth = new FakeDmdataOAuthService();
@@ -174,11 +176,12 @@ public sealed class Phase6ViewModelTests
         viewModel.Settings.DmdataOAuthClientId = "CId.client";
         viewModel.Settings.WeatherProvider = ReceptionProvider.Dmdata;
         bool browserOpened = false;
-        await viewModel.AuthorizeDmdataOAuthAsync(_ => browserOpened = true);
+        await viewModel.AuthorizeDmdataOAuthAsync(_ => browserOpened = true, includeContractList: includeContracts);
         Assert.IsTrue(browserOpened);
         Assert.AreEqual("CId.client", oauth.ClientId);
         CollectionAssert.Contains(oauth.Scopes.ToArray(), "telegram.get.weather");
         CollectionAssert.DoesNotContain(oauth.Scopes.ToArray(), "eew.get.warning");
+        Assert.AreEqual(includeContracts, oauth.Scopes.Contains("contract.list", StringComparer.Ordinal));
         await viewModel.SaveSettingsAsync();
         AppSettings saved = viewModel.Settings.ToSettings(settings);
         Assert.AreEqual(DmdataAuthenticationMode.OAuthAccessToken, saved.Provider.DmdataAuthenticationMode);
@@ -250,6 +253,249 @@ public sealed class Phase6ViewModelTests
         await pending;
         Assert.IsFalse(viewModel.IsDmdataOAuthBusy);
         Assert.IsTrue(viewModel.ConnectCommand.CanExecute(null));
+    }
+
+    [TestMethod]
+    [DataRow(nameof(SettingsEditorViewModel.DmdataCredential))]
+    [DataRow(nameof(SettingsEditorViewModel.DmdataAuthenticationMode))]
+    [DataRow(nameof(SettingsEditorViewModel.DmdataOAuthClientId))]
+    [DataRow(nameof(SettingsEditorViewModel.DmdataApiBaseUrl))]
+    public async Task DmdataAuthenticationChangesDiscardPendingContractInformation(string propertyName)
+    {
+        var completion = new TaskCompletionSource<DmdataContractSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var contracts = new FakeDmdataContractService(_ => completion.Task);
+        AppSettings settings = AppSettings.CreateDefault();
+        await using var viewModel = new ControlWindowViewModel(
+            CreateServices(ProviderConnectionState.Stopped, dmdataContractService: contracts), settings,
+            new FakeConfirmationService(), new ImmediateUiDispatcher());
+        Task pending = viewModel.DmdataContracts.RefreshAsync();
+        switch (propertyName)
+        {
+            case nameof(SettingsEditorViewModel.DmdataCredential): viewModel.Settings.DmdataCredential = "new-test-key"; break;
+            case nameof(SettingsEditorViewModel.DmdataAuthenticationMode): viewModel.Settings.DmdataAuthenticationMode = DmdataAuthenticationMode.OAuthAccessToken; break;
+            case nameof(SettingsEditorViewModel.DmdataOAuthClientId): viewModel.Settings.DmdataOAuthClientId = "CId.new-client"; break;
+            case nameof(SettingsEditorViewModel.DmdataApiBaseUrl): viewModel.Settings.DmdataApiBaseUrl = "https://example.invalid/v2"; break;
+            default: Assert.Fail("Unknown test property"); break;
+        }
+        completion.SetResult(new DmdataContractSnapshot(
+            [new("92", 1, "地震・津波関連", "telegram.earthquake", 15, 350, null, true, 1)], DateTimeOffset.UtcNow));
+        await pending;
+        Assert.AreEqual(0, viewModel.DmdataContracts.Items.Count);
+        Assert.AreEqual(string.Empty, viewModel.DmdataContracts.RetrievedAtText);
+        StringAssert.Contains(viewModel.DmdataContracts.StatusText, "認証設定が変更");
+        Assert.AreEqual(1, contracts.Calls);
+    }
+
+    [TestMethod]
+    public async Task ContractRetrievalAndOAuthAuthorizationDoNotOverlap()
+    {
+        var completion = new TaskCompletionSource<DmdataContractSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var contracts = new FakeDmdataContractService(_ => completion.Task);
+        var oauth = new FakeDmdataOAuthService { WaitForCancellation = true };
+        AppSettings settings = AppSettings.CreateDefault();
+        await using var viewModel = new ControlWindowViewModel(
+            CreateServices(ProviderConnectionState.Stopped, dmdataOAuthService: oauth, dmdataContractService: contracts), settings,
+            new FakeConfirmationService(), new ImmediateUiDispatcher());
+        viewModel.Settings.DmdataAuthenticationMode = DmdataAuthenticationMode.OAuthAccessToken;
+        viewModel.Settings.WeatherProvider = ReceptionProvider.Dmdata;
+        Task retrieval = viewModel.DmdataContracts.RefreshAsync();
+        Assert.IsFalse(viewModel.CanManageDmdataOAuth);
+        await viewModel.AuthorizeDmdataOAuthAsync(_ => Assert.Fail("Unexpected browser launch"), includeContractList: true);
+        await viewModel.RevokeDmdataOAuthAsync();
+        Assert.IsFalse(oauth.Revoked);
+        completion.SetResult(new DmdataContractSnapshot([], DateTimeOffset.UtcNow));
+        await retrieval;
+        Assert.IsTrue(viewModel.CanManageDmdataOAuth);
+
+        Task authorization = viewModel.AuthorizeDmdataOAuthAsync(static _ => { }, includeContractList: true);
+        Assert.IsFalse(viewModel.DmdataContracts.CanRefresh);
+        await viewModel.DmdataContracts.RefreshAsync();
+        Assert.AreEqual(1, contracts.Calls);
+        viewModel.CancelDmdataOAuth();
+        await authorization;
+        Assert.IsTrue(viewModel.DmdataContracts.CanRefresh);
+    }
+
+    [TestMethod]
+    public async Task ContractRetrievalDoesNotChangeActiveReceptionOrRequestOAuthAuthorization()
+    {
+        var contracts = new FakeDmdataContractService(_ => Task.FromResult(new DmdataContractSnapshot([], DateTimeOffset.UtcNow)));
+        var oauth = new FakeDmdataOAuthService();
+        AppSettings settings = AppSettings.CreateDefault();
+        await using var viewModel = new ControlWindowViewModel(
+            CreateServices(ProviderConnectionState.Connected, dmdataOAuthService: oauth, dmdataContractService: contracts), settings,
+            new FakeConfirmationService(), new ImmediateUiDispatcher());
+        Assert.IsTrue(viewModel.DmdataContracts.CanRefresh);
+        await viewModel.DmdataContracts.RefreshAsync();
+        Assert.AreEqual(1, contracts.Calls);
+        Assert.AreEqual(ProviderConnectionState.Connected, viewModel.ConnectionState);
+        Assert.AreEqual(string.Empty, oauth.ClientId);
+        Assert.IsFalse(oauth.Revoked);
+    }
+
+    [TestMethod]
+    public async Task ProfileReplacementClearsContractsAndTracksOnlyTheNewSettingsEditor()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "qt-contract-profile-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = new JsonSettingsProfileStore(directory);
+            AppSettings settings = AppSettings.CreateDefault();
+            await store.SaveAsync("contract-test", settings, "test");
+            var contracts = new FakeDmdataContractService(_ => Task.FromResult(new DmdataContractSnapshot(
+                [new("92", 1, "地震・津波関連", "telegram.earthquake", 15, 350, null, true, 1)], DateTimeOffset.UtcNow)));
+            await using var viewModel = new ControlWindowViewModel(
+                CreateServices(ProviderConnectionState.Stopped, dmdataContractService: contracts, profileStore: store), settings,
+                new FakeConfirmationService(), new ImmediateUiDispatcher());
+            SettingsEditorViewModel oldEditor = viewModel.Settings;
+            await viewModel.DmdataContracts.RefreshAsync();
+            Assert.AreEqual(1, viewModel.DmdataContracts.Items.Count);
+            viewModel.SelectedProfileName = "contract-test";
+            viewModel.ApplyProfileCommand.Execute(null);
+            await WaitUntilAsync(() => viewModel.OperationalStatusText.StartsWith("プロファイルを適用しました", StringComparison.Ordinal));
+            Assert.AreNotSame(oldEditor, viewModel.Settings);
+            Assert.AreEqual(0, viewModel.DmdataContracts.Items.Count);
+            await viewModel.DmdataContracts.RefreshAsync();
+            oldEditor.DmdataOAuthClientId = "CId.old-editor";
+            Assert.AreEqual(1, viewModel.DmdataContracts.Items.Count);
+            viewModel.Settings.DmdataOAuthClientId = "CId.new-editor";
+            Assert.AreEqual(0, viewModel.DmdataContracts.Items.Count);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task OAuthAuthorizationBlocksProfileReplacement()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "qt-oauth-profile-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = new JsonSettingsProfileStore(directory);
+            AppSettings settings = AppSettings.CreateDefault();
+            await store.SaveAsync("oauth-test", settings, "test");
+            var oauth = new FakeDmdataOAuthService { WaitForCancellation = true };
+            await using var viewModel = new ControlWindowViewModel(
+                CreateServices(ProviderConnectionState.Stopped, dmdataOAuthService: oauth, profileStore: store), settings,
+                new FakeConfirmationService(), new ImmediateUiDispatcher());
+            viewModel.Settings.WeatherProvider = ReceptionProvider.Dmdata;
+            viewModel.SelectedProfileName = "oauth-test";
+            SettingsEditorViewModel editor = viewModel.Settings;
+            Task authorization = viewModel.AuthorizeDmdataOAuthAsync(static _ => { });
+            Assert.IsTrue(viewModel.IsDmdataOAuthBusy);
+            Assert.IsFalse(viewModel.ApplyProfileCommand.CanExecute(null));
+            // A direct command call must obey the guard as well as the disabled UI.
+            viewModel.ApplyProfileCommand.Execute(null);
+            Assert.AreSame(editor, viewModel.Settings);
+            Assert.IsFalse(viewModel.OperationalStatusText.StartsWith("プロファイルを適用しました", StringComparison.Ordinal));
+            viewModel.CancelDmdataOAuth();
+            await authorization;
+            Assert.IsTrue(viewModel.ApplyProfileCommand.CanExecute(null));
+            viewModel.ApplyProfileCommand.Execute(null);
+            await WaitUntilAsync(() => viewModel.OperationalStatusText.StartsWith("プロファイルを適用しました", StringComparison.Ordinal));
+            Assert.AreNotSame(editor, viewModel.Settings);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task OAuthStartedWhileProfileLoadsBlocksThePendingReplacement()
+    {
+        AppSettings settings = AppSettings.CreateDefault();
+        var store = new DelayedSettingsProfileStore();
+        var oauth = new FakeDmdataOAuthService { WaitForCancellation = true };
+        var dispatcher = new SignalingUiDispatcher();
+        AppServices services = CreateServices(ProviderConnectionState.Stopped,
+            suppliedSettings: settings, dmdataOAuthService: oauth, profileStore: store);
+        await using var viewModel = new ControlWindowViewModel(
+            services, settings, new FakeConfirmationService(), dispatcher);
+        viewModel.Settings.WeatherProvider = ReceptionProvider.Dmdata;
+        viewModel.SelectedProfileName = "delayed-profile";
+        SettingsEditorViewModel editor = viewModel.Settings;
+        int replacements = 0;
+        viewModel.SettingsEditorChanged += (_, _) => replacements++;
+
+        viewModel.ApplyProfileCommand.Execute(null);
+        await store.LoadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.IsTrue(viewModel.ApplyProfileCommand.CanExecute(null));
+        Task authorization = viewModel.AuthorizeDmdataOAuthAsync(static _ => { });
+        try
+        {
+            Assert.IsTrue(viewModel.IsDmdataOAuthBusy);
+            Task profileUiCompleted = dispatcher.CaptureNextSynchronousInvocation();
+            store.LoadCompletion.SetResult(new SettingsProfileDocument(
+                SettingsProfileDocument.CurrentSchemaVersion, "delayed-profile", DateTimeOffset.UtcNow,
+                "test", settings with { Display = settings.Display with { PageDurationSeconds = 9 } }));
+            // Wait for the post-load UI guard, not an arbitrary delay or the disabled command.
+            await profileUiCompleted.WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.AreSame(editor, viewModel.Settings);
+            Assert.AreEqual(0, replacements);
+            Assert.IsTrue(viewModel.IsDmdataOAuthBusy);
+            Assert.IsFalse(viewModel.OperationalStatusText.StartsWith("プロファイルを適用しました", StringComparison.Ordinal));
+            Assert.AreEqual(settings, await services.SettingsStore.LoadAsync());
+        }
+        finally
+        {
+            viewModel.CancelDmdataOAuth();
+            await authorization;
+        }
+    }
+
+    private sealed class DelayedSettingsProfileStore : ISettingsProfileStore
+    {
+        public TaskCompletionSource<bool> LoadStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<SettingsProfileDocument> LoadCompletion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public IReadOnlyList<string> List() => ["delayed-profile"];
+        public Task<SettingsProfileDocument> LoadAsync(string name, AppSettings currentSettings,
+            CancellationToken cancellationToken = default)
+        {
+            LoadStarted.TrySetResult(true);
+            return LoadCompletion.Task;
+        }
+        public Task SaveAsync(string name, AppSettings settings, string applicationVersion,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task DeleteAsync(string name, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task ExportAsync(string name, string path, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<SettingsProfileDocument> ImportAsync(string path, AppSettings currentSettings,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class SignalingUiDispatcher : IUiDispatcher
+    {
+        private TaskCompletionSource<bool>? _nextSynchronousInvocation;
+        public Task<bool> CaptureNextSynchronousInvocation()
+        {
+            var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            Interlocked.Exchange(ref _nextSynchronousInvocation, completion);
+            return completion.Task;
+        }
+        public void Invoke(Action action)
+        {
+            action();
+            Interlocked.Exchange(ref _nextSynchronousInvocation, null)?.TrySetResult(true);
+        }
+        public Task InvokeAsync(Action action, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            action();
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeDmdataContractService(Func<CancellationToken, Task<DmdataContractSnapshot>> response) : IDmdataContractService
+    {
+        public int Calls { get; private set; }
+        public Task<DmdataContractSnapshot> GetAsync(ProviderSettings settings, CancellationToken cancellationToken)
+        {
+            Calls++;
+            return response(cancellationToken);
+        }
     }
 
     [TestMethod]
@@ -955,6 +1201,59 @@ public sealed class Phase6ViewModelTests
         Assert.IsTrue(viewModel.Overlay.HasProgram);
         Assert.AreEqual("操作テスト／訓練", viewModel.Overlay.RehearsalLabel);
         Assert.IsTrue(viewModel.Overlay.Blocks.Count > 0);
+        await viewModel.DisposeAsync();
+    }
+
+    [TestMethod]
+    [DataRow(ProviderConnectionState.Connected)]
+    [DataRow(ProviderConnectionState.Stale)]
+    public async Task UnsavedSandboxModeCannotSkipProductionTestConfirmation(ProviderConnectionState connectionState)
+    {
+        var confirmation = new FakeConfirmationService { Result = false };
+        AppServices services = CreateServices(connectionState);
+        var viewModel = new ControlWindowViewModel(
+            services,
+            services.InitialSettings,
+            confirmation,
+            new ImmediateUiDispatcher());
+        viewModel.Settings.ProviderMode = ProviderMode.Sandbox;
+
+        viewModel.RunTestCommand.Execute(null);
+
+        Assert.AreEqual(ProviderMode.Production, services.InitialSettings.Provider.Mode);
+        Assert.AreEqual(1, confirmation.CallCount);
+        Assert.IsFalse(viewModel.Overlay.HasProgram);
+        await viewModel.DisposeAsync();
+    }
+
+    [TestMethod]
+    [DataRow(ProviderConnectionState.Connected)]
+    [DataRow(ProviderConnectionState.Stale)]
+    public async Task UnsavedSandboxModeCannotStartHistoryRehearsalDuringProduction(ProviderConnectionState connectionState)
+    {
+        QuakeEvent quake = CreateHistoryQuake();
+        var historyLoader = new FakeHistoryRehearsalLoader([quake]);
+        AppServices services = CreateServices(connectionState, historyLoader: historyLoader);
+        var viewModel = new ControlWindowViewModel(
+            services,
+            services.InitialSettings,
+            new FakeConfirmationService(),
+            new ImmediateUiDispatcher());
+        viewModel.Settings.ProviderMode = ProviderMode.Sandbox;
+
+        viewModel.StartHistoryRehearsalCommand.Execute(null);
+
+        Assert.IsFalse(viewModel.IsHistoryRehearsalRunning);
+        Assert.AreEqual(0, historyLoader.LoadCount);
+        Assert.AreEqual("本番接続中は開始できません", viewModel.HistoryRehearsalStatusText);
+        viewModel.SelectedHistoryItem = new HistoryReplayItemViewModel(
+            "履歴", quake, services.PageComposer.Compose(quake, services.InitialSettings.Display));
+
+        viewModel.PlaySelectedHistoryCommand.Execute(null);
+
+        Assert.IsFalse(viewModel.IsHistoryRehearsalRunning);
+        Assert.IsFalse(viewModel.Overlay.HasProgram);
+        Assert.AreEqual("本番接続中は開始できません", viewModel.HistoryRehearsalStatusText);
         await viewModel.DisposeAsync();
     }
 
@@ -1769,7 +2068,9 @@ public sealed class Phase6ViewModelTests
         IAxisTokenRefreshService? axisTokenRefreshService = null,
         IEventSource? suppliedEventSource = null,
         IAudioPolicy? audioPolicy = null,
-        IDmdataOAuthService? dmdataOAuthService = null)
+        IDmdataOAuthService? dmdataOAuthService = null,
+        IDmdataContractService? dmdataContractService = null,
+        ISettingsProfileStore? profileStore = null)
     {
         AppSettings settings = suppliedSettings ?? AppSettings.CreateDefault();
         FakeClock clock = suppliedClock ?? new FakeClock();
@@ -1803,7 +2104,9 @@ public sealed class Phase6ViewModelTests
             HistoryRehearsalLoader: historyLoader,
             TestCaseLibrary: testCaseLibrary,
             AxisTokenRefreshService: axisTokenRefreshService,
-            DmdataOAuthService: dmdataOAuthService);
+            DmdataOAuthService: dmdataOAuthService,
+            DmdataContractService: dmdataContractService,
+            ProfileStore: profileStore);
     }
 
     private static DisplayProgram CreateSubtitleEditProgram(

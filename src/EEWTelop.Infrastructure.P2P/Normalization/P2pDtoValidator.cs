@@ -90,7 +90,13 @@ internal static class P2pDtoValidator
         {
             for (int index = 0; index < dto.Points.Count; index++)
             {
-                P2pQuakePointDto point = dto.Points[index];
+                P2pQuakePointDto? point = dto.Points[index];
+                if (point is null)
+                {
+                    AddRequired(issues, $"points[{index}]");
+                    continue;
+                }
+
                 RequireText(point.Prefecture, $"points[{index}].pref", issues);
                 RequireText(point.Address, $"points[{index}].addr", issues);
                 if (point.IsArea is null)
@@ -125,7 +131,13 @@ internal static class P2pDtoValidator
         {
             for (int index = 0; index < dto.Areas.Count; index++)
             {
-                P2pTsunamiAreaDto area = dto.Areas[index];
+                P2pTsunamiAreaDto? area = dto.Areas[index];
+                if (area is null)
+                {
+                    AddRequired(issues, $"areas[{index}]");
+                    continue;
+                }
+
                 RequireText(area.Name, $"areas[{index}].name", issues);
                 WarnUnknownOptional(issues, $"areas[{index}].grade", area.Grade, TsunamiGrades);
             }
@@ -171,7 +183,13 @@ internal static class P2pDtoValidator
         {
             for (int index = 0; index < dto.Areas.Count; index++)
             {
-                P2pEewAreaDto area = dto.Areas[index];
+                P2pEewAreaDto? area = dto.Areas[index];
+                if (area is null)
+                {
+                    AddRequired(issues, $"areas[{index}]");
+                    continue;
+                }
+
                 RequireText(area.Prefecture, $"areas[{index}].pref", issues);
                 RequireText(area.Name, $"areas[{index}].name", issues);
                 if (area.ScaleFrom is null)

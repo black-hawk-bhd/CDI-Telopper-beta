@@ -24,13 +24,21 @@ beta.51 adds per-domain upstream health, a separately authenticated rehearsal AP
 
 beta.50 improves unreported-intensity normalization and labeling, removes trailing full-width station markers only from display text, and preserves observed and unreported entries at the same place. Simulator decoding and additive external API fields are improved while training/live separation remains enforced.
 
-The current public release is **2.0.0-beta.55**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.56** (October 4, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.55](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.55)
-- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.55.txt)
+- [Download 2.0.0-beta.56](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.56)
+- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.56.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
+
+beta.56 adds manual DMDATA.JP contract-information retrieval in reception settings. It displays each returned plan's contract status, daily price and monthly maximum, start time, and additional connection allowance; these prices are not an actual bill. Retrieval failures are not reported as uncontracted plans. Contract information is shown temporarily in the control window, not saved to files, settings, logs or diagnostic ZIPs, and not sent to OBS captions or the external API. There is no periodic polling or contract modification. API keys need `contract.list`; OAuth users must explicitly authorize that additional scope with “契約情報も認可”. It must also be permitted in the registered OAuth client. The embedded client's registration for this scope and retrieval with a real account have not been verified. See the [contract-information setup guide](docs/dmdata-oauth.md#契約情報の表示).
+
+beta.56 separates settings into “受信” (Reception), “フィルター” (Filters), “表示” (Display), and “出力” (Output). Reception contains providers and authentication; Filters selects the information to display; Display controls pages, text and repetitions; Output contains canvas, OBS and external API settings. Setting values, defaults and persistence are unchanged.
+
+beta.56 strengthens malformed-JSON validation for P2P and Wolfx, separates JMA XML training/test messages from production, and preserves active weather-warning areas when a bulletin also reports partial releases. Unsaved reception-mode changes cannot bypass training confirmation, and profile application is blocked during OAuth operations.
+
+beta.56 isolates deduplication, report-number ordering, and cross-provider fallback fingerprints so a training message cannot suppress matching live information. Corrupt null entries in saved display state are backed up and recovered as empty state. Legacy signatures without source/test metadata retain their production/non-test interpretation for compatibility.
 
 beta.47: automatic JMA XML PULL fallback for supported non-EEW information after a DMDATA.JP, P2P, or AXIS connection remains faulted/reconnecting for 30 seconds. The reception settings checkbox enables or disables it (default on). The original source resumes on successful reconnection; saved source selections are unchanged. Silence or Stale alone does not trigger fallback, and partial feed outages on an otherwise connected source cannot be detected. EEW, Sandbox, disabled categories, and Wolfx are excluded. JMA polling is shared and remains at least 60 seconds apart; no backup requests are made while the selected sources are healthy. Completeness and timeliness are not guaranteed.
 
@@ -88,8 +96,8 @@ When redisplaying a telegram from the review window, choose one of three purpose
 An unauthenticated provider that retrieves XML directly from JMA's public feeds. CDI-Telopper is not an official JMA application.
 
 - Supports the application's existing earthquake, tsunami, weather (including designated-river floods), volcano and Nankai Trough categories. **EEW is excluded.**
-- Select “気象庁XML（60秒巡回・遅延あり）” per category and save. There is no automatic failover.
-- Waits 60 seconds after each polling cycle. Weather uses `extra.xml`; earthquake, tsunami, volcano and Nankai Trough share `eqvol.xml`. Each required feed is checked once per cycle, regardless of how many categories select it. New telegram bodies require separate requests.
+- Select “気象庁XML（60秒巡回・遅延あり）” per category and save. Separately from manual selection, beta.47 and later support connection-failure fallback under the conditions described above.
+- Keeps polling starts at least 60 seconds apart. Weather uses `extra.xml`; earthquake, tsunami, volcano and Nankai Trough share `eqvol.xml`. Each required feed is checked once per cycle, regardless of how many categories select it. New telegram bodies require separate requests.
 - Excludes `VPWW53`, `VPWW54` and `VPOA50`. Downloaded URLs are deduplicated within the retained history; failed downloads are retried on a later cycle.
 - Publication can be delayed or interrupted. Pre-connection telegrams are not presented as new alerts, and long outages are not fully backfilled. “Connected” indicates successful polling, not a guarantee of new messages or captions.
 
@@ -106,6 +114,8 @@ The P2PQuake API is not an official API operated by JMA. Treat it as an external
 You must provide your own subscription and either an API key or OAuth2.0 authorization. For EEW, select either a warning subscription (VXSE43) or forecast subscription (VXSE45), according to your contract. With a forecast subscription, CDI-Telopper displays VXSE45 messages that contain a warning, as well as their cancellations.
 
 Since beta.55, OAuth2.0 browser authorization is available alongside API-key authentication. CDI's public client ID is embedded, so normal users do not need to register a client or enter an ID. Select OAuth2.0, authorize your own account in the browser, and save the settings. Accounts, contracts and tokens are not shared. Tokens are protected with Windows DPAPI CurrentUser and refreshed when needed for API requests such as reconnection. See the [OAuth setup guide](docs/dmdata-oauth.md) for connection, scopes and revocation.
+
+Since beta.56, “契約情報を更新” in Reception settings retrieves contract information on demand. It requires `contract.list` on the API key or an additional OAuth authorization, with the scope enabled in the client registration. The embedded client's permission configuration is unverified; contract retrieval is not guaranteed to succeed. Normal reception authorization continues to request its existing scopes.
 
 The About tab shows the actual application version, build information, DMDATA website, GitHub repository, releases, policies and contact email. DMDATA reception settings also include a direct link to the official website. Links open in the default browser or mail application.
 
@@ -179,10 +189,10 @@ The script restores dependencies, builds every project in the Release configurat
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.55
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.56
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.55\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.56\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
 
 ## External API integration: terms and disclaimer
 

@@ -168,7 +168,9 @@ public sealed record StoredDisplayProgram(
         program = null;
         if (string.IsNullOrWhiteSpace(ProgramId) || string.IsNullOrWhiteSpace(EventId) ||
             Pages is null || !Enum.IsDefined(Kind) || !Enum.IsDefined(SourceMode) ||
-            !Enum.IsDefined(Priority) || !Enum.IsDefined(EndPolicy))
+            !Enum.IsDefined(Priority) || !Enum.IsDefined(EndPolicy) ||
+            Pages.Any(static page => page is null ||
+                page.Blocks?.Any(static block => block is null) == true))
         {
             return false;
         }

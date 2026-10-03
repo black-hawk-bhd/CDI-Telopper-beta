@@ -28,6 +28,7 @@ public sealed class AboutViewModelTests
     {
         var about = new AboutViewModel();
         Assert.IsTrue(about.CanOpenLink(about.DmdataWebsite));
+        Assert.IsTrue(about.CanOpenLink(about.DmdataControlPanel));
         Assert.IsTrue(about.Links.Any(link => link.Uri.AbsoluteUri == "https://github.com/black-hawk-bhd/CDI-Telopper-beta"));
         Assert.IsTrue(about.Links.Any(link => link.Uri.AbsoluteUri.EndsWith("/TERMS.md", StringComparison.Ordinal)));
         Assert.IsTrue(about.Links.Any(link => link.Uri.AbsoluteUri.EndsWith("/PRIVACY.md", StringComparison.Ordinal)));

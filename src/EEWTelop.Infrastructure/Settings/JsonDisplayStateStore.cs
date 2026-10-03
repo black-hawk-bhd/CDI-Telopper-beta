@@ -46,10 +46,16 @@ public sealed class JsonDisplayStateStore : IDisplayStateStore
             ValidateIntegrity(state.PersistentTsunami);
             foreach (StoredDisplayProgram item in state.Pending)
             {
+                if (item is null)
+                {
+                    throw new InvalidDataException("The pending state contains a null program.");
+                }
+
                 ValidateIntegrity(item);
             }
 
             if (state.RecentSignatures.Any(static item =>
+                item is null ||
                 string.IsNullOrWhiteSpace(item.Provider) ||
                 string.IsNullOrWhiteSpace(item.EventId) ||
                 string.IsNullOrWhiteSpace(item.Signature) ||

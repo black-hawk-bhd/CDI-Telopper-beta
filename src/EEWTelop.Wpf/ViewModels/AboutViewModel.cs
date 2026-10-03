@@ -14,6 +14,7 @@ public sealed class AboutViewModel
     public string ContactEmail { get; } = "cdi.telopper.contact@proton.me";
     public string Copyright { get; } = "Copyright (c) 2026 black-hawk-bhd / MIT License";
     public Uri DmdataWebsite { get; } = new("https://dmdata.jp/");
+    public Uri DmdataControlPanel { get; } = new("https://control.dmdata.jp/");
     public string BuildVersion { get; } = typeof(AboutViewModel).Assembly
         .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
     public string Version => FormatVersion(BuildVersion);
