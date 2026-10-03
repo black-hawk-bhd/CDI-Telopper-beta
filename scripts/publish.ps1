@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '2.0.0-beta.54',
+    [string]$Version = '2.0.0-beta.55',
     [string]$RuntimeIdentifier = 'win-x64',
     [string]$OutputLabel = '',
     [ValidateSet('true', 'false')]
@@ -127,6 +127,17 @@ function Add-DistributionFiles {
     }
     Copy-Item -LiteralPath (Join-Path $workspaceRoot 'docs\disaster-simulator.md') -Destination (Join-Path $Directory 'SIMULATOR_GUIDE.md')
     Copy-Item -LiteralPath (Join-Path $workspaceRoot 'docs\external-api-v1.md') -Destination (Join-Path $Directory 'EXTERNAL_API_V1.md')
+    foreach ($policyFile in @('TERMS.md', 'PRIVACY.md', 'LICENSE')) {
+        Copy-Item -LiteralPath (Join-Path $workspaceRoot $policyFile) -Destination (Join-Path $Directory $policyFile)
+    }
+    $guidesDirectory = Join-Path $Directory 'docs'
+    New-Item -ItemType Directory -Path $guidesDirectory | Out-Null
+    foreach ($guideFile in @('data-sources.md', 'dmdata-oauth.md')) {
+        $guidePath = Join-Path $workspaceRoot "docs\$guideFile"
+        if (Test-Path -LiteralPath $guidePath) {
+            Copy-Item -LiteralPath $guidePath -Destination (Join-Path $guidesDirectory $guideFile)
+        }
+    }
     $manualName = "MANUAL_CDI-Telopper_$Version.txt"
     $manualPath = Join-Path $workspaceRoot $manualName
     if (Test-Path -LiteralPath $manualPath) {

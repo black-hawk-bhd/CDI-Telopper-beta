@@ -20,6 +20,12 @@ internal sealed class DmdataCredential
 internal interface IDmdataCredentialProvider
 {
     DmdataCredential GetCredential();
+
+    ValueTask<DmdataCredential> GetCredentialAsync(CancellationToken cancellationToken) =>
+        ValueTask.FromResult(GetCredential());
+
+    Task<bool> RefreshAfterUnauthorizedAsync(string rejectedToken, CancellationToken cancellationToken) =>
+        Task.FromResult(false);
 }
 
 internal sealed class FixedDmdataCredentialProvider : IDmdataCredentialProvider
@@ -35,4 +41,23 @@ internal sealed class FixedDmdataCredentialProvider : IDmdataCredentialProvider
     }
 
     public DmdataCredential GetCredential() => _credential;
+}
+
+internal sealed class OAuthDmdataCredentialProvider(
+    EEWTelop.Application.Abstractions.IDmdataOAuthService service,
+    string clientId,
+    IReadOnlyList<string> scopes) : IDmdataCredentialProvider
+{
+    public DmdataCredential GetCredential() =>
+        throw new InvalidOperationException("OAuth credentials must be obtained asynchronously.");
+
+    public async ValueTask<DmdataCredential> GetCredentialAsync(CancellationToken cancellationToken) =>
+        new(DmdataAuthenticationMode.OAuthAccessToken,
+            await service.GetAccessTokenAsync(clientId, scopes, cancellationToken).ConfigureAwait(false));
+
+    public async Task<bool> RefreshAfterUnauthorizedAsync(string rejectedToken, CancellationToken cancellationToken)
+    {
+        await service.GetAccessTokenAsync(clientId, scopes, cancellationToken, rejectedToken).ConfigureAwait(false);
+        return true;
+    }
 }

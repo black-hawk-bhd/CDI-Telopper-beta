@@ -119,6 +119,8 @@ public sealed record ProviderSettings(
     public DmdataAuthenticationMode DmdataAuthenticationMode { get; init; } =
         DmdataAuthenticationMode.ApiKey;
 
+    public string DmdataOAuthClientId { get; init; } = DmdataOAuthDefaults.ClientId;
+
     public bool DmdataIncludeTestTelegrams { get; init; } = true;
 
     // DMDATA.JP sells the EEW warning and forecast classifications separately.

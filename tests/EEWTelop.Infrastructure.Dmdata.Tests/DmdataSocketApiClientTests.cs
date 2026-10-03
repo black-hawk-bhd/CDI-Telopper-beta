@@ -18,6 +18,45 @@ public sealed class DmdataSocketApiClientTests
     ];
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task OAuth401RefreshesAndRetriesOnlyOnce(bool rejectRefreshedToken)
+    {
+        var credentials = new RefreshingCredentialProvider();
+        int calls = 0;
+        using var http = new HttpClient(new StubHandler(request =>
+        {
+            calls++;
+            Assert.AreEqual(calls == 1 ? "old-token" : "new-token", request.Headers.Authorization!.Parameter);
+            return Task.FromResult(calls == 1 || rejectRefreshedToken
+                ? JsonResponse(HttpStatusCode.Unauthorized, "{\"status\":\"error\"}")
+                : JsonResponse(HttpStatusCode.OK, "{\"status\":\"ok\",\"websocket\":{\"id\":42,\"url\":\"wss://ws.api.dmdata.jp/v2/websocket\"}}"));
+        }));
+        var client = new DmdataSocketApiClient(http, new DmdataProviderOptions(
+            new Uri("https://api.dmdata.jp/v2/"), string.Empty,
+            DmdataAuthenticationMode.OAuthAccessToken, false) { ReceiveWeatherWarnings = true }, credentials);
+        if (rejectRefreshedToken)
+            await Assert.ThrowsExactlyAsync<DmdataApiException>(() => client.StartAsync(CancellationToken.None));
+        else
+            Assert.AreEqual("42", (await client.StartAsync(CancellationToken.None)).SocketId);
+        Assert.AreEqual(2, calls);
+        Assert.AreEqual(1, credentials.RefreshCount);
+    }
+
+    private sealed class RefreshingCredentialProvider : IDmdataCredentialProvider
+    {
+        public int RefreshCount { get; private set; }
+        public DmdataCredential GetCredential() => new(DmdataAuthenticationMode.OAuthAccessToken,
+            RefreshCount == 0 ? "old-token" : "new-token");
+        public Task<bool> RefreshAfterUnauthorizedAsync(string rejectedToken, CancellationToken cancellationToken)
+        {
+            Assert.AreEqual("old-token", rejectedToken);
+            RefreshCount++;
+            return Task.FromResult(true);
+        }
+    }
+
+    [TestMethod]
     public async Task StartUsesOfficialV2RawXmlRequestAndBasicAuthentication()
     {
         HttpRequestMessage? captured = null;

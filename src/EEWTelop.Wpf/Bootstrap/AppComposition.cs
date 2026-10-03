@@ -24,6 +24,7 @@ using EEWTelop.Infrastructure.Logging;
 using EEWTelop.Infrastructure.Dmdata.Configuration;
 using EEWTelop.Infrastructure.Dmdata.Normalization;
 using EEWTelop.Infrastructure.Dmdata.Transport;
+using EEWTelop.Infrastructure.Dmdata.Security;
 #endif
 using EEWTelop.Infrastructure.P2P.Configuration;
 using EEWTelop.Infrastructure.P2P.Normalization;
@@ -133,9 +134,12 @@ public static class AppComposition
         eventSources[ReceptionProvider.JmaXml] = new JmaPullEventSource(settings.Provider, clock)
             { FallbackRouting = fallbackRouting };
         #endif
+        IDmdataOAuthService? dmdataOAuthService = null;
         if (BuildFeatures.DmdataProviderEnabled)
         {
 #if QTELOPPER_DMDATA_PROVIDER
+            dmdataOAuthService = new DmdataOAuthService(
+                Path.Combine(applicationDataDirectory, "dmdata-oauth.json"), clock);
             DmdataProviderOptions dmdataOptions = DmdataProviderOptions.FromSettings(
                 settings.Provider,
                 BuildFeatures.ExtendedFeaturesEnabled);
@@ -143,7 +147,8 @@ public static class AppComposition
                 dmdataOptions,
                 clock,
                 logWriter,
-                BuildFeatures.ExtendedFeaturesEnabled);
+                BuildFeatures.ExtendedFeaturesEnabled,
+                dmdataOAuthService);
 #endif
         }
         if (BuildFeatures.AxisProviderEnabled)
@@ -171,6 +176,7 @@ public static class AppComposition
             InitialSettings: settings,
             IdGenerator: new GuidIdGenerator(),
             SettingsStore: settingsStore,
+            DmdataOAuthService: dmdataOAuthService,
             LogWriter: logWriter,
             UiLogs: uiLogs,
             Provider: provider,
@@ -281,11 +287,14 @@ public sealed record AppServices(
     ISourceComparisonService? SourceComparison = null,
     ISettingsProfileStore? ProfileStore = null,
     ITestCaseLibrary? TestCaseLibrary = null,
-    IAxisTokenRefreshService? AxisTokenRefreshService = null) : IAsyncDisposable
+    IAxisTokenRefreshService? AxisTokenRefreshService = null,
+    IDmdataOAuthService? DmdataOAuthService = null) : IAsyncDisposable
 {
     public async ValueTask DisposeAsync()
     {
         await EventSource.DisposeAsync().ConfigureAwait(false);
+        if (DmdataOAuthService is IDisposable oauthDisposable)
+            oauthDisposable.Dispose();
         if (AxisTokenRefreshService is IDisposable tokenRefreshDisposable)
         {
             tokenRefreshDisposable.Dispose();

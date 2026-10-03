@@ -14,6 +14,9 @@
         <SolidColorBrush x:Key="Panel2Brush" Color="#FF202C38" />
         <SolidColorBrush x:Key="AccentBrush" Color="#FFEF5B35" />
         <SolidColorBrush x:Key="MutedBrush" Color="#FF9AA8B7" />
+        <Style TargetType="Hyperlink">
+            <Setter Property="Foreground" Value="#FF8DDCFF" />
+        </Style>
         <!-- Windowsテーマ側の白文字リソースをコンボボックスへ流入させない。 -->
         <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FF111111" />
         <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FF111111" />
@@ -330,18 +333,47 @@
                                     </StackPanel>
                                     <StackPanel Visibility="{Binding Settings.IsDmdataProvider, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <TextBlock Text="DMDATA.JP（契約者向け）" FontWeight="Bold" />
+                                        <TextBlock Margin="0,4,0,8">
+                                            <Hyperlink NavigateUri="{Binding About.DmdataWebsite}" RequestNavigate="OnExternalLinkRequestNavigate">DMDATA.JP 公式サイトを開く</Hyperlink>
+                                        </TextBlock>
                                         <TextBlock Text="API Base URL" Foreground="{StaticResource MutedBrush}" />
                                         <TextBox Text="{Binding Settings.DmdataApiBaseUrl, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Text="認証方式" Foreground="{StaticResource MutedBrush}" />
+                                        <ComboBox ItemsSource="{Binding Settings.DmdataAuthenticationOptions}"
+                                                  DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                  SelectedValue="{Binding Settings.DmdataAuthenticationMode}" />
+                                        <StackPanel Visibility="{Binding Settings.IsDmdataApiKeyAuthentication, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <TextBlock Text="APIキー（現在のWindows利用者向けに暗号化保存）"
                                                    Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
                                         <PasswordBox x:Name="DmdataCredentialBox"
                                                      PasswordChanged="OnDmdataCredentialChanged" />
+                                        </StackPanel>
+                                        <StackPanel Visibility="{Binding Settings.IsDmdataOAuthAuthentication, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <TextBlock Text="CDI共通の公開クライアントIDを組み込み済みです。通常はID入力・クライアント登録は不要です。「ブラウザーで認証」から、ご自身のDMDATA.JPアカウントで許可してください。認証・解除は受信を停止してから行います。"
+                                                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                                            <WrapPanel>
+                                                <Button Content="ブラウザーで認証" Click="OnDmdataOAuthAuthorize" IsEnabled="{Binding CanManageDmdataOAuth}" />
+                                                <Button Content="認可を解除" Click="OnDmdataOAuthRevoke" IsEnabled="{Binding CanManageDmdataOAuth}" />
+                                                <Button Content="認証を中止" Click="OnDmdataOAuthCancel" IsEnabled="{Binding IsDmdataOAuthBusy}" />
+                                            </WrapPanel>
+                                            <TextBlock Text="{Binding DmdataOAuthStatusText}" Foreground="#FFFFC66D" TextWrapping="Wrap" />
+                                            <TextBlock Text="認可は選択した情報種別に必要な権限のみ要求します。情報種別やEEW契約区分を増やす場合は再認証してください。期限の近いトークンは再接続等のAPI要求時に自動更新します。"
+                                                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                                            <Expander Header="詳細設定（独自のOAuthクライアントを使う場合）" IsExpanded="False">
+                                                <StackPanel>
+                                                    <TextBlock Text="OAuthクライアントID（CId.で始まるID）" Foreground="{StaticResource MutedBrush}" />
+                                                    <TextBox Text="{Binding Settings.DmdataOAuthClientId, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBlock Text="通常は変更不要です。空欄はCDI共通IDを使用します。独自の公開クライアントは認可コード・リフレッシュトークンフローと、リダイレクトURI：http://127.0.0.1/oauth2/callback（ポート指定なし）を登録してください。変更後は再認証が必要です。"
+                                                               Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Expander>
+                                        </StackPanel>
                                         <TextBlock Text="EEW契約区分（EEWをDMDATA.JPにした場合）"
                                                    Foreground="{StaticResource MutedBrush}" />
                                         <ComboBox ItemsSource="{Binding Settings.DmdataEewContractTypes}"
                                                   DisplayMemberPath="Label" SelectedValuePath="Value"
                                                   SelectedValue="{Binding Settings.DmdataEewContractType}" />
-                                        <TextBlock Text="警報契約はeew.warning/VXSE43、予報契約はeew.forecast/VXSE45を要求します。APIキーの実際の契約に合わせてください。"
+                                        <TextBlock Text="警報契約はeew.warning/VXSE43、予報契約はeew.forecast/VXSE45を要求します。実際の契約と認可の範囲に合わせてください。"
                                                    Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
                                         <TextBlock Text="DMDATA.JPのその他の契約区分と電文型は、上の情報種別ごとの選択から自動設定します。"
                                                    Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,6,0,0" />
@@ -1149,6 +1181,50 @@
                             </ListBox.ItemTemplate>
                         </ListBox>
                     </Grid>
+                </TabItem>
+                <TabItem Header="バージョン情報">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="18">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                                <Image Source="Assets/CDI-Telopper.png" Width="64" Height="64" Stretch="Uniform" />
+                                <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
+                                    <TextBlock Text="{Binding About.ProductName}" FontSize="24" FontWeight="Bold" />
+                                    <TextBlock Text="{Binding About.FormalName}" Foreground="{StaticResource MutedBrush}" />
+                                </StackPanel>
+                            </StackPanel>
+                            <TextBlock Text="バージョン" FontWeight="Bold" />
+                            <TextBlock Text="{Binding About.Version}" FontSize="20" Margin="0,3,0,10" />
+                            <TextBlock Text="ビルド情報" Foreground="{StaticResource MutedBrush}" />
+                            <TextBlock Text="{Binding About.BuildVersion}" TextWrapping="Wrap" Margin="0,3,0,14" />
+                            <TextBlock Text="ソフトウェアについて" FontSize="18" FontWeight="Bold" Margin="0,0,0,8" />
+                            <TextBlock Text="地震・緊急地震速報・津波・気象・火山などの災害情報を受信し、字幕・音声をOBSへ出力するWindows用ソフトウェアです。受信・過去電文の確認、訓練、ブラウザーモニター、ローカル外部API連携に対応します。利用できる情報は受信元・契約・ビルドの構成によって異なります。"
+                                       TextWrapping="Wrap" Margin="0,0,0,12" />
+                            <TextBlock Text="{Binding About.Copyright}" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,14" />
+                            <TextBlock Text="関連リンク・お問い合わせ" FontSize="18" FontWeight="Bold" Margin="0,0,0,8" />
+                            <TextBlock Text="リンクは既定のブラウザー、メールは既定のメールアプリで開きます。各サービスの利用条件をご確認ください。"
+                                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,10" />
+                            <ItemsControl ItemsSource="{Binding About.Links}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0,0,0,12">
+                                            <TextBlock TextWrapping="Wrap">
+                                                <Hyperlink NavigateUri="{Binding Uri}" RequestNavigate="OnExternalLinkRequestNavigate">
+                                                    <Run Text="{Binding Label}" />
+                                                </Hyperlink>
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding Uri.AbsoluteUri}" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,3,0,0" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="お問い合わせ先" FontWeight="Bold" />
+                            <TextBox Text="{Binding About.ContactEmail, Mode=OneWay}" IsReadOnly="True" ToolTip="メールアドレスを選択してコピーできます。" />
+                            <Border Background="#FF352A13" CornerRadius="8" Padding="12" Margin="0,8,0,0">
+                                <TextBlock Text="本ソフトウェアは気象庁・受信サービス提供元の公式ソフトウェアではありません。情報の即時性・完全性・動作を保証するものではなく、防災判断には公式情報を併用してください。外部API連携を含む利用条件は「利用規約・免責事項」をご確認ください。"
+                                           Foreground="#FFFFC66D" TextWrapping="Wrap" />
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
                 </TabItem>
             </TabControl>
         </Grid>

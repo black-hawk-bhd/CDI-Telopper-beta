@@ -134,6 +134,14 @@ public sealed class OperationalSelfCheckService(
                         string.IsNullOrWhiteSpace(provider.AxisProtectedAccessToken) ? "アクセストークン未設定" : "暗号化済みトークン設定あり");
                     break;
                 case ReceptionProvider.Dmdata:
+                    if (provider.DmdataAuthenticationMode == DmdataAuthenticationMode.OAuthAccessToken)
+                    {
+                        Add("dmdata OAuth認証設定", SelfCheckStatus.Warning,
+                            DmdataOAuthDefaults.ResolveClientId(provider.DmdataOAuthClientId) == DmdataOAuthDefaults.ClientId
+                                ? "CDI共通OAuthクライアント使用（認可状態・必要権限は受信接続で確認）"
+                                : "独自OAuthクライアント使用（認可状態・必要権限は受信接続で確認）");
+                        break;
+                    }
                     bool encrypted = !string.IsNullOrWhiteSpace(
                         provider.DmdataProtectedCredential);
                     string variable = provider.DmdataCredentialEnvironmentVariable;

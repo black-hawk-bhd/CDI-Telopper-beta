@@ -35,6 +35,7 @@ Microsoft/
 !/docs/weather-heading-layout.md
 !/docs/external-api-v1.md
 !/docs/disaster-simulator.md
+!/docs/dmdata-oauth.md
 
 # External reference and raw test data belong in the local archive
 /JMA_Format/
@@ -51,6 +52,8 @@ Microsoft/
 
 # Runtime and user-provided data must not be published
 settings.json
+dmdata-oauth.json
+dmdata-oauth.json.*.tmp
 state.json
 logs/
 cache/

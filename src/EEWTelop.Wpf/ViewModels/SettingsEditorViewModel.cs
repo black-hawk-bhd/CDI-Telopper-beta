@@ -31,6 +31,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private string _dmdataApiBaseUrl;
     private string _dmdataCredential;
     private DmdataAuthenticationMode _dmdataAuthenticationMode;
+    private string _dmdataOAuthClientId;
     private DmdataEewContractType _dmdataEewContractType;
     private bool _dmdataIncludeTestTelegrams;
     private bool _dmdataReceiveEewWarnings;
@@ -176,14 +177,13 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _webSocketUrl = provider.WebSocketUri.AbsoluteUri;
         _restBaseUrl = provider.RestBaseUri.AbsoluteUri.TrimEnd('/');
         _dmdataApiBaseUrl = settings.Provider.DmdataApiBaseUrl;
-        // OAuth remains readable for legacy migration, but it is no longer an
-        // operator-selectable connection method.  Do not reinterpret an old
-        // OAuth access token as an API key.
+        // Legacy pasted OAuth tokens are never reinterpreted as API keys.
         _dmdataCredential = settings.Provider.DmdataAuthenticationMode ==
             EEWTelop.Application.Configuration.DmdataAuthenticationMode.ApiKey
                 ? ResolveDmdataCredential(settings.Provider)
                 : string.Empty;
-        _dmdataAuthenticationMode = EEWTelop.Application.Configuration.DmdataAuthenticationMode.ApiKey;
+        _dmdataAuthenticationMode = settings.Provider.DmdataAuthenticationMode;
+        _dmdataOAuthClientId = DmdataOAuthDefaults.ResolveClientId(settings.Provider.DmdataOAuthClientId);
         _dmdataEewContractType = settings.Provider.DmdataEewContractType;
         _dmdataIncludeTestTelegrams = settings.Provider.DmdataIncludeTestTelegrams;
         _dmdataReceiveEewWarnings = settings.Provider.DmdataReceiveEewWarnings;
@@ -375,7 +375,14 @@ public sealed class SettingsEditorViewModel : ObservableObject
         static option => option.Value != ReceptionProvider.Disabled);
 
     public IReadOnlyList<DmdataAuthenticationMode> DmdataAuthenticationModes { get; } =
-        [EEWTelop.Application.Configuration.DmdataAuthenticationMode.ApiKey];
+        [EEWTelop.Application.Configuration.DmdataAuthenticationMode.ApiKey,
+         EEWTelop.Application.Configuration.DmdataAuthenticationMode.OAuthAccessToken];
+
+    public IReadOnlyList<DmdataAuthenticationModeOption> DmdataAuthenticationOptions { get; } =
+    [
+        new(EEWTelop.Application.Configuration.DmdataAuthenticationMode.ApiKey, "APIキー"),
+        new(EEWTelop.Application.Configuration.DmdataAuthenticationMode.OAuthAccessToken, "OAuth2.0（ブラウザー認証）"),
+    ];
 
     public IReadOnlyList<DmdataEewContractTypeOption> DmdataEewContractTypes { get; } =
     [
@@ -555,7 +562,21 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public string RestBaseUrl { get => _restBaseUrl; set => SetProperty(ref _restBaseUrl, value); }
     public string DmdataApiBaseUrl { get => _dmdataApiBaseUrl; set => SetProperty(ref _dmdataApiBaseUrl, value); }
     public string DmdataCredential { get => _dmdataCredential; set => SetProperty(ref _dmdataCredential, value); }
-    public DmdataAuthenticationMode DmdataAuthenticationMode { get => _dmdataAuthenticationMode; set => SetProperty(ref _dmdataAuthenticationMode, value); }
+    public DmdataAuthenticationMode DmdataAuthenticationMode
+    {
+        get => _dmdataAuthenticationMode;
+        set
+        {
+            if (SetProperty(ref _dmdataAuthenticationMode, value))
+            {
+                OnPropertyChanged(nameof(IsDmdataApiKeyAuthentication));
+                OnPropertyChanged(nameof(IsDmdataOAuthAuthentication));
+            }
+        }
+    }
+    public string DmdataOAuthClientId { get => _dmdataOAuthClientId; set => SetProperty(ref _dmdataOAuthClientId, value); }
+    public bool IsDmdataApiKeyAuthentication => DmdataAuthenticationMode == EEWTelop.Application.Configuration.DmdataAuthenticationMode.ApiKey;
+    public bool IsDmdataOAuthAuthentication => DmdataAuthenticationMode == EEWTelop.Application.Configuration.DmdataAuthenticationMode.OAuthAccessToken;
     public DmdataEewContractType DmdataEewContractType { get => _dmdataEewContractType; set => SetProperty(ref _dmdataEewContractType, value); }
     public bool DmdataIncludeTestTelegrams { get => _dmdataIncludeTestTelegrams; set => SetProperty(ref _dmdataIncludeTestTelegrams, value); }
     public bool DmdataReceiveEewWarnings { get => _dmdataReceiveEewWarnings; set => SetProperty(ref _dmdataReceiveEewWarnings, value); }
@@ -773,10 +794,13 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 JmaXmlAutoFallback = JmaXmlAutoFallback,
                 DmdataApiBaseUrl = DmdataApiBaseUrl.Trim(),
                 DmdataCredentialEnvironmentVariable = string.Empty,
-                DmdataProtectedCredential = ProtectDmdataCredential(
-                    DmdataCredential,
-                    baseline.Provider.DmdataProtectedCredential),
-                DmdataAuthenticationMode = EEWTelop.Application.Configuration.DmdataAuthenticationMode.ApiKey,
+                DmdataProtectedCredential = IsDmdataApiKeyAuthentication
+                    ? ProtectDmdataCredential(DmdataCredential,
+                        baseline.Provider.DmdataAuthenticationMode == EEWTelop.Application.Configuration.DmdataAuthenticationMode.ApiKey
+                            ? baseline.Provider.DmdataProtectedCredential : string.Empty)
+                    : string.Empty,
+                DmdataAuthenticationMode = DmdataAuthenticationMode,
+                DmdataOAuthClientId = DmdataOAuthDefaults.ResolveClientId(DmdataOAuthClientId),
                 DmdataEewContractType = DmdataEewContractType,
                 DmdataIncludeTestTelegrams = DmdataIncludeTestTelegrams,
                 DmdataReceiveEewWarnings = routing.Eew == ReceptionProvider.Dmdata,
@@ -1229,6 +1253,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         DmdataApiBaseUrl = defaults.DmdataApiBaseUrl;
         DmdataCredential = string.Empty;
         DmdataAuthenticationMode = EEWTelop.Application.Configuration.DmdataAuthenticationMode.ApiKey;
+        DmdataOAuthClientId = defaults.DmdataOAuthClientId;
         DmdataEewContractType = defaults.DmdataEewContractType;
         DmdataIncludeTestTelegrams = defaults.DmdataIncludeTestTelegrams;
         // Contract categories are opt-in. Never select a category merely because
@@ -1590,6 +1615,8 @@ public sealed record NiiHistoryContentOption(NiiHistoryContent Value, string Lab
 public sealed record DmdataEewContractTypeOption(
     DmdataEewContractType Value,
     string Label);
+
+public sealed record DmdataAuthenticationModeOption(DmdataAuthenticationMode Value, string Label);
 
 public sealed record QuakeAudioThresholdOption(JmaScale Value, string Label);
 

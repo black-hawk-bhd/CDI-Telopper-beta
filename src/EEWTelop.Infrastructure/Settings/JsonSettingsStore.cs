@@ -187,6 +187,7 @@ public sealed class JsonSettingsStore : ISettingsStore
             !Enum.IsDefined(settings.History.Api) ||
             !Enum.IsDefined(settings.History.NiiContent) ||
             !Enum.IsDefined(settings.Provider.DmdataEewContractType) ||
+            !Enum.IsDefined(settings.Provider.DmdataAuthenticationMode) ||
             settings.Log.RawMessageRetentionDays is < 1 or > 90 ||
             settings.Log.RawMessageMaximumTotalMegabytes is < 32 or > 4096 ||
             settings.Operations.TimelineRetentionDays is < 1 or > 90 ||

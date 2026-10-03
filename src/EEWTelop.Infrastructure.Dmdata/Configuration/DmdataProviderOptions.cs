@@ -36,6 +36,23 @@ public sealed record DmdataProviderOptions(
 
     public bool ReceiveEewWarnings { get; init; }
 
+    public string OAuthClientId { get; init; } = DmdataOAuthDefaults.ClientId;
+
+    public IReadOnlyList<string> OAuthScopes
+    {
+        get
+        {
+            var scopes = new List<string> { "socket.start", "socket.close" };
+            if (ReceiveEewWarnings)
+                scopes.Add(EewContractType == DmdataEewContractType.Warning
+                    ? "eew.get.warning" : "eew.get.forecast");
+            if (ReceiveEarthquakeTelegrams) scopes.Add("telegram.get.earthquake");
+            if (ReceiveWeatherWarnings) scopes.Add("telegram.get.weather");
+            if (ReceiveVolcanoTelegrams) scopes.Add("telegram.get.volcano");
+            return scopes;
+        }
+    }
+
     public DmdataEewContractType EewContractType { get; init; } =
         DmdataEewContractType.Warning;
 
@@ -95,9 +112,9 @@ public sealed record DmdataProviderOptions(
         bool allowExtendedCategories = true)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        string credential = DmdataCredentialProtector.Unprotect(
-            settings.DmdataProtectedCredential);
-        if (string.IsNullOrWhiteSpace(credential) &&
+        string credential = settings.DmdataAuthenticationMode == DmdataAuthenticationMode.ApiKey
+            ? DmdataCredentialProtector.Unprotect(settings.DmdataProtectedCredential) : string.Empty;
+        if (settings.DmdataAuthenticationMode == DmdataAuthenticationMode.ApiKey && string.IsNullOrWhiteSpace(credential) &&
             !string.IsNullOrWhiteSpace(settings.DmdataCredentialEnvironmentVariable))
         {
             // Compatibility path for settings created before schema 22. New
@@ -115,6 +132,7 @@ public sealed record DmdataProviderOptions(
             settings.DmdataAuthenticationMode,
             settings.DmdataIncludeTestTelegrams)
         {
+            OAuthClientId = DmdataOAuthDefaults.ResolveClientId(settings.DmdataOAuthClientId),
             ReceiveEewWarnings = usesDmdataRouting
                 ? settings.Routing.Eew == ReceptionProvider.Dmdata
                 : settings.DmdataReceiveEewWarnings,
@@ -152,7 +170,20 @@ public sealed record DmdataProviderOptions(
             errors.Add("DMDATA.JP API URL must use https.");
         }
 
-        if (string.IsNullOrWhiteSpace(Credential))
+        if (!Enum.IsDefined(AuthenticationMode))
+        {
+            errors.Add("DMDATA.JP authentication mode is invalid.");
+        }
+        else if (AuthenticationMode == DmdataAuthenticationMode.OAuthAccessToken)
+        {
+            if (!OAuthClientId.StartsWith("CId.", StringComparison.Ordinal) ||
+                OAuthClientId.Length <= 4 || OAuthClientId.Any(char.IsWhiteSpace))
+                errors.Add("DMDATA.JP OAuthクライアントID（CId.で始まるID）を設定してください。");
+            if (!string.Equals(ApiBaseUri.Host, "api.dmdata.jp", StringComparison.OrdinalIgnoreCase) ||
+                !ApiBaseUri.IsDefaultPort || !string.IsNullOrEmpty(ApiBaseUri.UserInfo))
+                errors.Add("OAuth認証では公式API（https://api.dmdata.jp/v2）を使用してください。");
+        }
+        else if (string.IsNullOrWhiteSpace(Credential))
         {
             errors.Add("DMDATA.JP credential is required.");
         }

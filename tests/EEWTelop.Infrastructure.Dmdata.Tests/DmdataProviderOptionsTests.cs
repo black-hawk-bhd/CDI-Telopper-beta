@@ -17,6 +17,67 @@ public sealed class DmdataProviderOptionsTests
     private static readonly string[] EarthquakeClassification =
         ["telegram.earthquake"];
 
+    private static readonly string[] WeatherOAuthScopes = ["socket.start", "socket.close", "telegram.get.weather"];
+
+    [TestMethod]
+    public void NewOAuthSettingsUseTheEmbeddedPublicClient()
+    {
+        Assert.AreEqual(DmdataOAuthDefaults.ClientId,
+            AppSettings.CreateDefault().Provider.DmdataOAuthClientId);
+        var options = new DmdataProviderOptions(new Uri("https://api.dmdata.jp/v2/"),
+            string.Empty, DmdataAuthenticationMode.OAuthAccessToken, false)
+        { ReceiveWeatherWarnings = true };
+        Assert.AreEqual(DmdataOAuthDefaults.ClientId, options.OAuthClientId);
+        Assert.AreEqual(0, options.Validate().Count);
+    }
+
+    [TestMethod]
+    [DataRow(null)]
+    [DataRow("")]
+    [DataRow(" \t ")]
+    public void LegacyEmptyOAuthClientIdFallsBackToEmbeddedClient(string? clientId)
+    {
+        ProviderSettings settings = AppSettings.CreateDefault().Provider with
+        {
+            DmdataOAuthClientId = clientId!,
+            DmdataAuthenticationMode = DmdataAuthenticationMode.OAuthAccessToken,
+            Routing = ProviderRoutingSettings.FromLegacy(ReceptionProvider.Disabled) with
+            { Weather = ReceptionProvider.Dmdata },
+        };
+        DmdataProviderOptions options = DmdataProviderOptions.FromSettings(settings);
+        Assert.AreEqual(DmdataOAuthDefaults.ClientId, options.OAuthClientId);
+        Assert.AreEqual(0, options.Validate().Count);
+        Assert.AreEqual(string.Empty, options.Credential);
+        CollectionAssert.AreEqual(WeatherOAuthScopes, options.OAuthScopes.ToArray());
+    }
+
+    [TestMethod]
+    public void ExistingCustomOAuthClientIdIsPreservedAndTrimmed()
+    {
+        ProviderSettings settings = AppSettings.CreateDefault().Provider with
+        { DmdataOAuthClientId = "  CId.custom-client  " };
+        Assert.AreEqual("CId.custom-client", DmdataProviderOptions.FromSettings(settings).OAuthClientId);
+    }
+
+    [TestMethod]
+    public void OAuthUsesOnlySelectedScopesAndNeverUsesApiKeyFallback()
+    {
+        ProviderSettings settings = AppSettings.CreateDefault().Provider with
+        {
+            DmdataAuthenticationMode = DmdataAuthenticationMode.OAuthAccessToken,
+            DmdataOAuthClientId = "CId.client",
+            DmdataProtectedCredential = DmdataCredentialProtector.Protect("legacy-oauth-token"),
+            Routing = ProviderRoutingSettings.FromLegacy(ReceptionProvider.Disabled) with
+            { Weather = ReceptionProvider.Dmdata },
+        };
+        DmdataProviderOptions options = DmdataProviderOptions.FromSettings(settings);
+        CollectionAssert.AreEqual(WeatherOAuthScopes, options.OAuthScopes.ToArray());
+        Assert.AreEqual(string.Empty, options.Credential);
+        Assert.AreEqual(0, options.Validate().Count);
+        Assert.IsTrue((options with { ApiBaseUri = new Uri("https://example.invalid/v2/") }).Validate().Count > 0);
+        Assert.IsTrue((options with { OAuthClientId = string.Empty }).Validate().Count > 0);
+    }
+
     [TestMethod]
     public void NewSettingsDoNotRequestAnyUnselectedContractCategory()
     {

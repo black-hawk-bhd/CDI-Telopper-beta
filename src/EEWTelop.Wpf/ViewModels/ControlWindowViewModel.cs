@@ -144,6 +144,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             "1",
             StringComparison.Ordinal);
         _settings = settings;
+        if (services.DmdataOAuthService?.Session is not null)
+            _dmdataOAuthStatusText = "OAuth認証を暗号化保存済みです。必要な権限は接続時に確認します。";
         _confirmationService = confirmationService;
         _dispatcher = dispatcher;
         _previewCoordinator = new PriorityCoordinator(services.Clock, settings.Display);
@@ -166,11 +168,11 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         _lastConnectionSnapshot = services.EventSource.Connection;
         services.IngestionPipeline.HoldBeforeDisplay = false;
 
-        ConnectCommand = new RelayCommand(StartConnection, () => !IsConnectedOrConnecting);
+        ConnectCommand = new RelayCommand(StartConnection, () => !IsConnectedOrConnecting && !IsDmdataOAuthBusy && !_dmdataOAuthReceptionActive);
         DisconnectCommand = new RelayCommand(
             RequestManualDisconnect,
-            () => IsConnectedOrConnecting);
-        SaveSettingsCommand = new RelayCommand(() => _ = SaveSettingsFromCommandAsync());
+            () => IsConnectedOrConnecting || _dmdataOAuthReceptionActive);
+        SaveSettingsCommand = new RelayCommand(() => _ = SaveSettingsFromCommandAsync(), () => !IsDmdataOAuthBusy);
         ResetAudioSettingsCommand = new RelayCommand(Settings.ResetAudioSettings);
         ResetReceptionSettingsCommand = new RelayCommand(Settings.ResetReceptionSettings);
         ResetFilterSettingsCommand = new RelayCommand(Settings.ResetFilterSettings);
@@ -574,6 +576,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
     public string ApplicationVersionText => _applicationVersionText;
 
+    public AboutViewModel About { get; } = new();
+
     public string ObsBrowserSourceDescription => _obsBrowserSourceDescription;
 
     public string ObsUrlText => _obsServer?.OverlayUrl ?? string.Empty;
@@ -669,6 +673,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
     public async Task SaveSettingsAsync()
     {
+        if (IsDmdataOAuthBusy) return;
         AppSettings updated = Settings.ToSettings(_settings);
         if (updated.Provider.Routing.Uses(ReceptionProvider.Axis))
         {
@@ -874,6 +879,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         }
 
         _disposed = true;
+        _dmdataOAuthStop.Cancel();
+        await _dmdataOAuthTask.ConfigureAwait(false);
         DisconnectSimulator();
         await _simulatorTask.ConfigureAwait(false);
         _axisTokenRefreshStop.Cancel();
@@ -954,10 +961,12 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         _axisTokenRefreshStop.Dispose();
         _axisTokenRefreshGate.Dispose();
         _obsLifecycle.Dispose();
+        _dmdataOAuthStop.Dispose();
     }
 
     private void StartConnection()
     {
+        if (IsDmdataOAuthBusy) return;
         if (_simulatorStop is not null)
         {
             ReceptionStatusText = "シミュレーターを切断してから本番受信を開始してください。";
@@ -984,7 +993,9 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             ReceptionStatusText = _settings.Provider.Mode == ProviderMode.Sandbox
                 ? "Sandbox接続中・表示対象の受信待ち"
                 : "表示対象の受信待ち";
+            _dmdataOAuthReceptionActive = true;
             _receptionTask = RunReceptionAsync();
+            UpdateDmdataOAuthUi();
         }
         catch (Exception exception) when (exception is not StackOverflowException)
         {
@@ -1214,6 +1225,11 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 "受信処理が停止しました。",
                 exception).ConfigureAwait(false);
         }
+        finally
+        {
+            _dmdataOAuthReceptionActive = false;
+            if (!_disposed) UpdateDmdataOAuthUi();
+        }
     }
 
     private async Task StopConnectionAsync()
@@ -1226,11 +1242,12 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         }
 
         _receptionTask = null;
+        UpdateDmdataOAuthUi();
     }
 
     private void RequestManualDisconnect()
     {
-        if (!IsConnectedOrConnecting)
+        if (!IsConnectedOrConnecting && !_dmdataOAuthReceptionActive)
         {
             return;
         }
@@ -2134,6 +2151,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         _lastConnectionSnapshot = snapshot;
         ProviderConnectionState previous = ConnectionState;
         ConnectionState = snapshot.State;
+        OnPropertyChanged(nameof(CanManageDmdataOAuth));
         LastReceivedText = snapshot.LastReceivedAt?.ToLocalTime().ToString(
             "HH:mm:ss",
             CultureInfo.CurrentCulture) ?? "—";
@@ -2677,11 +2695,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         string version = Assembly.GetExecutingAssembly()
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
             .InformationalVersion ?? "unknown";
-        int metadataSeparator = version.IndexOf('+', StringComparison.Ordinal);
-        if (metadataSeparator >= 0)
-        {
-            version = version[..metadataSeparator];
-        }
+        version = AboutViewModel.FormatVersion(version);
 
         return $"Version {version} — OBS配信用災害字幕スーパー送出ソフトウェア";
     }

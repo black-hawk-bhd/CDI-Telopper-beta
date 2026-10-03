@@ -5,16 +5,18 @@
 
 Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津波・気象・火山・南海トラフに関する防災情報を受信し、OBS向け字幕として出力するWindowsアプリです。
 
-現在の公開版は **2.0.0-beta.54** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
+現在の公開版は **2.0.0-beta.55** です。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
 本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
 
-- [2.0.0-beta.54をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.54)
-- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.54.txt)
+- [2.0.0-beta.55をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.55)
+- [詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.55.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
 - [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
 - [利用規約・免責事項](TERMS.md) / [プライバシーポリシー](PRIVACY.md)
 
 ## 主な機能
+
+beta.55: DMDATA.JPのOAuth2.0ブラウザー認証に対応しました。共通の公開クライアントIDを組み込み、通常はID入力不要です。従来のAPIキー方式も維持します。「バージョン情報」タブに実際のバージョン・DMDATA公式サイト・GitHub・配布ページ・規約・メール連絡先をまとめました。
 
 beta.53: 気象警報・注意報の発表中・継続中の地名一覧を既定で1ページ2行にし、続きは都県名と状態を添えて次ページに表示します。「表示・出力」でチェックを外すと従来の3行に戻せます。解除ページや他の情報種別は従来どおりです。EXE・各ウインドウ・タスクトレイのアイコンを更新し、操作画面に新しいブランドロゴを表示します。
 
@@ -108,7 +110,9 @@ https://www.p2pquake.net/develop/
 
 ### DMDATA.JP
 
-利用者自身の契約とAPIキーが必要です。EEWは契約に合わせて警報契約（VXSE43）または予報契約（VXSE45）を選択します。予報契約では、警報を含むVXSE45と取消を字幕対象とします。気象庁発表情報を扱う外部サービスとして、公式情報と併用してください。料金は有料です。
+利用者自身の契約と、APIキーまたはOAuth2.0による認可が必要です。EEWは契約に合わせて警報契約（VXSE43）または予報契約（VXSE45）を選択します。予報契約では、警報を含むVXSE45と取消を字幕対象とします。気象庁発表情報を扱う外部サービスとして、公式情報と併用してください。料金は有料です。
+
+beta.55以降では、APIキーに加えてOAuth2.0のブラウザー認証を利用できます。CDI共通の公開クライアントIDを組み込み済みのため、通常はID入力・クライアント登録が不要です。「認証方式」でOAuth2.0を選び「ブラウザーで認証」を押し、ご自身のアカウントで許可します。トークンはWindows利用者ごとに暗号化保存し、再接続等のAPI要求時に期限が近ければ自動更新します。接続方法・必要権限・認可解除は[OAuth設定手順](docs/dmdata-oauth.md)を参照してください。
 
 ※法人向けの方は法人向けプランの契約が必要です。
 
@@ -190,10 +194,10 @@ powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 配布物を作成する場合は次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.54
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.55
 ```
 
-フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.54\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
+フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.55\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
 
 ## 開発者向け資料
 

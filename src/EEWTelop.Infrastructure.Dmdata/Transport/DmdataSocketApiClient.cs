@@ -40,7 +40,7 @@ internal sealed class DmdataSocketApiClient
             _options.IncludeTestTelegrams ? "including" : "no",
             "CDI-Telopper",
             "raw");
-        using var request = new HttpRequestMessage(
+        using HttpResponseMessage response = await SendAuthorizedAsync(() => new HttpRequestMessage(
             HttpMethod.Post,
             new Uri(_options.ApiBaseUri, "socket"))
         {
@@ -48,12 +48,7 @@ internal sealed class DmdataSocketApiClient
                 JsonSerializer.Serialize(requestBody, JsonOptions),
                 Encoding.UTF8,
                 "application/json"),
-        };
-        AddAuthorization(request);
-
-        using HttpResponseMessage response = await _httpClient
-            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-            .ConfigureAwait(false);
+        }, cancellationToken).ConfigureAwait(false);
         string responseJson = await response.Content.ReadAsStringAsync(cancellationToken)
             .ConfigureAwait(false);
         DmdataSocketStartResponse? payload = JsonSerializer.Deserialize<DmdataSocketStartResponse>(
@@ -81,12 +76,9 @@ internal sealed class DmdataSocketApiClient
             return;
         }
 
-        using var request = new HttpRequestMessage(
+        using HttpResponseMessage response = await SendAuthorizedAsync(() => new HttpRequestMessage(
             HttpMethod.Delete,
-            new Uri(_options.ApiBaseUri, $"socket/{Uri.EscapeDataString(socketId)}"));
-        AddAuthorization(request);
-        using HttpResponseMessage response = await _httpClient
-            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            new Uri(_options.ApiBaseUri, $"socket/{Uri.EscapeDataString(socketId)}")), cancellationToken)
             .ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
@@ -96,9 +88,37 @@ internal sealed class DmdataSocketApiClient
         }
     }
 
-    private void AddAuthorization(HttpRequestMessage request)
+    private async Task<HttpResponseMessage> SendAuthorizedAsync(
+        Func<HttpRequestMessage> createRequest, CancellationToken cancellationToken)
     {
-        DmdataCredential credential = _credentialProvider.GetCredential();
+        for (int attempt = 0; ; attempt++)
+        {
+            using HttpRequestMessage request = createRequest();
+            DmdataCredential credential = await _credentialProvider.GetCredentialAsync(cancellationToken).ConfigureAwait(false);
+            AddAuthorization(request, credential);
+            HttpResponseMessage response = await _httpClient.SendAsync(request,
+                HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            if (response.StatusCode != System.Net.HttpStatusCode.Unauthorized || attempt != 0 ||
+                credential.AuthenticationMode != DmdataAuthenticationMode.OAuthAccessToken)
+                return response;
+            bool refreshed;
+            try
+            {
+                refreshed = await _credentialProvider.RefreshAfterUnauthorizedAsync(
+                    credential.Secret, cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                response.Dispose();
+                throw;
+            }
+            if (!refreshed) return response;
+            response.Dispose();
+        }
+    }
+
+    private static void AddAuthorization(HttpRequestMessage request, DmdataCredential credential)
+    {
         request.Headers.Authorization = credential.AuthenticationMode switch
         {
             DmdataAuthenticationMode.ApiKey => new AuthenticationHeaderValue(

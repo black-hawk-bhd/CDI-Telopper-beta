@@ -24,10 +24,10 @@ beta.51 adds per-domain upstream health, a separately authenticated rehearsal AP
 
 beta.50 improves unreported-intensity normalization and labeling, removes trailing full-width station markers only from display text, and preserves observed and unreported entries at the same place. Simulator decoding and additive external API fields are improved while training/live separation remains enforced.
 
-The current public release is **2.0.0-beta.54**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.55**. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.54](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.54)
-- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.54.txt)
+- [Download 2.0.0-beta.55](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.55)
+- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.55.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
@@ -103,7 +103,11 @@ The P2PQuake API is not an official API operated by JMA. Treat it as an external
 
 ### DMDATA.JP
 
-You must provide your own subscription and API key. For EEW, select either a warning subscription (VXSE43) or forecast subscription (VXSE45), according to your contract. With a forecast subscription, CDI-Telopper displays VXSE45 messages that contain a warning, as well as their cancellations.
+You must provide your own subscription and either an API key or OAuth2.0 authorization. For EEW, select either a warning subscription (VXSE43) or forecast subscription (VXSE45), according to your contract. With a forecast subscription, CDI-Telopper displays VXSE45 messages that contain a warning, as well as their cancellations.
+
+Since beta.55, OAuth2.0 browser authorization is available alongside API-key authentication. CDI's public client ID is embedded, so normal users do not need to register a client or enter an ID. Select OAuth2.0, authorize your own account in the browser, and save the settings. Accounts, contracts and tokens are not shared. Tokens are protected with Windows DPAPI CurrentUser and refreshed when needed for API requests such as reconnection. See the [OAuth setup guide](docs/dmdata-oauth.md) for connection, scopes and revocation.
+
+The About tab shows the actual application version, build information, DMDATA website, GitHub repository, releases, policies and contact email. DMDATA reception settings also include a direct link to the official website. Links open in the default browser or mail application.
 
 ### AXIS
 
@@ -175,10 +179,10 @@ The script restores dependencies, builds every project in the Release configurat
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.54
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.55
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.54\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.55\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
 
 ## External API integration: terms and disclaimer
 

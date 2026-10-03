@@ -44,6 +44,32 @@ public partial class ControlWindow : Window, IAsyncDisposable
     }
 
     private void OnSimulatorDisconnect(object sender, RoutedEventArgs e) => _viewModel.DisconnectSimulator();
+    private async void OnDmdataOAuthAuthorize(object sender, RoutedEventArgs e) =>
+        await _viewModel.AuthorizeDmdataOAuthAsync(uri =>
+        {
+            using var browser = System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+        });
+
+    private async void OnDmdataOAuthRevoke(object sender, RoutedEventArgs e) =>
+        await _viewModel.RevokeDmdataOAuthAsync();
+
+    private void OnDmdataOAuthCancel(object sender, RoutedEventArgs e) => _viewModel.CancelDmdataOAuth();
+
+    private void OnExternalLinkRequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+    {
+        e.Handled = true;
+        if (!_viewModel.About.CanOpenLink(e.Uri)) return;
+        try
+        {
+            using var process = System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+        }
+        catch (Exception exception) when (exception is Win32Exception or InvalidOperationException or System.IO.IOException)
+        {
+            MessageBox.Show(this, "リンクを開けませんでした。表示されたURLまたはメールアドレスを手動で開いてください。", "バージョン情報", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
     private readonly ControlWindowViewModel _viewModel;
     private readonly E2ETestPipeServer? _e2eTestPipeServer;
     private PreviewWindow? _previewWindow;

@@ -20,6 +20,7 @@ public sealed class DmdataEventSource : IEventSource, IProviderConfigurableEvent
     private readonly IAppLogWriter _logWriter;
     private readonly HttpClient _httpClient;
     private readonly bool _allowExtendedCategories;
+    private readonly IDmdataOAuthService? _oauthService;
     private DmdataProviderOptions _options;
     private CancellationTokenSource? _readerCancellation;
     private CancellationTokenSource? _attemptCancellation;
@@ -31,7 +32,8 @@ public sealed class DmdataEventSource : IEventSource, IProviderConfigurableEvent
         DmdataProviderOptions options,
         IClock clock,
         IAppLogWriter logWriter,
-        bool allowExtendedCategories = true)
+        bool allowExtendedCategories = true,
+        IDmdataOAuthService? oauthService = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(clock);
@@ -40,7 +42,9 @@ public sealed class DmdataEventSource : IEventSource, IProviderConfigurableEvent
         _clock = clock;
         _logWriter = logWriter;
         _allowExtendedCategories = allowExtendedCategories;
-        _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+        _oauthService = oauthService;
+        _httpClient = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+            { Timeout = TimeSpan.FromSeconds(20) };
         _connection = new ProviderConnectionSnapshot(
             ProviderConnectionState.Stopped,
             clock.UtcNow,
@@ -116,6 +120,8 @@ public sealed class DmdataEventSource : IEventSource, IProviderConfigurableEvent
                 }
 
                 IReadOnlyList<string> errors = options.Validate();
+                if (options.AuthenticationMode == DmdataAuthenticationMode.OAuthAccessToken && _oauthService is null)
+                    errors = [.. errors, "DMDATA OAuth認証サービスを利用できません。"];
                 if (errors.Count > 0)
                 {
                     Transition(ProviderConnectionState.Faulted, string.Join(" ", errors));
@@ -125,9 +131,10 @@ public sealed class DmdataEventSource : IEventSource, IProviderConfigurableEvent
                 Transition(
                     retry == 0 ? ProviderConnectionState.Connecting : ProviderConnectionState.Reconnecting,
                     "DMDATA.JP raw XML");
-                var credentialProvider = new FixedDmdataCredentialProvider(
-                    options.Credential,
-                    options.AuthenticationMode);
+                IDmdataCredentialProvider credentialProvider = options.AuthenticationMode == DmdataAuthenticationMode.OAuthAccessToken &&
+                    _oauthService is not null
+                    ? new OAuthDmdataCredentialProvider(_oauthService, options.OAuthClientId, options.OAuthScopes)
+                    : new FixedDmdataCredentialProvider(options.Credential, options.AuthenticationMode);
                 var socketApi = new DmdataSocketApiClient(_httpClient, options, credentialProvider);
                 using var attempt = CancellationTokenSource.CreateLinkedTokenSource(runToken);
                 lock (_gate)
@@ -164,6 +171,14 @@ public sealed class DmdataEventSource : IEventSource, IProviderConfigurableEvent
                                 authorizationFailure,
                                 exception,
                                 runToken).ConfigureAwait(false);
+                            break;
+                        }
+                        catch (DmdataOAuthException exception) when (exception.RequiresAuthorization)
+                        {
+                            terminalFault = true;
+                            Transition(ProviderConnectionState.Faulted, exception.Message);
+                            await LogAsync(AppLogLevel.Error, "DmdataOAuthAuthorizationRequired",
+                                exception.Message, null, runToken).ConfigureAwait(false);
                             break;
                         }
                         catch (InvalidOperationException exception)

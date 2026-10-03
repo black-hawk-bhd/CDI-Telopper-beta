@@ -27,6 +27,9 @@ namespace EEWTelop.Wpf.Tests;
 [TestClass]
 public sealed class Phase6ViewModelTests
 {
+    private static readonly string[] EmbeddedClientWeatherScopes =
+        ["socket.start", "socket.close", "telegram.get.weather"];
+
     [TestMethod]
     public void DistributionSettingsExposeEnabledProvidersAndSupportedPresentationOptions()
     {
@@ -152,11 +155,151 @@ public sealed class Phase6ViewModelTests
         AppSettings saved = editor.ToSettings(legacy);
 
         CollectionAssert.AreEqual(
-            new[] { DmdataAuthenticationMode.ApiKey },
+            new[] { DmdataAuthenticationMode.ApiKey, DmdataAuthenticationMode.OAuthAccessToken },
             editor.DmdataAuthenticationModes.ToArray());
         Assert.AreEqual(string.Empty, editor.DmdataCredential);
-        Assert.AreEqual(DmdataAuthenticationMode.ApiKey, saved.Provider.DmdataAuthenticationMode);
+        Assert.AreEqual(DmdataAuthenticationMode.OAuthAccessToken, saved.Provider.DmdataAuthenticationMode);
         Assert.AreEqual(string.Empty, saved.Provider.DmdataProtectedCredential);
+    }
+
+    [TestMethod]
+    public async Task DmdataOAuthAuthorizationUsesSelectedCategoriesAndKeepsTokensOutOfSettings()
+    {
+        AppSettings settings = AppSettings.CreateDefault();
+        var oauth = new FakeDmdataOAuthService();
+        await using var viewModel = new ControlWindowViewModel(
+            CreateServices(ProviderConnectionState.Stopped, dmdataOAuthService: oauth), settings,
+            new FakeConfirmationService(), new ImmediateUiDispatcher());
+        viewModel.Settings.DmdataAuthenticationMode = DmdataAuthenticationMode.OAuthAccessToken;
+        viewModel.Settings.DmdataOAuthClientId = "CId.client";
+        viewModel.Settings.WeatherProvider = ReceptionProvider.Dmdata;
+        bool browserOpened = false;
+        await viewModel.AuthorizeDmdataOAuthAsync(_ => browserOpened = true);
+        Assert.IsTrue(browserOpened);
+        Assert.AreEqual("CId.client", oauth.ClientId);
+        CollectionAssert.Contains(oauth.Scopes.ToArray(), "telegram.get.weather");
+        CollectionAssert.DoesNotContain(oauth.Scopes.ToArray(), "eew.get.warning");
+        await viewModel.SaveSettingsAsync();
+        AppSettings saved = viewModel.Settings.ToSettings(settings);
+        Assert.AreEqual(DmdataAuthenticationMode.OAuthAccessToken, saved.Provider.DmdataAuthenticationMode);
+        Assert.AreEqual("CId.client", saved.Provider.DmdataOAuthClientId);
+        Assert.AreEqual(string.Empty, saved.Provider.DmdataProtectedCredential);
+        await viewModel.RevokeDmdataOAuthAsync();
+        Assert.IsTrue(oauth.Revoked);
+    }
+
+    [TestMethod]
+    [DataRow(null)]
+    [DataRow("")]
+    [DataRow(" \t ")]
+    public void EmptyOAuthClientIdIsRestoredAndSavedAsEmbeddedClient(string? clientId)
+    {
+        AppSettings defaults = AppSettings.CreateDefault();
+        AppSettings legacy = defaults with
+        { Provider = defaults.Provider with { DmdataOAuthClientId = clientId! } };
+        var editor = new SettingsEditorViewModel(legacy);
+        Assert.AreEqual(DmdataOAuthDefaults.ClientId, editor.DmdataOAuthClientId);
+        editor.DmdataOAuthClientId = string.Empty;
+        Assert.AreEqual(DmdataOAuthDefaults.ClientId, editor.ToSettings(legacy).Provider.DmdataOAuthClientId);
+    }
+
+    [TestMethod]
+    public void ResetReceptionSettingsRestoresEmbeddedOAuthClientId()
+    {
+        AppSettings defaults = AppSettings.CreateDefault();
+        var editor = new SettingsEditorViewModel(defaults) { DmdataOAuthClientId = "CId.custom" };
+        Assert.AreEqual("CId.custom", editor.ToSettings(defaults).Provider.DmdataOAuthClientId);
+        editor.ResetReceptionSettings();
+        Assert.AreEqual(DmdataOAuthDefaults.ClientId, editor.DmdataOAuthClientId);
+        Assert.AreEqual(DmdataOAuthDefaults.ClientId, editor.ToSettings(defaults).Provider.DmdataOAuthClientId);
+    }
+
+    [TestMethod]
+    public async Task OAuthAuthorizationWorksWithoutEnteringAClientId()
+    {
+        AppSettings settings = AppSettings.CreateDefault();
+        var oauth = new FakeDmdataOAuthService();
+        await using var viewModel = new ControlWindowViewModel(
+            CreateServices(ProviderConnectionState.Stopped, dmdataOAuthService: oauth), settings,
+            new FakeConfirmationService(), new ImmediateUiDispatcher());
+        viewModel.Settings.DmdataAuthenticationMode = DmdataAuthenticationMode.OAuthAccessToken;
+        viewModel.Settings.WeatherProvider = ReceptionProvider.Dmdata;
+        bool browserOpened = false;
+        await viewModel.AuthorizeDmdataOAuthAsync(_ => browserOpened = true);
+        Assert.IsTrue(browserOpened);
+        Assert.AreEqual(DmdataOAuthDefaults.ClientId, oauth.ClientId);
+        CollectionAssert.AreEqual(
+            EmbeddedClientWeatherScopes, oauth.Scopes.ToArray());
+        Assert.AreEqual(string.Empty, viewModel.Settings.ToSettings(settings).Provider.DmdataProtectedCredential);
+    }
+
+    [TestMethod]
+    public async Task DmdataOAuthWaitingCanBeCancelledAndBlocksConnect()
+    {
+        AppSettings settings = AppSettings.CreateDefault();
+        var oauth = new FakeDmdataOAuthService { WaitForCancellation = true };
+        await using var viewModel = new ControlWindowViewModel(
+            CreateServices(ProviderConnectionState.Stopped, dmdataOAuthService: oauth), settings,
+            new FakeConfirmationService(), new ImmediateUiDispatcher());
+        viewModel.Settings.DmdataOAuthClientId = "CId.client";
+        viewModel.Settings.WeatherProvider = ReceptionProvider.Dmdata;
+        Task pending = viewModel.AuthorizeDmdataOAuthAsync(static _ => { });
+        Assert.IsTrue(viewModel.IsDmdataOAuthBusy);
+        Assert.IsFalse(viewModel.ConnectCommand.CanExecute(null));
+        viewModel.CancelDmdataOAuth();
+        await pending;
+        Assert.IsFalse(viewModel.IsDmdataOAuthBusy);
+        Assert.IsTrue(viewModel.ConnectCommand.CanExecute(null));
+    }
+
+    [TestMethod]
+    public async Task FaultedActiveReceptionCanBeStoppedBeforeOAuthReauthorization()
+    {
+        AppSettings settings = AppSettings.CreateDefault();
+        var oauth = new FakeDmdataOAuthService();
+        var source = new FaultedActiveConfigurableEventSource();
+        AppServices services = CreateServices(ProviderConnectionState.Stopped,
+            suppliedSettings: settings, suppliedEventSource: source, dmdataOAuthService: oauth);
+        await using var viewModel = new ControlWindowViewModel(services, settings,
+            new FakeConfirmationService(), new ImmediateUiDispatcher());
+        viewModel.Settings.WeatherProvider = ReceptionProvider.Dmdata;
+        viewModel.ConnectCommand.Execute(null);
+        await WaitUntilAsync(() => source.IsReaderActive && viewModel.ConnectionState == ProviderConnectionState.Faulted);
+        Assert.IsFalse(viewModel.CanManageDmdataOAuth);
+        Assert.IsFalse(viewModel.ConnectCommand.CanExecute(null));
+        Assert.IsTrue(viewModel.DisconnectCommand.CanExecute(null));
+
+        viewModel.DisconnectCommand.Execute(null);
+        await WaitUntilAsync(() => !source.IsReaderActive && viewModel.CanManageDmdataOAuth);
+        Assert.IsTrue(source.StopCount > 0);
+        Assert.IsFalse(viewModel.DisconnectCommand.CanExecute(null));
+        bool browserOpened = false;
+        await viewModel.AuthorizeDmdataOAuthAsync(_ => browserOpened = true);
+        Assert.IsTrue(browserOpened);
+    }
+
+    private sealed class FakeDmdataOAuthService : IDmdataOAuthService
+    {
+        public DmdataOAuthSessionInfo? Session => null;
+        public string ClientId { get; private set; } = string.Empty;
+        public IReadOnlyList<string> Scopes { get; private set; } = [];
+        public bool Revoked { get; private set; }
+        public bool WaitForCancellation { get; init; }
+        public async Task AuthorizeAsync(string clientId, IReadOnlyList<string> scopes,
+            Action<Uri> openBrowser, CancellationToken cancellationToken)
+        {
+            ClientId = clientId;
+            Scopes = scopes;
+            openBrowser(new Uri("https://manager.dmdata.jp/account/oauth2/v1/auth"));
+            if (WaitForCancellation) await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+        }
+        public Task<string> GetAccessTokenAsync(string clientId, IReadOnlyList<string> scopes,
+            CancellationToken cancellationToken, string? rejectedAccessToken = null) => Task.FromResult("test-token");
+        public Task RevokeAsync(CancellationToken cancellationToken)
+        {
+            Revoked = true;
+            return Task.CompletedTask;
+        }
     }
 
     [TestMethod]
@@ -1218,7 +1361,7 @@ public sealed class Phase6ViewModelTests
         clock.Advance(TimeSpan.FromSeconds(10));
         if (repeatCount > 1)
         {
-            await WaitUntilAsync(() => viewModel.Logs.Any(entry =>
+            await WaitUntilAsync(() => services.UiLogs.GetSnapshot().Any(entry =>
                 entry.EventName == "ProductionReplayAdvanced"));
         }
 
@@ -1230,7 +1373,7 @@ public sealed class Phase6ViewModelTests
         Assert.IsFalse(obsStore.Read(ObsViewChannel.Tsunami, clock.UtcNow).HasProgram);
         clock.Advance(TimeSpan.FromDays(1));
         Assert.IsFalse(obsStore.Read(ObsViewChannel.Tsunami, clock.UtcNow).HasProgram);
-        Assert.AreEqual(repeatCount - 1, viewModel.Logs.Count(entry => entry.EventName == "ProductionReplayAdvanced"));
+        Assert.AreEqual(repeatCount - 1, services.UiLogs.GetSnapshot().Count(entry => entry.EventName == "ProductionReplayAdvanced"));
         Assert.IsNull(services.DisplayCoordinator.Evaluate().CurrentProgram);
         await viewModel.DisposeAsync();
     }
@@ -1625,7 +1768,8 @@ public sealed class Phase6ViewModelTests
         ITestCaseLibrary? testCaseLibrary = null,
         IAxisTokenRefreshService? axisTokenRefreshService = null,
         IEventSource? suppliedEventSource = null,
-        IAudioPolicy? audioPolicy = null)
+        IAudioPolicy? audioPolicy = null,
+        IDmdataOAuthService? dmdataOAuthService = null)
     {
         AppSettings settings = suppliedSettings ?? AppSettings.CreateDefault();
         FakeClock clock = suppliedClock ?? new FakeClock();
@@ -1658,7 +1802,8 @@ public sealed class Phase6ViewModelTests
             AudioPolicy: audioPolicy,
             HistoryRehearsalLoader: historyLoader,
             TestCaseLibrary: testCaseLibrary,
-            AxisTokenRefreshService: axisTokenRefreshService);
+            AxisTokenRefreshService: axisTokenRefreshService,
+            DmdataOAuthService: dmdataOAuthService);
     }
 
     private static DisplayProgram CreateSubtitleEditProgram(
