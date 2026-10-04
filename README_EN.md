@@ -24,9 +24,9 @@ beta.51 adds per-domain upstream health, a separately authenticated rehearsal AP
 
 beta.50 improves unreported-intensity normalization and labeling, removes trailing full-width station markers only from display text, and preserves observed and unreported entries at the same place. Simulator decoding and additive external API fields are improved while training/live separation remains enforced.
 
-The latest source is **2.0.0-beta.57**, while the downloadable executable remains **2.0.0-beta.56** (October 4, 2026). No beta.57 executable has been uploaded to Releases yet. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.57** (October 4, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.56](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.56)
+- [Download 2.0.0-beta.57](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.57)
 - [Detailed Japanese beta.57 manual and specification](README_CDI-Telopper_2.0.0-beta.57.txt)
 - [Build from source](SOURCE_BUILD.md)
 
