@@ -64,6 +64,7 @@ public sealed partial class ObsSnapshotStore
     internal static readonly TimeSpan AudioRetention = TimeSpan.FromSeconds(60);
     private readonly object _gate = new();
     private readonly SortedDictionary<long, ObsAudioPayload> _audioFiles = [];
+    private readonly Dictionary<ObsViewChannel, ObsAudioCommand> _channelAudio = [];
     private readonly Dictionary<ObsViewChannel, ObsProgramState> _programs = [];
     private readonly PageClock _pageClock = new();
     private long _sequence;
@@ -254,6 +255,7 @@ public sealed partial class ObsSnapshotStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(cue);
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        ObsViewChannel channel = ObsAudioRouting.GetChannel(cue);
         string fullPath = Path.GetFullPath(filePath);
         if (!File.Exists(fullPath))
         {
@@ -268,6 +270,7 @@ public sealed partial class ObsSnapshotStore
                 fullPath,
                 GetAudioContentType(fullPath),
                 now + AudioRetention);
+            _channelAudio[channel] = new ObsAudioCommand(audioSequence, "play", cue, now);
             _audioDiagnostics = new ObsAudioDiagnostics(
                 cue,
                 "Queued",
@@ -305,6 +308,10 @@ public sealed partial class ObsSnapshotStore
                 AudioCue = string.Empty,
                 AudioIssuedAtUtc = now,
             };
+            foreach (ObsViewChannel channel in Enum.GetValues<ObsViewChannel>())
+            {
+                _channelAudio[channel] = new ObsAudioCommand(_snapshot.AudioSequence, "stop", string.Empty, now);
+            }
             return _snapshot;
         }
     }
@@ -331,20 +338,20 @@ public sealed partial class ObsSnapshotStore
         lock (_gate)
         {
             RemoveExpiredAudio(now);
-            if (sequence != _audioDiagnostics.Sequence ||
-                sequence != _snapshot.AudioSequence ||
-                !string.Equals(_snapshot.AudioAction, "play", StringComparison.Ordinal))
+            // File references expire after 60 seconds, but a longer sound may
+            // still be playing. Its completion must release the EEW guard.
+            ObsAudioCommand? command = _channelAudio.Values.FirstOrDefault(item =>
+                item.Sequence == sequence && string.Equals(item.Action, "play", StringComparison.Ordinal));
+            if (command is null)
             {
                 diagnostics = _audioDiagnostics;
                 return false;
             }
 
-            _audioDiagnostics = _audioDiagnostics with
-            {
-                PlaybackResult = result,
-                ReportedAtUtc = now,
-            };
-            diagnostics = _audioDiagnostics;
+            diagnostics = new ObsAudioDiagnostics(command.Cue, result, now, sequence);
+            // Late reports from another category must not overwrite the current
+            // EEW diagnostics used by the audio priority gate.
+            if (sequence == _audioDiagnostics.Sequence) _audioDiagnostics = diagnostics;
             return true;
         }
     }
@@ -471,13 +478,13 @@ public sealed partial class ObsSnapshotStore
         };
 
     private ObsViewSnapshot WithChannelAudio(ObsViewSnapshot snapshot, ObsViewChannel channel) =>
-        channel == ObsViewChannel.General
+        _channelAudio.TryGetValue(channel, out ObsAudioCommand? command)
             ? snapshot with
             {
-                AudioSequence = _snapshot.AudioSequence,
-                AudioAction = _snapshot.AudioAction,
-                AudioCue = _snapshot.AudioCue,
-                AudioIssuedAtUtc = _snapshot.AudioIssuedAtUtc,
+                AudioSequence = command.Sequence,
+                AudioAction = command.Action,
+                AudioCue = command.Cue,
+                AudioIssuedAtUtc = command.IssuedAtUtc,
             }
             : snapshot with
             {
@@ -559,3 +566,9 @@ internal sealed record ObsAudioPayload(
     string FilePath,
     string ContentType,
     DateTimeOffset ExpiresAtUtc);
+
+internal sealed record ObsAudioCommand(
+    long Sequence,
+    string Action,
+    string Cue,
+    DateTimeOffset IssuedAtUtc);

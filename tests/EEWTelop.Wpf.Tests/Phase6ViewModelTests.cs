@@ -31,6 +31,54 @@ public sealed class Phase6ViewModelTests
         ["socket.start", "socket.close", "telegram.get.weather"];
 
     [TestMethod]
+    public async Task HiddenContinuationStillUpdatesAnnouncementBaselineWithoutEvaluatingAudio()
+    {
+        var clock = new FakeClock();
+        var weather = new WeatherWarningEvent(EventId.Create("audio-observer-weather"), "test", clock.UtcNow,
+            clock.UtcNow, "audio-observer-weather", SourceMode.Production,
+            new IssueInfo("気象台", clock.UtcNow, "VPWW56", CorrectionType.None), "継続",
+            [new WeatherWarningItem("東京都", "130000", "大雨特別警報", "02",
+                WeatherWarningLevel.SpecialWarning, "継続", true)], false);
+        var policy = new ObservingAudioPolicy();
+        AppServices services = CreateServices(ProviderConnectionState.Stopped, suppliedClock: clock,
+            suppliedNormalizer: new StubNormalizer(weather), audioPolicy: policy);
+        await using var viewModel = new ControlWindowViewModel(services, services.InitialSettings,
+            new FakeConfirmationService(), new ImmediateUiDispatcher());
+        await services.ReceptionService.ProcessAsync(new RawProviderMessage("test", "{}", SourceMode.Production, clock.UtcNow));
+        Assert.AreSame(weather, policy.LastObserved);
+        Assert.AreEqual(0, policy.EvaluateCount);
+    }
+
+    [TestMethod]
+    public async Task AutomaticRedisplayDoesNotEvaluateAudioInNewAnnouncementModes()
+    {
+        var policy = new ObservingAudioPolicy();
+        AppServices services = CreateServices(ProviderConnectionState.Stopped, audioPolicy: policy);
+        await using var viewModel = new ControlWindowViewModel(services, services.InitialSettings,
+            new FakeConfirmationService(), new ImmediateUiDispatcher());
+        QuakeEvent quake = CreateHistoryQuake();
+        AudioSettings audio = services.InitialSettings.Audio with { QuakeAnnouncementMode = AudioAnnouncementMode.FirstAnnouncementOnly };
+        viewModel.PlayEventAudio(quake, audio, isRepeatedDisplay: true);
+        Assert.AreEqual(0, policy.EvaluateCount);
+        viewModel.PlayEventAudio(quake, audio);
+        Assert.AreEqual(1, policy.EvaluateCount);
+        viewModel.PlayEventAudio(quake, audio with { QuakeAnnouncementMode = AudioAnnouncementMode.Legacy }, isRepeatedDisplay: true);
+        Assert.AreEqual(2, policy.EvaluateCount);
+    }
+
+    private sealed class ObservingAudioPolicy : IAudioPolicy
+    {
+        public DisasterEvent? LastObserved { get; private set; }
+        public int EvaluateCount { get; private set; }
+        public void Observe(DisasterEvent disasterEvent) => LastObserved = disasterEvent;
+        public AudioDecision Evaluate(DisasterEvent disasterEvent, AudioSettings settings)
+        {
+            EvaluateCount++;
+            return new AudioDecision(false, null, string.Empty, "silent test policy");
+        }
+    }
+
+    [TestMethod]
     public void DistributionSettingsExposeEnabledProvidersAndSupportedPresentationOptions()
     {
         var editor = new SettingsEditorViewModel(AppSettings.CreateDefault());
@@ -1133,7 +1181,7 @@ public sealed class Phase6ViewModelTests
     }
 
     [TestMethod]
-    public async Task DisconnectedTestLibraryRunOutputsToPreviewAndObs()
+    public async Task DisconnectedTestLibraryRunRequestsBrowserMonitorAndOutputsToObs()
     {
         string directory = Path.Combine(Path.GetTempPath(), "qtelopper-wpf-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -1157,7 +1205,7 @@ public sealed class Phase6ViewModelTests
                 new ImmediateUiDispatcher(),
                 obsStore);
             bool previewRequested = false;
-            viewModel.ShowPreviewRequested += (_, _) => previewRequested = true;
+            viewModel.ShowBrowserMonitorRequested += (_, _) => previewRequested = true;
             viewModel.SelectedLibraryCase = viewModel.TestLibraryCases.Single();
 
             viewModel.RunLibraryCaseCommand.Execute(null);
@@ -1771,6 +1819,49 @@ public sealed class Phase6ViewModelTests
         Assert.AreEqual(1, obsServer.StopCount);
         Assert.AreEqual("無効", viewModel.ObsStatusText);
         await viewModel.DisposeAsync();
+    }
+
+    [TestMethod]
+    [DataRow(AudioCueId.QuakeIntensity4, ObsViewChannel.General)]
+    [DataRow(AudioCueId.EewInitial, ObsViewChannel.Eew)]
+    [DataRow(AudioCueId.TsunamiWarning, ObsViewChannel.Tsunami)]
+    [DataRow(AudioCueId.WeatherWarning, ObsViewChannel.Weather)]
+    public async Task ObsAudioRequiresTheMatchingCategoryClient(AudioCueId cue, ObsViewChannel channel)
+    {
+        string audioPath = Path.Combine(Path.GetTempPath(), "cdi-route-client-" + Guid.NewGuid().ToString("N") + ".wav");
+        await File.WriteAllBytesAsync(audioPath, [0]);
+        try
+        {
+            AppServices services = CreateServices(ProviderConnectionState.Stopped);
+            var store = new ObsSnapshotStore(services.InitialSettings.Display, services.Clock.UtcNow);
+            var server = new FakeObsServer
+            {
+                AudioClients = new Dictionary<ObsViewChannel, int>
+                {
+                    [channel == ObsViewChannel.General ? ObsViewChannel.Eew : ObsViewChannel.General] = 1,
+                },
+            };
+            await using var viewModel = new ControlWindowViewModel(services, services.InitialSettings,
+                new FakeConfirmationService(), new ImmediateUiDispatcher(), store, server);
+            await WaitUntilAsync(() => server.StartCount == 1);
+            server.SetClientCount(1);
+            viewModel.SetAudioFilePath(cue, audioPath);
+            long before = store.Read().AudioSequence;
+            viewModel.TestAudioCommand.Execute(cue);
+            await WaitUntilAsync(() => viewModel.Logs.Any(entry => entry.EventName == "ObsAudioNoClient"));
+            Assert.AreEqual(before, store.Read().AudioSequence);
+            server.AudioClients[channel] = 1;
+            server.SetClientCount(2);
+            viewModel.TestAudioCommand.Execute(cue);
+            await WaitUntilAsync(() => store.Read(channel, services.Clock.UtcNow).AudioCue == cue.ToString());
+            foreach (ObsViewChannel candidate in Enum.GetValues<ObsViewChannel>())
+                Assert.AreEqual(candidate == channel ? "play" : string.Empty,
+                    store.Read(candidate, services.Clock.UtcNow).AudioAction);
+        }
+        finally
+        {
+            File.Delete(audioPath);
+        }
     }
 
     [TestMethod]
@@ -2463,6 +2554,11 @@ public sealed class Phase6ViewModelTests
         public int Port { get; private set; }
 
         public int ClientCount { get; private set; }
+
+        public Dictionary<ObsViewChannel, int>? AudioClients { get; set; }
+
+        public int GetAudioClientCount(ObsViewChannel channel) =>
+            AudioClients is null ? ClientCount : AudioClients.GetValueOrDefault(channel);
 
         public int SnapshotIntervalMilliseconds { get; private set; } =
             ObsSettings.DefaultSnapshotIntervalMilliseconds;

@@ -93,13 +93,21 @@ public sealed record QuakeEvent : DisasterEvent
 
     public EarthquakeInfo Earthquake { get; }
 
-    public IReadOnlyList<QuakePoint> Points { get; }
+    public IReadOnlyList<QuakePoint> Points { get; private init; }
 
     public string FreeFormComment { get; }
 
-    public LongPeriodIntensityInfo? LongPeriodIntensity { get; }
+    public LongPeriodIntensityInfo? LongPeriodIntensity { get; private init; }
 
     public string Headline { get; }
+
+    public QuakeEvent WithDisplayObservations(
+        IReadOnlyList<QuakePoint> points,
+        LongPeriodIntensityInfo? longPeriodIntensity) => this with
+        {
+            Points = points,
+            LongPeriodIntensity = longPeriodIntensity,
+        };
 }
 
 public sealed record TsunamiEvent : DisasterEvent

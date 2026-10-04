@@ -39,6 +39,10 @@ public sealed record AudioDecision(
 public interface IAudioPolicy
 {
     AudioDecision Evaluate(DisasterEvent disasterEvent, AudioSettings settings);
+
+    // Silent receptions still update the announcement baseline. Existing
+    // alternative policies can keep the default no-op implementation.
+    void Observe(DisasterEvent disasterEvent) { }
 }
 
 public sealed class AudioPolicy : IAudioPolicy
@@ -46,32 +50,60 @@ public sealed class AudioPolicy : IAudioPolicy
     private readonly object _gate = new();
     private readonly HashSet<string> _played = new(StringComparer.Ordinal);
     private readonly HashSet<string> _seenEewEvents = new(StringComparer.Ordinal);
+    private readonly NewAnnouncementTracker _announcements = new();
+
+    public void Observe(DisasterEvent disasterEvent)
+    {
+        ArgumentNullException.ThrowIfNull(disasterEvent);
+        lock (_gate) _announcements.Observe(disasterEvent);
+    }
 
     public AudioDecision Evaluate(DisasterEvent disasterEvent, AudioSettings settings)
     {
         ArgumentNullException.ThrowIfNull(disasterEvent);
         ArgumentNullException.ThrowIfNull(settings);
-        if (settings.Muted)
-        {
-            return Skip("Audio is muted.");
-        }
-
-        bool rehearsal = disasterEvent.SourceMode != SourceMode.Production ||
-            disasterEvent is EewEvent { IsTest: true };
-        if (rehearsal && !settings.TestUsesProductionSound)
-        {
-            return Skip("Audio is disabled for training and rehearsal events.");
-        }
-
         lock (_gate)
         {
-            (AudioCueId Cue, string FilePath)? selected = SelectCue(disasterEvent, settings);
+            AnnouncementChange change = _announcements.Take(disasterEvent);
+            AudioAnnouncementMode mode = settings.GetAnnouncementMode(disasterEvent.Kind);
+            if (settings.Muted)
+            {
+                return Skip("Audio is muted.");
+            }
+
+            bool rehearsal = disasterEvent.SourceMode != SourceMode.Production ||
+                disasterEvent is EewEvent { IsTest: true };
+            if (rehearsal && !settings.TestUsesProductionSound)
+            {
+                return Skip("Audio is disabled for training and rehearsal events.");
+            }
+
+            if (mode != AudioAnnouncementMode.Legacy &&
+                (change.AreaKeys.Count == 0 || (mode == AudioAnnouncementMode.FirstAnnouncementOnly && !change.IsFirst)))
+            {
+                return Skip("The report is not a new announcement eligible for the selected audio timing.");
+            }
+            (AudioCueId Cue, string FilePath)? selected = mode == AudioAnnouncementMode.Legacy
+                ? SelectCue(disasterEvent, settings)
+                : disasterEvent switch
+                {
+                    // Region additions hidden by the display filter must not
+                    // sound. The nationwide maximum is retained by that filter.
+                    QuakeEvent quake when !change.AreaKeys.Contains(NewAnnouncementTracker.QuakeMaximumKey) &&
+                        !quake.Points.Any(point => change.AreaKeys.Contains(NewAnnouncementTracker.AreaKey(point))) => null,
+                    WeatherWarningEvent announcedWeather => SelectWeatherCue(announcedWeather.WithItems(announcedWeather.Items
+                        .Where(item => change.AreaKeys.Contains(NewAnnouncementTracker.AreaKey(item))).ToArray()), settings),
+                    TsunamiEvent tsunami => SelectTsunamiCue(tsunami, settings, tsunami.Areas
+                        .Where(area => area.Role == TsunamiInformationRole.ForecastArea &&
+                            change.AreaKeys.Contains(NewAnnouncementTracker.AreaKey(area)))),
+                    _ => SelectCue(disasterEvent, settings),
+                };
             if (selected is null || string.IsNullOrWhiteSpace(selected.Value.FilePath))
             {
                 return Skip("The event or configured audio category is silent.");
             }
 
-            if (disasterEvent.SourceMode == SourceMode.ManualTest)
+            if (disasterEvent.SourceMode == SourceMode.ManualTest && mode == AudioAnnouncementMode.Legacy)
             {
                 return new AudioDecision(
                     true,
@@ -81,7 +113,9 @@ public sealed class AudioPolicy : IAudioPolicy
             }
 
             string baseKey = $"{disasterEvent.Id.Value}:{selected.Value.Cue}";
-            string key = BuildPlaybackKey(disasterEvent, selected.Value.Cue, baseKey);
+            string key = mode == AudioAnnouncementMode.Legacy
+                ? BuildPlaybackKey(disasterEvent, selected.Value.Cue, baseKey)
+                : $"{disasterEvent.SourceMode}:{disasterEvent.Kind}:{baseKey}:{disasterEvent.IssuedAt.UtcTicks}:{disasterEvent.Signature}";
             if (!_played.Add(key))
             {
                 return Skip("This alert cue already played for the event report.");
@@ -92,7 +126,7 @@ public sealed class AudioPolicy : IAudioPolicy
             // Remember the base cue as well, otherwise the first subsequent
             // continuation-only bulletin would sound again unexpectedly.
             if (disasterEvent is WeatherWarningEvent weather &&
-                HasNewlyIssuedOrUpdatedArea(weather))
+                mode == AudioAnnouncementMode.Legacy && HasNewlyIssuedOrUpdatedArea(weather))
             {
                 _played.Add(baseKey);
             }
@@ -102,7 +136,7 @@ public sealed class AudioPolicy : IAudioPolicy
                 _played.Clear();
                 _played.Add(key);
                 if (disasterEvent is WeatherWarningEvent weatherAfterReset &&
-                    HasNewlyIssuedOrUpdatedArea(weatherAfterReset))
+                    mode == AudioAnnouncementMode.Legacy && HasNewlyIssuedOrUpdatedArea(weatherAfterReset))
                 {
                     _played.Add(baseKey);
                 }
@@ -151,14 +185,15 @@ public sealed class AudioPolicy : IAudioPolicy
 
     private static (AudioCueId Cue, string FilePath)? SelectTsunamiCue(
         TsunamiEvent tsunami,
-        AudioSettings settings)
+        AudioSettings settings,
+        IEnumerable<TsunamiArea>? eligibleAreas = null)
     {
         if (tsunami.IsCancelled)
         {
             return null;
         }
 
-        TsunamiGrade highestGrade = tsunami.Areas
+        TsunamiGrade highestGrade = (eligibleAreas ?? tsunami.Areas)
             .Select(static area => area.Grade)
             .OrderByDescending(static grade => GetTsunamiSeverity(grade))
             .FirstOrDefault();

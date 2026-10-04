@@ -13,7 +13,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Text="気象情報を表示する地域を選択してください"
+        <TextBlock x:Name="SelectionHeading" Text="気象情報を表示する地域を選択してください"
                    FontSize="20" FontWeight="Bold" Margin="0,0,0,14" />
 
         <StackPanel Grid.Row="1" Margin="0,0,0,12">

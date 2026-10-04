@@ -57,7 +57,9 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private bool _filterWeatherRecordShortRain;
     private bool _filterWeatherDisasterPreventionBulletins;
     private bool _hideWeatherContinuationOnly;
-    private bool _hideQuakeBelowIntensity3;
+    private string[] _quakePrefectureCodes;
+    private QuakePrefectureFilterMode _quakePrefectureMode;
+    private bool _showLowIntensityPointsInStrongQuakes;
     private double _pageDurationSeconds;
     private bool _showPageIndicator;
     private bool _showTsunamiForecast;
@@ -122,6 +124,9 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private bool _weatherAdvisoryAudioEnabled;
     private bool _weatherDisasterPreventionBulletinAudioEnabled;
     private double _weatherAudioCoalescingSeconds;
+    private AudioAnnouncementMode _quakeAnnouncementMode;
+    private AudioAnnouncementMode _tsunamiAnnouncementMode;
+    private AudioAnnouncementMode _weatherAnnouncementMode;
     private string _quakeAudioFilePath;
     private string _tsunamiAdvisoryAudioFilePath;
     private string _tsunamiWarningAudioFilePath;
@@ -213,7 +218,14 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _filterWeatherDisasterPreventionBulletins =
             settings.Filter.WeatherDisasterPreventionBulletins;
         _hideWeatherContinuationOnly = settings.Filter.HideWeatherContinuationOnly;
-        _hideQuakeBelowIntensity3 = settings.Filter.HideQuakeBelowIntensity3;
+        JmaScale[] excludedScales = QuakeFilterOptions.ResolveExcludedScales(settings.Filter);
+        QuakeIntensityFilters = QuakeFilterOptions.ExcludableScales
+            .Select(scale => new QuakeIntensityFilterOptionViewModel(scale, excludedScales.Contains(scale)))
+            .ToArray();
+        _quakePrefectureCodes = WeatherPrefectureCatalog.NormalizeCodes(settings.Filter.QuakePrefectureCodes);
+        _quakePrefectureMode = Enum.IsDefined(settings.Filter.QuakePrefectureMode)
+            ? settings.Filter.QuakePrefectureMode : QuakePrefectureFilterMode.EventAndPoints;
+        _showLowIntensityPointsInStrongQuakes = settings.Display.ShowLowIntensityPointsInStrongQuakes;
         _pageDurationSeconds = settings.Display.PageDurationSeconds;
         _showPageIndicator = settings.Display.ShowPageIndicator;
         _showTsunamiForecast = settings.Display.ShowTsunamiForecast;
@@ -303,6 +315,9 @@ public sealed class SettingsEditorViewModel : ObservableObject
             settings.Audio.WeatherDisasterPreventionBulletinEnabled;
         _weatherAudioCoalescingSeconds =
             settings.Audio.EffectiveWeatherCoalescingSeconds;
+        _quakeAnnouncementMode = settings.Audio.QuakeAnnouncementMode;
+        _tsunamiAnnouncementMode = settings.Audio.TsunamiAnnouncementMode;
+        _weatherAnnouncementMode = settings.Audio.WeatherAnnouncementMode;
         _quakeAudioFilePath = settings.Audio.QuakeFilePath ?? string.Empty;
         _tsunamiAdvisoryAudioFilePath = splitTsunamiAudioConfigured
             ? settings.Audio.TsunamiAdvisoryFilePath ?? string.Empty
@@ -635,7 +650,34 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public bool FilterWeatherRecordShortRain { get => _filterWeatherRecordShortRain; set => SetProperty(ref _filterWeatherRecordShortRain, value); }
     public bool FilterWeatherDisasterPreventionBulletins { get => _filterWeatherDisasterPreventionBulletins; set => SetProperty(ref _filterWeatherDisasterPreventionBulletins, value); }
     public bool HideWeatherContinuationOnly { get => _hideWeatherContinuationOnly; set => SetProperty(ref _hideWeatherContinuationOnly, value); }
-    public bool HideQuakeBelowIntensity3 { get => _hideQuakeBelowIntensity3; set => SetProperty(ref _hideQuakeBelowIntensity3, value); }
+    public IReadOnlyList<QuakeIntensityFilterOptionViewModel> QuakeIntensityFilters { get; }
+    // Compatibility for callers using the old two-class switch. The UI now
+    // edits each maximum-intensity class independently.
+    public bool HideQuakeBelowIntensity3
+    {
+        get => QuakeIntensityFilters.Where(option => option.Scale is JmaScale.One or JmaScale.Two)
+            .All(option => option.IsExcluded);
+        set
+        {
+            foreach (QuakeIntensityFilterOptionViewModel option in QuakeIntensityFilters
+                         .Where(option => option.Scale is JmaScale.One or JmaScale.Two))
+            {
+                option.IsExcluded = value;
+            }
+            OnPropertyChanged();
+        }
+    }
+    public IReadOnlyList<string> QuakePrefectureCodes => _quakePrefectureCodes;
+    public string QuakePrefectureSelectionSummary => _quakePrefectureCodes.Length == 0 ? "全国" :
+        string.Join("、", _quakePrefectureCodes.Select(code => WeatherPrefectureCatalog.Find(code)!.Name));
+    public void SetQuakePrefectureCodes(IEnumerable<string>? codes)
+    {
+        _quakePrefectureCodes = WeatherPrefectureCatalog.NormalizeCodes(codes);
+        OnPropertyChanged(nameof(QuakePrefectureCodes));
+        OnPropertyChanged(nameof(QuakePrefectureSelectionSummary));
+    }
+    public QuakePrefectureFilterMode QuakePrefectureMode { get => _quakePrefectureMode; set => SetProperty(ref _quakePrefectureMode, value); }
+    public bool ShowLowIntensityPointsInStrongQuakes { get => _showLowIntensityPointsInStrongQuakes; set => SetProperty(ref _showLowIntensityPointsInStrongQuakes, value); }
     public double PageDurationSeconds { get => _pageDurationSeconds; set => SetProperty(ref _pageDurationSeconds, value); }
     public bool ShowPageIndicator { get => _showPageIndicator; set => SetProperty(ref _showPageIndicator, value); }
     public bool ShowTsunamiForecast { get => _showTsunamiForecast; set => SetProperty(ref _showTsunamiForecast, value); }
@@ -729,6 +771,9 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public bool WeatherAdvisoryAudioEnabled { get => _weatherAdvisoryAudioEnabled; set => SetProperty(ref _weatherAdvisoryAudioEnabled, value); }
     public bool WeatherDisasterPreventionBulletinAudioEnabled { get => _weatherDisasterPreventionBulletinAudioEnabled; set => SetProperty(ref _weatherDisasterPreventionBulletinAudioEnabled, value); }
     public double WeatherAudioCoalescingSeconds { get => _weatherAudioCoalescingSeconds; set => SetProperty(ref _weatherAudioCoalescingSeconds, value); }
+    public AudioAnnouncementMode QuakeAnnouncementMode { get => _quakeAnnouncementMode; set => SetProperty(ref _quakeAnnouncementMode, value); }
+    public AudioAnnouncementMode TsunamiAnnouncementMode { get => _tsunamiAnnouncementMode; set => SetProperty(ref _tsunamiAnnouncementMode, value); }
+    public AudioAnnouncementMode WeatherAnnouncementMode { get => _weatherAnnouncementMode; set => SetProperty(ref _weatherAnnouncementMode, value); }
     public string QuakeAudioFilePath { get => _quakeAudioFilePath; set => SetProperty(ref _quakeAudioFilePath, value); }
     public string TsunamiAdvisoryAudioFilePath { get => _tsunamiAdvisoryAudioFilePath; set => SetProperty(ref _tsunamiAdvisoryAudioFilePath, value); }
     public string TsunamiWarningAudioFilePath { get => _tsunamiWarningAudioFilePath; set => SetProperty(ref _tsunamiWarningAudioFilePath, value); }
@@ -830,6 +875,10 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 FilterTsunami,
                 HideQuakeBelowIntensity3)
             {
+                ExcludedQuakeMaximumScales = QuakeIntensityFilters.Where(option => option.IsExcluded)
+                    .Select(option => option.Scale).ToArray(),
+                QuakePrefectureCodes = _quakePrefectureCodes.ToArray(),
+                QuakePrefectureMode = QuakePrefectureMode,
                 WeatherWarning = FilterWeatherWarning,
                 WeatherPrefectureCodes = _weatherPrefectureCodes.ToArray(),
                 WeatherPrefectureCode = _weatherPrefectureCodes.Length == 1
@@ -864,6 +913,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
                     0,
                     3600),
                 ShowTsunamiForecast = ShowTsunamiForecast,
+                ShowLowIntensityPointsInStrongQuakes = ShowLowIntensityPointsInStrongQuakes,
                 SeparateIntensityPagesByScale = SeparateIntensityPagesByScale,
                 LimitActiveWeatherAreaRowsToTwo = LimitActiveWeatherAreaRowsToTwo,
                 SubtitlePhraseOverrides = new Dictionary<string, string>(
@@ -950,6 +1000,9 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 TsunamiMajorWarningFilePath = TsunamiAudioCues.Single(
                     static item => item.TsunamiGrade == TsunamiGrade.MajorWarning).FilePath.Trim(),
                 WeatherSpecialWarningEnabled = WeatherSpecialWarningAudioEnabled,
+                QuakeAnnouncementMode = QuakeAnnouncementMode,
+                TsunamiAnnouncementMode = TsunamiAnnouncementMode,
+                WeatherAnnouncementMode = WeatherAnnouncementMode,
                 WeatherWarningEnabled = WeatherWarningAudioEnabled,
                 WeatherAdvisoryEnabled = WeatherAdvisoryAudioEnabled,
                 WeatherDisasterPreventionBulletinEnabled =
@@ -1194,7 +1247,9 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public void ResetAudioSettings()
     {
         AudioSettings defaults = AudioSettings.Disabled;
-
+        QuakeAnnouncementMode = defaults.QuakeAnnouncementMode;
+        TsunamiAnnouncementMode = defaults.TsunamiAnnouncementMode;
+        WeatherAnnouncementMode = defaults.WeatherAnnouncementMode;
         AudioMuted = defaults.Muted;
         AudioInRehearsal = defaults.TestUsesProductionSound;
         QuakeAudioEnabled = defaults.QuakeEnabled;
@@ -1282,7 +1337,15 @@ public sealed class SettingsEditorViewModel : ObservableObject
         FilterTsunami = defaults.Tsunami;
         FilterWeatherWarning = defaults.WeatherWarning;
         FilterVolcano = defaults.Volcano;
-        HideQuakeBelowIntensity3 = defaults.HideQuakeBelowIntensity3;
+        JmaScale[] excludedScales = QuakeFilterOptions.ResolveExcludedScales(defaults);
+        foreach (QuakeIntensityFilterOptionViewModel option in QuakeIntensityFilters)
+        {
+            option.IsExcluded = excludedScales.Contains(option.Scale);
+        }
+        OnPropertyChanged(nameof(HideQuakeBelowIntensity3));
+        SetQuakePrefectureCodes(defaults.QuakePrefectureCodes);
+        QuakePrefectureMode = defaults.QuakePrefectureMode;
+        ShowLowIntensityPointsInStrongQuakes = AppSettings.CreateDefault().Display.ShowLowIntensityPointsInStrongQuakes;
         SetWeatherPrefectureCodes(defaults.WeatherPrefectureCodes);
         FilterWeatherSpecialWarnings = defaults.WeatherSpecialWarnings;
         FilterWeatherWarnings = defaults.WeatherWarnings;
@@ -1307,6 +1370,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         PageDurationSeconds = defaults.PageDurationSeconds;
         ShowPageIndicator = defaults.ShowPageIndicator;
         ShowTsunamiForecast = defaults.ShowTsunamiForecast;
+        ShowLowIntensityPointsInStrongQuakes = defaults.ShowLowIntensityPointsInStrongQuakes;
         SeparateIntensityPagesByScale = defaults.SeparateIntensityPagesByScale;
         LimitActiveWeatherAreaRowsToTwo = defaults.LimitActiveWeatherAreaRowsToTwo;
         LetterSpacingEm = defaults.LetterSpacingEm;

@@ -72,6 +72,9 @@ public sealed partial class ObsLocalViewServer : IObsLocalViewServer
 
     public int ClientCount => Volatile.Read(ref _clientCount);
 
+    public int GetAudioClientCount(ObsViewChannel channel) =>
+        _routeClientCounts.GetValueOrDefault(ObsAudioRouting.GetRoute(channel));
+
     public IReadOnlyDictionary<string, int> RouteClientCounts =>
         new Dictionary<string, int>(_routeClientCounts, StringComparer.OrdinalIgnoreCase);
 

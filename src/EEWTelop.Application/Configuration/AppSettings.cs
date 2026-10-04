@@ -15,7 +15,7 @@ public sealed record AppSettings(
     LogSettings Log,
     SafetySettings Safety)
 {
-    public const int CurrentSchemaVersion = 26;
+    public const int CurrentSchemaVersion = 27;
 
     public OperationalSettings Operations { get; init; } = OperationalSettings.Default;
 
@@ -269,6 +269,15 @@ public sealed record FilterSettings(
     bool Tsunami,
     bool HideQuakeBelowIntensity3 = false)
 {
+    // Null means a legacy document: resolve HideQuakeBelowIntensity3 into 1/2.
+    // An explicitly empty array means no maximum-intensity exclusions.
+    public JmaScale[]? ExcludedQuakeMaximumScales { get; init; }
+
+    public string[] QuakePrefectureCodes { get; init; } = [];
+
+    public QuakePrefectureFilterMode QuakePrefectureMode { get; init; } =
+        QuakePrefectureFilterMode.EventAndPoints;
+
     public bool WeatherWarning { get; init; } = true;
 
     public string WeatherPrefectureCode { get; init; } = string.Empty;
@@ -308,6 +317,8 @@ public sealed record DisplaySettings(
     int Width,
     int Height)
 {
+    public bool ShowLowIntensityPointsInStrongQuakes { get; init; }
+
     // Fixed phrases can be customized before telegrams are received. Keys are
     // stable catalog IDs; unknown keys are ignored by the display composer.
     public Dictionary<string, string> SubtitlePhraseOverrides { get; init; } = [];
@@ -475,6 +486,20 @@ public sealed record AudioSettings(
     string EewCancellationFilePath = "",
     bool FileAudioConfigured = false)
 {
+    public AudioAnnouncementMode QuakeAnnouncementMode { get; init; }
+
+    public AudioAnnouncementMode TsunamiAnnouncementMode { get; init; }
+
+    public AudioAnnouncementMode WeatherAnnouncementMode { get; init; }
+
+    public AudioAnnouncementMode GetAnnouncementMode(EventKind kind) => kind switch
+    {
+        EventKind.Quake => QuakeAnnouncementMode,
+        EventKind.Tsunami => TsunamiAnnouncementMode,
+        EventKind.WeatherWarning => WeatherAnnouncementMode,
+        _ => AudioAnnouncementMode.Legacy,
+    };
+
     public const double DefaultWeatherCoalescingSeconds = 1.5;
 
     public const double MaximumWeatherCoalescingSeconds = 3.0;
@@ -537,6 +562,13 @@ public sealed record AudioSettings(
 }
 
 public sealed record AudioCueSetting(bool Enabled, string FilePath);
+
+public enum AudioAnnouncementMode
+{
+    Legacy = 0,
+    FirstAnnouncementOnly,
+    NewAnnouncementOrEscalation,
+}
 
 public sealed record HistorySettings(
     HistoryApi Api,

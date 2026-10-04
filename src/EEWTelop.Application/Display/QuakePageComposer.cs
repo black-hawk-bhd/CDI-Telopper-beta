@@ -31,7 +31,8 @@ internal static class QuakePageComposer
                 ])]);
         }
 
-        IReadOnlyList<IntensityRow> intensityRows = BuildIntensityRows(quake.Points);
+        IReadOnlyList<IntensityRow> intensityRows = BuildIntensityRows(
+            quake.Points, quake.Earthquake.MaximumScale, settings.ShowLowIntensityPointsInStrongQuakes);
         IReadOnlyList<PageDraft> pages = quake.IssueType switch
         {
             QuakeIssueType.ScalePrompt => ComposeScalePrompt(quake, intensityRows, settings.SeparateIntensityPagesByScale),
@@ -452,7 +453,9 @@ internal static class QuakePageComposer
         : "発生時刻不明";
 
     private static List<IntensityRow> BuildIntensityRows(
-        IReadOnlyList<QuakePoint> points)
+        IReadOnlyList<QuakePoint> points,
+        JmaScale earthquakeMaximum,
+        bool showLowIntensityPoints)
     {
         var byPlace = new Dictionary<(string DisplayName, bool IsUnreported), IndexedPoint>();
         for (int index = 0; index < points.Count; index++)
@@ -479,10 +482,12 @@ internal static class QuakePageComposer
             }
         }
 
+        bool includeAllPoints = showLowIntensityPoints &&
+            (earthquakeMaximum >= JmaScale.Three || byPlace.Values.Any(point => point.Scale >= JmaScale.Three));
         IndexedPoint[] candidates = byPlace.Values
-            .Where(static point => point.Scale >= JmaScale.Three)
+            .Where(point => includeAllPoints || point.Scale >= JmaScale.Three)
             .ToArray();
-        if (candidates.Length == 0 && byPlace.Count > 0)
+        if (candidates.Length == 0 && byPlace.Count > 0 && earthquakeMaximum < JmaScale.Three)
         {
             JmaScale maximum = byPlace.Values.Max(static point => point.Scale);
             candidates = byPlace.Values.Where(point => point.Scale == maximum).ToArray();

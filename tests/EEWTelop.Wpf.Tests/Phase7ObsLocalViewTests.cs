@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using EEWTelop.Application.Abstractions;
+using EEWTelop.Application.Audio;
 using EEWTelop.Application.Configuration;
 using EEWTelop.Application.Coordination;
 using EEWTelop.Application.Display;
@@ -16,18 +17,20 @@ namespace EEWTelop.Wpf.Tests;
 public sealed class Phase7ObsLocalViewTests
 {
     [TestMethod]
-    public void ObsMixerControlsOnlyTheGeneralAudioSource()
+    public void ObsMixerControlsEachCategorySource()
     {
         Assert.IsTrue(ObsBrowserSourceSynchronizer.ShouldControlAudio(
-            "CDI-Telopper 地震字幕・全ての音声"));
-        Assert.IsFalse(ObsBrowserSourceSynchronizer.ShouldControlAudio(
+            "CDI-Telopper 地震字幕"));
+        Assert.IsTrue(ObsBrowserSourceSynchronizer.ShouldControlAudio(
             "CDI-Telopper 緊急地震速報"));
-        Assert.IsFalse(ObsBrowserSourceSynchronizer.ShouldControlAudio(
+        Assert.IsTrue(ObsBrowserSourceSynchronizer.ShouldControlAudio(
             "CDI-Telopper 津波字幕"));
-        Assert.IsFalse(ObsBrowserSourceSynchronizer.ShouldControlAudio(
+        Assert.IsTrue(ObsBrowserSourceSynchronizer.ShouldControlAudio(
             "CDI-Telopper 気象情報"));
         Assert.IsFalse(ObsBrowserSourceSynchronizer.ShouldControlAudio(
             "QTelopper 地震字幕・全ての音声"));
+        Assert.IsFalse(ObsBrowserSourceSynchronizer.ShouldControlAudio(
+            "CDI-Telopper 地震字幕・全ての音声"));
     }
 
     [TestMethod]
@@ -165,7 +168,7 @@ public sealed class Phase7ObsLocalViewTests
         StringAssert.Contains(script, "pageIndicator.hidden = !indicatorText");
         StringAssert.Contains(script, "new EventSource");
         StringAssert.Contains(script, "alertAudio.play()");
-        StringAssert.Contains(script, "const handlesAudio = !monitorMode && view === \"general\"");
+        StringAssert.Contains(script, "const handlesAudio = !monitorMode;");
         StringAssert.Contains(script, "if (handlesAudio) applyAudioCommand(state)");
         StringAssert.Contains(script, "alertAudio.volume = 1");
         StringAssert.Contains(script, "`/audio/${sequence}?token=");
@@ -217,7 +220,7 @@ public sealed class Phase7ObsLocalViewTests
     }
 
     [TestMethod]
-    public async Task EveryAudioCueIsDeliveredOnlyToTheGeneralAudioSource()
+    public async Task EveryAudioCueIsDeliveredOnlyToItsCategorySource()
     {
         string audioPath = Path.Combine(
             Path.GetTempPath(),
@@ -226,33 +229,25 @@ public sealed class Phase7ObsLocalViewTests
         try
         {
             var clock = new TestClock();
-            var store = new ObsSnapshotStore(
-                AppSettings.CreateDefault().Display,
-                clock.UtcNow);
-
-            ObsViewSnapshot eewAudio = store.PublishAudio(
-                "EewInitial",
-                audioPath,
-                clock.UtcNow);
-
-            ObsViewSnapshot general = store.Read(ObsViewChannel.General, clock.UtcNow);
-            ObsViewSnapshot eew = store.Read(ObsViewChannel.Eew, clock.UtcNow);
-            Assert.AreEqual(eewAudio.AudioSequence, general.AudioSequence);
-            Assert.AreEqual("play", general.AudioAction);
-            Assert.AreEqual(0, eew.AudioSequence);
-            Assert.AreEqual(string.Empty, eew.AudioAction);
-
-            ObsViewSnapshot tsunamiAudio = store.PublishAudio(
-                "TsunamiMajorWarning",
-                audioPath,
-                clock.UtcNow);
-
-            general = store.Read(ObsViewChannel.General, clock.UtcNow);
-            ObsViewSnapshot tsunami = store.Read(ObsViewChannel.Tsunami, clock.UtcNow);
-            Assert.AreEqual(tsunamiAudio.AudioSequence, general.AudioSequence);
-            Assert.AreEqual("play", general.AudioAction);
-            Assert.AreEqual(0, tsunami.AudioSequence);
-            Assert.AreEqual(string.Empty, tsunami.AudioAction);
+            foreach (AudioCueId cue in Enum.GetValues<AudioCueId>())
+            {
+                var store = new ObsSnapshotStore(AppSettings.CreateDefault().Display, clock.UtcNow);
+                ObsViewSnapshot published = store.PublishAudio(cue.ToString(), audioPath, clock.UtcNow);
+                // Independently specify the expected family rather than echoing
+                // the routing method under test.
+                ObsViewChannel expected = cue.ToString().StartsWith("Quake", StringComparison.Ordinal)
+                    ? ObsViewChannel.General
+                    : cue.ToString().StartsWith("Eew", StringComparison.Ordinal) ? ObsViewChannel.Eew
+                    : cue.ToString().StartsWith("Tsunami", StringComparison.Ordinal) ? ObsViewChannel.Tsunami
+                    : ObsViewChannel.Weather;
+                foreach (ObsViewChannel channel in Enum.GetValues<ObsViewChannel>())
+                {
+                    ObsViewSnapshot snapshot = store.Read(channel, clock.UtcNow);
+                    Assert.AreEqual(channel == expected ? published.AudioSequence : 0, snapshot.AudioSequence, cue.ToString());
+                    Assert.AreEqual(channel == expected ? "play" : string.Empty, snapshot.AudioAction, cue.ToString());
+                    Assert.AreEqual(channel == expected ? cue.ToString() : string.Empty, snapshot.AudioCue, cue.ToString());
+                }
+            }
         }
         finally
         {
@@ -345,11 +340,12 @@ public sealed class Phase7ObsLocalViewTests
                 $"http://127.0.0.1:{server.Port}/state{tokenQuery}&view=general");
             Assert.IsFalse(stateJson.Contains(audioPath, StringComparison.OrdinalIgnoreCase));
             Assert.IsFalse(stateJson.Contains("\"audioVolume\"", StringComparison.Ordinal));
-            StringAssert.Contains(stateJson, "\"audioAction\":\"play\"");
+            StringAssert.Contains(stateJson, "\"audioAction\":\"\"");
 
             string eewStateJson = await client.GetStringAsync(
                 $"http://127.0.0.1:{server.Port}/state{tokenQuery}&view=eew");
-            StringAssert.Contains(eewStateJson, "\"audioAction\":\"\"");
+            StringAssert.Contains(eewStateJson, "\"audioAction\":\"play\"");
+            Assert.IsFalse(eewStateJson.Contains(audioPath, StringComparison.OrdinalIgnoreCase));
         }
         finally
         {
@@ -405,7 +401,11 @@ public sealed class Phase7ObsLocalViewTests
     }
 
     [TestMethod]
-    public async Task EventStreamImmediatelySendsSnapshotAndTracksConnectedClient()
+    [DataRow("general", ObsViewChannel.General)]
+    [DataRow("eew", ObsViewChannel.Eew)]
+    [DataRow("tsunami", ObsViewChannel.Tsunami)]
+    [DataRow("weather", ObsViewChannel.Weather)]
+    public async Task EventStreamImmediatelySendsSnapshotAndTracksConnectedClient(string route, ObsViewChannel channel)
     {
         AppSettings settings = AppSettings.CreateDefault();
         var clock = new TestClock();
@@ -416,7 +416,7 @@ public sealed class Phase7ObsLocalViewTests
         string tokenQuery = new Uri(server.OverlayUrl).Query;
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
-            $"http://127.0.0.1:{server.Port}/events{tokenQuery}");
+            $"http://127.0.0.1:{server.Port}/events{tokenQuery}&view={route}");
         using HttpResponseMessage response = await client.SendAsync(
             request,
             HttpCompletionOption.ResponseHeadersRead);
@@ -432,10 +432,13 @@ public sealed class Phase7ObsLocalViewTests
         Assert.IsTrue(dataLine.StartsWith("data: ", StringComparison.Ordinal));
         StringAssert.Contains(dataLine, "\"schemaVersion\":1");
         Assert.AreEqual(1, server.ClientCount);
+        foreach (ObsViewChannel candidate in Enum.GetValues<ObsViewChannel>())
+            Assert.AreEqual(candidate == channel ? 1 : 0, server.GetAudioClientCount(candidate));
 
         response.Dispose();
         await WaitUntilAsync(() => server.ClientCount == 0, TimeSpan.FromSeconds(4));
         Assert.AreEqual(0, server.ClientCount);
+        Assert.AreEqual(0, server.GetAudioClientCount(channel));
     }
 
     [TestMethod]

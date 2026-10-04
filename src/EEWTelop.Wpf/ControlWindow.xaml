@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:EEWTelop.Wpf"
         xmlns:audio="clr-namespace:EEWTelop.Application.Audio;assembly=EEWTelop.Application"
+        xmlns:configuration="clr-namespace:EEWTelop.Application.Configuration;assembly=EEWTelop.Application"
         Title="CDI-Telopper 操作画面"
         Icon="Assets/CDI-Telopper.ico"
         Width="1240" Height="820" MinWidth="1040" MinHeight="700"
@@ -201,8 +202,7 @@
                 <Border Background="{StaticResource PanelBrush}" CornerRadius="10" Padding="12" Margin="0,0,0,14">
                     <StackPanel>
                         <TextBlock Text="出力" FontSize="18" FontWeight="Bold" Margin="0,0,0,12" />
-                        <Button Content="プレビューを表示" Style="{StaticResource PrimaryButton}" Command="{Binding ShowPreviewCommand}" />
-                        <Button Content="ブラウザーモニターを開く（無音）" Click="OnOpenBrowserMonitor" />
+                        <Button Content="ブラウザープレビューを開く（無音）" Style="{StaticResource PrimaryButton}" Click="OnOpenBrowserMonitor" />
                         <Button Content="表示中の字幕を編集"
                                 ToolTip="バッジ・本文・補足文をページごとに編集します。新着・更新情報の受信時に元の表示へ戻ります。"
                                 Command="{Binding EditSubtitleCommand}" />
@@ -227,19 +227,19 @@
                         <TextBlock Text="用途別OBS URL" Foreground="{StaticResource MutedBrush}"
                                    Margin="0,5,0,3" />
                         <UniformGrid Columns="1">
-                            <Button Content="地震字幕・全ての音声 URLをコピー"
+                            <Button Content="地震字幕・音声 URLをコピー"
                                     Command="{Binding CopyObsOutputUrlCommand}"
                                     CommandParameter="{Binding ObsUrlText}"
                                     ToolTip="{Binding ObsUrlText}" Padding="10,4" Margin="0,1" />
-                            <Button Content="緊急地震速報 URLをコピー"
+                            <Button Content="緊急地震速報・音声 URLをコピー"
                                     Command="{Binding CopyObsOutputUrlCommand}"
                                     CommandParameter="{Binding EewObsUrlText}"
                                     ToolTip="{Binding EewObsUrlText}" Padding="10,4" Margin="0,1" />
-                            <Button Content="津波字幕 URLをコピー"
+                            <Button Content="津波字幕・音声 URLをコピー"
                                     Command="{Binding CopyObsOutputUrlCommand}"
                                     CommandParameter="{Binding TsunamiObsUrlText}"
                                     ToolTip="{Binding TsunamiObsUrlText}" Padding="10,4" Margin="0,1" />
-                             <Button Content="気象情報 URLをコピー"
+                             <Button Content="気象情報・音声 URLをコピー"
                                     Visibility="{Binding IsExtendedFeaturesEnabled, Converter={StaticResource BooleanToVisibilityConverter}}"
                                     Command="{Binding CopyObsOutputUrlCommand}"
                                     CommandParameter="{Binding WeatherObsUrlText}"
@@ -475,10 +475,39 @@
                                     <StackPanel>
                                         <CheckBox Content="緊急地震速報" IsChecked="{Binding Settings.FilterEew}" />
                                         <CheckBox Content="地震情報" IsChecked="{Binding Settings.FilterQuake}" />
-                                        <CheckBox Content="最大震度2以下の地震情報を表示しない"
-                                                  IsChecked="{Binding Settings.HideQuakeBelowIntensity3}"
-                                                  IsEnabled="{Binding Settings.FilterQuake}"
-                                                  Margin="18,0,0,0" />
+                                        <StackPanel Margin="18,2,0,8" IsEnabled="{Binding Settings.FilterQuake}">
+                                            <TextBlock Text="表示しない地震の最大震度（チェックした階級を除外）" />
+                                            <ItemsControl ItemsSource="{Binding Settings.QuakeIntensityFilters}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <CheckBox Content="{Binding Label}" IsChecked="{Binding IsExcluded}" Margin="0,3,12,3" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <TextBlock Text="地震全体の最大震度で判定します。震度7・震度不明・5弱以上未入電・取消情報はこの設定で除外しません。EEW・津波には適用しません。"
+                                                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,2,0,8" />
+                                            <TextBlock Text="地震の対象地域（都道府県）" />
+                                            <DockPanel Margin="0,3,0,5">
+                                                <Button DockPanel.Dock="Right" Content="地域を選択…" Click="OnSelectQuakePrefecturesClicked" Margin="8,0,0,0" Padding="12,5" />
+                                                <Border BorderBrush="#FF526576" BorderThickness="1" Background="#FF101820" Padding="8,6">
+                                                    <TextBlock Text="{Binding Settings.QuakePrefectureSelectionSummary}" Foreground="White" TextWrapping="Wrap" />
+                                                </Border>
+                                            </DockPanel>
+                                            <ComboBox SelectedValue="{Binding Settings.QuakePrefectureMode}" SelectedValuePath="Tag">
+                                                <ComboBoxItem Content="対象の地震と地点一覧の両方を絞る" Tag="{x:Static configuration:QuakePrefectureFilterMode.EventAndPoints}" />
+                                                <ComboBoxItem Content="対象の地震だけ絞る（地点一覧は全国）" Tag="{x:Static configuration:QuakePrefectureFilterMode.EventOnly}" />
+                                                <ComboBoxItem Content="地点一覧だけ絞る（地震はすべて表示）" Tag="{x:Static configuration:QuakePrefectureFilterMode.PointsOnly}" />
+                                            </ComboBox>
+                                            <TextBlock Text="全国では絞り込みません。地域判定に使う震度情報がない電文と取消情報は表示します。最大震度の概要は全国の受信値を保ちます。"
+                                                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,3,0,6" />
+                                            <CheckBox Content="最大震度3以上の地震でも、震度1・2の地点を表示する"
+                                                      IsChecked="{Binding Settings.ShowLowIntensityPointsInStrongQuakes}" />
+                                            <TextBlock Text="OFFでは従来どおり震度3以上の地点を表示します。ONでも都道府県の地点絞り込みは維持します。電文にない地点は補完しません。"
+                                                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                                        </StackPanel>
                                         <CheckBox Content="津波情報" IsChecked="{Binding Settings.FilterTsunami}" />
                                         <CheckBox Content="気象情報"
                                                   Visibility="{Binding DataContext.IsExtendedFeaturesEnabled, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}"
@@ -740,10 +769,34 @@
                                     <CheckBox Content="サンドボックス・訓練でも設定音声を使用"
                                               IsChecked="{Binding Settings.AudioInRehearsal}" />
 
+                                    <TextBlock Text="音声を鳴らすタイミング" FontWeight="Bold" Margin="0,10,0,5" />
+                                    <TextBlock Text="地震（震度速報など）" />
+                                    <ComboBox SelectedValue="{Binding Settings.QuakeAnnouncementMode}" SelectedValuePath="Tag">
+                                        <ComboBoxItem Content="従来方式" Tag="{x:Static configuration:AudioAnnouncementMode.Legacy}" />
+                                        <ComboBoxItem Content="最初の新規発表のみ" Tag="{x:Static configuration:AudioAnnouncementMode.FirstAnnouncementOnly}" />
+                                        <ComboBoxItem Content="新規発表＋格上げ・対象地域追加" Tag="{x:Static configuration:AudioAnnouncementMode.NewAnnouncementOrEscalation}" />
+                                    </ComboBox>
+                                    <TextBlock Text="津波（予報・注意報・警報・大津波警報）" Margin="0,5,0,0" />
+                                    <ComboBox SelectedValue="{Binding Settings.TsunamiAnnouncementMode}" SelectedValuePath="Tag">
+                                        <ComboBoxItem Content="従来方式" Tag="{x:Static configuration:AudioAnnouncementMode.Legacy}" />
+                                        <ComboBoxItem Content="最初の新規発表のみ" Tag="{x:Static configuration:AudioAnnouncementMode.FirstAnnouncementOnly}" />
+                                        <ComboBoxItem Content="新規発表＋格上げ・対象地域追加" Tag="{x:Static configuration:AudioAnnouncementMode.NewAnnouncementOrEscalation}" />
+                                    </ComboBox>
+                                    <StackPanel Visibility="{Binding IsExtendedFeaturesEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="気象（注意報・警報・特別警報など）" Margin="0,5,0,0" />
+                                        <ComboBox SelectedValue="{Binding Settings.WeatherAnnouncementMode}" SelectedValuePath="Tag">
+                                            <ComboBoxItem Content="従来方式" Tag="{x:Static configuration:AudioAnnouncementMode.Legacy}" />
+                                            <ComboBoxItem Content="最初の新規発表のみ" Tag="{x:Static configuration:AudioAnnouncementMode.FirstAnnouncementOnly}" />
+                                            <ComboBoxItem Content="新規発表＋格上げ・対象地域追加" Tag="{x:Static configuration:AudioAnnouncementMode.NewAnnouncementOrEscalation}" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <TextBlock Text="初期値は従来方式です。新規方式では同じ地震／津波警報の継続中／同じ発表元・気象種別の継続中を一連の発表として扱います。継続・同レベル更新・訂正・解除・観測更新・自動再掲では鳴らしません。EEWの設定とOBS試聴は変更しません。"
+                                               Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,5,0,8" />
+
                                     <TextBlock Text="地震情報"
                                                FontWeight="Bold"
                                                Margin="0,10,0,3" />
-                                    <TextBlock Text="観測された最大震度と一致する段階の音声を1回再生します。各段階を個別に無効化できます。"
+                                    <TextBlock Text="音声タイミング設定で再生対象になったとき、観測された最大震度と一致する段階の音声を使用します。各段階を個別に無効化できます。"
                                                Foreground="{StaticResource MutedBrush}"
                                                TextWrapping="Wrap"
                                                Margin="0,0,8,5" />

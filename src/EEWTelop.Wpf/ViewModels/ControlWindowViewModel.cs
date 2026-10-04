@@ -48,7 +48,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     private static readonly TimeSpan ObsRuntimeRecoveryThreshold = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan AxisTokenRefreshCheckInterval = TimeSpan.FromDays(1);
     private readonly string _obsBrowserSourceDescription =
-        "地震字幕・全ての音声・EEW・津波字幕・気象情報の4ソースを登録します。音声ミキサーには「地震字幕・全ての音声」だけを追加します。OBS側でWebSocketサーバーを有効にしてください。";
+        "地震字幕・EEW・津波字幕・気象情報の4ソースを登録します。各ソースの音声をOBSの音声ミキサーに追加し、該当種別の音声を再生します。OBS側でWebSocketサーバーを有効にしてください。";
     private readonly AppServices _services;
     private readonly IConfirmationService _confirmationService;
     private readonly IUiDispatcher _dispatcher;
@@ -204,7 +204,6 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         PlaySelectedHistoryCommand = new RelayCommand(
             StartSelectedHistoryRehearsal,
             () => SelectedHistoryItem is not null && !IsHistoryRehearsalRunning);
-        ShowPreviewCommand = new RelayCommand(() => ShowPreviewRequested?.Invoke(this, EventArgs.Empty));
         EditSubtitleCommand = new RelayCommand(
             RequestSubtitleEdit,
             () => _lastCoordinatorSnapshot?.CurrentProgram is not null);
@@ -297,7 +296,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         FireAndForgetLog(AppLogLevel.Information, "ApplicationReady", "永続化・ファイルログ・診断ZIP・任意音声ファイル再生を初期化しました。接続は手動開始です。");
     }
 
-    public event EventHandler? ShowPreviewRequested;
+    public event EventHandler? ShowBrowserMonitorRequested;
 
     public event Action? ShowTelegramReviewRequested;
     public event Action<DisplayProgram, DisplayProgram>? EditSubtitleRequested;
@@ -434,7 +433,6 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
     public RelayCommand PlaySelectedHistoryCommand { get; }
 
-    public RelayCommand ShowPreviewCommand { get; }
 
     public RelayCommand EditSubtitleCommand { get; }
 
@@ -1367,7 +1365,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         Volatile.Write(ref _activeCoordinator, previewCoordinator);
         ApplyDisplaySnapshot(snapshot);
         PlayEventAudio(disasterEvent, Settings.ToSettings(_settings).Audio);
-        ShowPreviewRequested?.Invoke(this, EventArgs.Empty);
+        ShowBrowserMonitorRequested?.Invoke(this, EventArgs.Empty);
         FireAndForgetLog(
             AppLogLevel.Information,
             "PreviewTest",
@@ -1566,7 +1564,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         _previewCoordinator = coordinator;
         Volatile.Write(ref _activeCoordinator, coordinator);
         ApplyDisplaySnapshot(snapshot);
-        ShowPreviewRequested?.Invoke(this, EventArgs.Empty);
+        ShowBrowserMonitorRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void RequestSubtitleEdit()
@@ -2077,7 +2075,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                         : $"再生中 {itemNumber} / {items.Length}";
                     if (firstItem)
                     {
-                        ShowPreviewRequested?.Invoke(this, EventArgs.Empty);
+                        ShowBrowserMonitorRequested?.Invoke(this, EventArgs.Empty);
                         firstItem = false;
                     }
                 }, cancellation.Token).ConfigureAwait(false);
@@ -2175,6 +2173,12 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     private void OnEventProcessed(object? sender, EventIngestionResult result) =>
         _dispatcher.Invoke(() =>
         {
+            if (result.Status == EventIngestionStatus.Accepted && result.Event is not null)
+            {
+                // Keep releases and continuation baselines even when filters
+                // suppress display/audio or the operator is editing a draft.
+                _services.AudioPolicy?.Observe(result.Event);
+            }
             if (result.ReceptionSummary is not null)
             {
                 FireAndForgetLog(
@@ -2402,9 +2406,14 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     internal void PlayEventAudio(
         DisasterEvent disasterEvent,
         AudioSettings settings,
-        string traceId = "")
+        string traceId = "",
+        bool isRepeatedDisplay = false)
     {
         if (_services.AudioPolicy is null)
+        {
+            return;
+        }
+        if (isRepeatedDisplay && settings.GetAnnouncementMode(disasterEvent.Kind) != AudioAnnouncementMode.Legacy)
         {
             return;
         }
@@ -2623,7 +2632,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     private bool IsEewAudioPriorityActive() => _eewAudioPriority.IsActive(
         _obsSnapshotStore.ReadAudioDiagnostics(),
         _services.Clock.UtcNow,
-        _obsServer?.ClientCount > 0);
+        _obsServer?.GetAudioClientCount(ObsViewChannel.Eew) > 0);
 
     private void LogAudioSuppressedByEew(AudioCueId cue) => FireAndForgetLog(
         AppLogLevel.Information,
@@ -2645,12 +2654,13 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             return false;
         }
 
-        if (_obsServer.ClientCount <= 0)
+        ObsViewChannel channel = ObsAudioRouting.GetChannel(cue);
+        if (_obsServer.GetAudioClientCount(channel) <= 0)
         {
             await WriteLogAsync(
                 AppLogLevel.Warning,
                 "ObsAudioNoClient",
-                $"OBSブラウザーソースが接続されていないため音声を送信しませんでした。区分={cue}")
+                $"該当種別のOBSブラウザーソースが接続されていないため音声を送信しませんでした。区分={cue}, 出力先={ObsAudioRouting.GetRoute(channel)}")
                 .ConfigureAwait(false);
             return false;
         }
@@ -2820,7 +2830,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             nowUtc);
         if (selection.PlayAudio)
         {
-            PlayEventAudio(selection.Event, _settings.Audio);
+            PlayEventAudio(selection.Event, _settings.Audio, isRepeatedDisplay: true);
         }
 
         FireAndForgetLog(

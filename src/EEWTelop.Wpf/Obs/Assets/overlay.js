@@ -14,10 +14,10 @@ const content = document.getElementById("content");
 const blocks = document.getElementById("blocks");
 const pageIndicator = document.getElementById("pageIndicator");
 const alertAudio = document.getElementById("alertAudio");
-// Dedicated EEW/tsunami/weather sources receive their own state stream. Only the
-// general source owns audio so OBS never mixes duplicate copies of one cue.
+// Each OBS source receives only its own category's audio commands. The browser
+// preview remains silent and does not subscribe as an audio client.
 const monitorMode = window.location.pathname === "/monitor/view";
-const handlesAudio = !monitorMode && view === "general";
+const handlesAudio = !monitorMode;
 let lastAudioSequence = 0;
 let activeAudioSequence = 0;
 const lastReportedAudioResults = new Map();

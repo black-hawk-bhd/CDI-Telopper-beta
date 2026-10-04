@@ -31,7 +31,7 @@ public interface IObsBrowserSourceSynchronizer : IAsyncDisposable
 public sealed class ObsBrowserSourceSynchronizer : IObsBrowserSourceSynchronizer
 {
     private const int MaximumMessageBytes = 1024 * 1024;
-    private const string GeneralSourceName = "CDI-Telopper 地震字幕・全ての音声";
+    private const string GeneralSourceName = "CDI-Telopper 地震字幕";
     private static readonly TimeSpan RetryInterval = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan AttemptTimeout = TimeSpan.FromSeconds(8);
     private static readonly (
@@ -40,12 +40,13 @@ public sealed class ObsBrowserSourceSynchronizer : IObsBrowserSourceSynchronizer
         bool ControlsAudio)[] Sources =
     [
         (GeneralSourceName, static urls => urls.General, true),
-        ("CDI-Telopper 緊急地震速報", static urls => urls.Eew, false),
-        ("CDI-Telopper 津波字幕", static urls => urls.Tsunami, false),
-        ("CDI-Telopper 気象情報", static urls => urls.Weather, false),
+        ("CDI-Telopper 緊急地震速報", static urls => urls.Eew, true),
+        ("CDI-Telopper 津波字幕", static urls => urls.Tsunami, true),
+        ("CDI-Telopper 気象情報", static urls => urls.Weather, true),
     ];
     private static readonly (string LegacyName, string CurrentName)[] LegacySourceNames =
     [
+        ("CDI-Telopper 地震字幕・全ての音声", GeneralSourceName),
         ("QTelopper 通常字幕", GeneralSourceName),
         ("QTelopper 地震字幕・全ての音声", GeneralSourceName),
         ("QTelopper 緊急地震速報", "CDI-Telopper 緊急地震速報"),
@@ -346,7 +347,7 @@ public sealed class ObsBrowserSourceSynchronizer : IObsBrowserSourceSynchronizer
                             url,
                             width = 1920,
                             height = 1080,
-                            // 音声ミキサーには一般音声ソースだけを表示する。
+                            // 種別ごとの音声をそれぞれのミキサーへ送る。
                             reroute_audio = controlsAudio,
                         },
                         overlay = true,

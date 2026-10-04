@@ -79,7 +79,7 @@ public partial class ControlWindow : Window, IAsyncDisposable
     }
     private readonly ControlWindowViewModel _viewModel;
     private readonly E2ETestPipeServer? _e2eTestPipeServer;
-    private PreviewWindow? _previewWindow;
+    private readonly BrowserMonitorLaunchTracker _monitorLaunchTracker = new();
     private TelegramReviewWindow? _telegramReviewWindow;
     private bool _disposed;
 
@@ -114,7 +114,7 @@ public partial class ControlWindow : Window, IAsyncDisposable
         DmdataCredentialBox.Password = _viewModel.Settings.DmdataCredential;
         AxisAccessTokenBox.Password = _viewModel.Settings.AxisAccessToken;
         _viewModel.Settings.PropertyChanged += OnSettingsPropertyChanged;
-        _viewModel.ShowPreviewRequested += OnShowPreviewRequested;
+        _viewModel.ShowBrowserMonitorRequested += OnShowBrowserMonitorRequested;
         _viewModel.ShowTelegramReviewRequested += OnShowTelegramReviewRequested;
         _viewModel.EditSubtitleRequested += OnEditSubtitleRequested;
         _viewModel.EditPendingSubtitleRequested += OnEditPendingSubtitleRequested;
@@ -159,7 +159,7 @@ public partial class ControlWindow : Window, IAsyncDisposable
         }
 
         _disposed = true;
-        _viewModel.ShowPreviewRequested -= OnShowPreviewRequested;
+        _viewModel.ShowBrowserMonitorRequested -= OnShowBrowserMonitorRequested;
         _viewModel.ShowTelegramReviewRequested -= OnShowTelegramReviewRequested;
         _viewModel.EditSubtitleRequested -= OnEditSubtitleRequested;
         _viewModel.EditPendingSubtitleRequested -= OnEditPendingSubtitleRequested;
@@ -178,7 +178,6 @@ public partial class ControlWindow : Window, IAsyncDisposable
         _viewModel.OperatorNotificationRequested -= OnOperatorNotificationRequested;
         _viewModel.SettingsEditorChanged -= OnSettingsEditorChanged;
         _viewModel.Settings.PropertyChanged -= OnSettingsPropertyChanged;
-        _previewWindow?.Close();
         _telegramReviewWindow?.Close();
         if (_e2eTestPipeServer is not null)
         {
@@ -188,24 +187,25 @@ public partial class ControlWindow : Window, IAsyncDisposable
         GC.SuppressFinalize(this);
     }
 
-    private void OnShowPreviewRequested(object? sender, EventArgs e)
-    {
-        if (_previewWindow is null)
-        {
-            _previewWindow = new PreviewWindow(_viewModel.Overlay) { Owner = this };
-            _previewWindow.Closed += (_, _) => _previewWindow = null;
-        }
+    private void OnShowBrowserMonitorRequested(object? sender, EventArgs e) =>
+        OpenBrowserMonitor(automatic: true);
 
-        _previewWindow.Show();
-        _previewWindow.Activate();
-    }
+    private void OnOpenBrowserMonitor(object sender, RoutedEventArgs e) =>
+        OpenBrowserMonitor(automatic: false);
 
-    private void OnOpenBrowserMonitor(object sender, RoutedEventArgs e)
+    private void OpenBrowserMonitor(bool automatic)
     {
         string url = _viewModel.MonitorUrlText;
         if (string.IsNullOrEmpty(url))
         {
-            MessageBox.Show(this, "「出力」でOBS Local Viewを有効にして「保存して反映」してください。外部APIの有効化は不要です。", "ブラウザーモニター");
+            if (!automatic)
+            {
+                MessageBox.Show(this, "「出力」でOBS Local Viewを有効にして「保存して反映」してください。外部APIの有効化は不要です。", "ブラウザーモニター");
+            }
+            return;
+        }
+        if (!_monitorLaunchTracker.ShouldOpen(url, automatic))
+        {
             return;
         }
         try
@@ -216,7 +216,10 @@ public partial class ControlWindow : Window, IAsyncDisposable
                 .FirstOrDefault(System.IO.File.Exists);
             if (chrome is null)
             {
-                MessageBox.Show(this, "Chromeが見つからないため、既定のブラウザーで開きます。", "ブラウザーモニター");
+                if (!automatic)
+                {
+                    MessageBox.Show(this, "Chromeが見つからないため、既定のブラウザーで開きます。", "ブラウザーモニター");
+                }
                 using var browser = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
             }
             else
@@ -226,6 +229,7 @@ public partial class ControlWindow : Window, IAsyncDisposable
                 start.ArgumentList.Add(url);
                 using var browser = System.Diagnostics.Process.Start(start);
             }
+            _monitorLaunchTracker.MarkOpened(url);
         }
         catch (Exception exception) when (exception is Win32Exception or InvalidOperationException or System.IO.IOException)
         {
@@ -535,6 +539,16 @@ public partial class ControlWindow : Window, IAsyncDisposable
         if (dialog.ShowDialog() == true)
         {
             _viewModel.Settings.SetWeatherPrefectureCodes(dialog.SelectedCodes);
+        }
+    }
+
+    private void OnSelectQuakePrefecturesClicked(object sender, RoutedEventArgs e)
+    {
+        var dialog = new WeatherPrefectureSelectionWindow(
+            _viewModel.Settings.QuakePrefectureCodes, "地震情報") { Owner = this };
+        if (dialog.ShowDialog() == true)
+        {
+            _viewModel.Settings.SetQuakePrefectureCodes(dialog.SelectedCodes);
         }
     }
 }

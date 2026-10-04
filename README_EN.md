@@ -24,13 +24,21 @@ beta.51 adds per-domain upstream health, a separately authenticated rehearsal AP
 
 beta.50 improves unreported-intensity normalization and labeling, removes trailing full-width station markers only from display text, and preserves observed and unreported entries at the same place. Simulator decoding and additive external API fields are improved while training/live separation remains enforced.
 
-The current public release is **2.0.0-beta.56** (October 4, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The latest source is **2.0.0-beta.57**, while the downloadable executable remains **2.0.0-beta.56** (October 4, 2026). No beta.57 executable has been uploaded to Releases yet. This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
 - [Download 2.0.0-beta.56](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.56)
-- [Detailed Japanese manual and specification](README_CDI-Telopper_2.0.0-beta.56.txt)
+- [Detailed Japanese beta.57 manual and specification](README_CDI-Telopper_2.0.0-beta.57.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
+
+beta.57 replaces the WPF preview with the silent browser preview, showing earthquake, EEW, tsunami and weather panels together. Repeated automatic launches of the same URL are suppressed.
+
+beta.57 adds individual exclusions for earthquake maximum intensities 1 through 6-upper, selectable prefecture filtering for events and/or points, and an option to include intensity 1–2 points in earthquakes with a maximum of 3 or higher (default off). Intensity 7, unknown/unreported intensity and cancellations are not excluded by intensity selection. Source data and external API values remain unchanged.
+
+beta.57 adds per-category audio timing: legacy playback (default), first new announcement only, or new announcements and escalations. Classification uses the announcements observed during the session, with training and production kept separate; it cannot guarantee the true first announcement when starting mid-event or when metadata is missing.
+
+beta.57 routes earthquake, EEW, tsunami and weather audio through their matching OBS browser sources, including audio tests. All four sources require OBS audio control. The 883 automated tests pass; actual reception and visual/audio checks with real OBS remain unperformed. See the [change notes](RELEASE_NOTES_2.0.0-beta.57.md) and [validation results](VALIDATION_2.0.0-beta.57.md).
 
 beta.56 adds manual DMDATA.JP contract-information retrieval in reception settings. It displays each returned plan's contract status, daily price and monthly maximum, start time, and additional connection allowance; these prices are not an actual bill. Retrieval failures are not reported as uncontracted plans. Contract information is shown temporarily in the control window, not saved to files, settings, logs or diagnostic ZIPs, and not sent to OBS captions or the external API. There is no periodic polling or contract modification. API keys need `contract.list`; OAuth users must explicitly authorize that additional scope with “契約情報も認可”. It must also be permitted in the registered OAuth client. The embedded client's registration for this scope and retrieval with a real account have not been verified. See the [contract-information setup guide](docs/dmdata-oauth.md#契約情報の表示).
 
@@ -62,7 +70,7 @@ Beta.37 removes the three generic earthquake pages from large-scale eruption rep
 - Provides a separate window for reviewing live and past telegrams
 - Redisplays a selected telegram in one of three modes: live-information repeat, past-information presentation, or operational training
 - Provides OBS Local View and automatic browser-source registration and URL updates through OBS WebSocket 5.x
-- Consolidates notification audio into a dedicated OBS source
+- Routes notification audio to its matching OBS category source (beta.57 onward)
 - Checks AXIS token expiration and attempts renewal before expiration
 - Provides logs, raw-message storage, diagnostic ZIP creation, and settings backup
 
@@ -139,14 +147,14 @@ Designated-river flood forecasts (VXKO50–89) use the weather provider and outp
 
 Create the following four browser sources in OBS. Each source is designed for a 1920×1080 canvas.
 
-- CDI-Telopper 地震字幕・全ての音声 (earthquake captions and all audio)
+- CDI-Telopper 地震字幕 (earthquake captions and audio)
 - CDI-Telopper 緊急地震速報 (EEW)
 - CDI-Telopper 津波字幕 (tsunami captions)
 - CDI-Telopper 気象情報 (weather information)
 
-Only **CDI-Telopper 地震字幕・全ての音声** should appear as an audio source in the OBS mixer. Disable audio control for the other three sources. OBS WebSocket synchronization can create missing sources, update the URLs that change at each application start, and migrate legacy source names.
+In beta.57 onward, enable “Control audio via OBS” for all four sources. Each category plays audio through its own source; the browser preview stays silent. OBS WebSocket synchronization enables audio control for all four, sets monitoring off, creates missing sources, updates session URLs and renames the legacy “CDI-Telopper 地震字幕・全ての音声” source to “CDI-Telopper 地震字幕”. Do not register both legacy and new sources. The downloadable beta.56 still sends all audio through its earthquake source.
 
-Legacy OBS map output and the always-on desktop overlay have been removed. The built-in experimental map has also been removed. Use the preview and the live/past telegram review window for on-PC confirmation.
+Legacy OBS map output and the always-on desktop overlay have been removed. The built-in experimental map has also been removed. Use the silent browser preview and the live/past telegram review window for on-PC confirmation.
 
 ## System requirements
 
@@ -189,10 +197,10 @@ The script restores dependencies, builds every project in the Release configurat
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.56
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.57
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.56\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.57\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
 
 ## External API integration: terms and disclaimer
 

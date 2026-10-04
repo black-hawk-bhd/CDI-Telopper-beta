@@ -446,7 +446,9 @@ public sealed class OperationalFeaturesTests
         StringAssert.Contains(controlWindow,
             "Text=\"Comprehensive Disaster Information Telopper\"");
         StringAssert.Contains(obsSynchronizer,
-            "\"CDI-Telopper 地震字幕・全ての音声\"");
+            "GeneralSourceName = \"CDI-Telopper 地震字幕\"");
+        StringAssert.Contains(obsSynchronizer,
+            "(\"CDI-Telopper 地震字幕・全ての音声\", GeneralSourceName)");
         StringAssert.Contains(obsSynchronizer,
             "(\"QTelopper 地震字幕・全ての音声\", GeneralSourceName)");
         StringAssert.Contains(publishScript, "'CDI-Telopper.exe'");

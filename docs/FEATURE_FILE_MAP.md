@@ -39,10 +39,11 @@
 | ページ時刻 | `Application/Coordination/PageClock.cs` | `Application.Tests/PageClockTests.cs` |
 | OBSローカル配信 | `Wpf/Obs/ObsLocalViewServer.cs`、`ObsViewSnapshot.cs` | `Wpf.Tests/Phase7ObsLocalViewTests.cs` |
 | OBSブラウザーソース登録 | `Wpf/Obs/ObsBrowserSourceSynchronizer.cs` | `Wpf.Tests/Phase7ObsLocalViewTests.cs` |
-| プレビューと字幕編集 | `Wpf/PreviewWindow*`、`SubtitleEditor*` | `Wpf.Tests/SubtitleEditorViewModelTests.cs` |
+| ブラウザープレビューと字幕編集 | `Wpf/Obs/ObsLocalViewServer.cs`、`Wpf/Obs/Assets/monitor*`、`Wpf/Obs/BrowserMonitorLaunchTracker.cs`、`SubtitleEditor*` | `Wpf.Tests/BrowserMonitorTests.cs`、`BrowserMonitorLaunchTrackerTests.cs`、`SubtitleEditorViewModelTests.cs` |
 | 受信・過去電文確認 | `Wpf/TelegramReviewWindow*`、`ViewModels/ReceivedTelegramViewModel.cs` | `Wpf.Tests/Phase6ViewModelTests.cs` |
 | 電文確認だけの地名ルビ | `Wpf/Controls/ReviewRubyText.cs`、`PlaceNameReadings.cs`、`Wpf/Assets/place-readings.tsv`（更新は `scripts/update-place-readings.ps1`） | `Wpf.Tests/PlaceNameReadingsTests.cs` |
-| 音声判定 | `Application/Audio/AudioPolicy.cs`と`ControlWindowViewModel`の音声処理 | `Application.Tests/Phase8PersistenceAndAudioTests.cs`、`Wpf.Tests/Phase6ViewModelTests.cs` |
+| 音声判定・新規発表の識別 | `Application/Audio/AudioPolicy.cs`、`NewAnnouncementTracker.cs`と`ControlWindowViewModel`の音声処理 | `Application.Tests/Phase8PersistenceAndAudioTests.cs`、`NewAnnouncementAudioTests.cs`、`Wpf.Tests/Phase6ViewModelTests.cs`、`AudioAnnouncementSettingsTests.cs` |
+| OBSの種別別音声出力 | `Wpf/Obs/ObsAudioRouting.cs`、`ObsViewSnapshot.cs`、`ObsBrowserSourceSynchronizer.cs`、`Assets/overlay.js` | `Wpf.Tests/ObsCategoryAudioTests.cs`、`Phase7ObsLocalViewTests.cs`、`Phase6ViewModelTests.cs` |
 
 ## 設定、保存、診断
 

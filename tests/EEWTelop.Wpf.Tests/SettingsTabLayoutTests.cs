@@ -96,6 +96,23 @@ public sealed class SettingsTabLayoutTests
     private static string? ParentTab(XElement element) =>
         (string?)element.Ancestors(Presentation + "TabItem").Single().Attribute("Header");
 
+    [TestMethod]
+    public void OnlyBrowserPreviewRemainsAndNewEarthquakeSettingsAreOnFilterTab()
+    {
+        XDocument document = LoadControlWindow();
+        Assert.HasCount(1, document.Descendants(Presentation + "Button")
+            .Where(button => (string?)button.Attribute("Click") == "OnOpenBrowserMonitor").ToArray());
+        Assert.IsFalse(document.Descendants().Attributes().Any(attribute =>
+            attribute.Value.Contains("ShowPreviewCommand", StringComparison.Ordinal) ||
+            attribute.Value.Contains("Settings.HideQuakeBelowIntensity3", StringComparison.Ordinal)));
+        foreach (string binding in new[] { "{Binding Settings.QuakeIntensityFilters}",
+                     "{Binding Settings.QuakePrefectureMode}", "{Binding Settings.ShowLowIntensityPointsInStrongQuakes}" })
+        {
+            XElement control = document.Descendants().Single(element => element.Attributes().Any(attribute => attribute.Value == binding));
+            Assert.AreEqual("フィルター", ParentTab(control));
+        }
+    }
+
     private static XDocument LoadControlWindow()
     {
         for (DirectoryInfo? directory = new(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
@@ -104,5 +121,18 @@ public sealed class SettingsTabLayoutTests
             if (File.Exists(path)) return XDocument.Load(path);
         }
         throw new FileNotFoundException("ControlWindow.xaml was not found.");
+    }
+
+    [TestMethod]
+    public void EarthquakeTsunamiAndWeatherAudioTimingHaveThreeChoicesOnAudioTab()
+    {
+        XDocument document = LoadControlWindow();
+        foreach (string property in new[] { "QuakeAnnouncementMode", "TsunamiAnnouncementMode", "WeatherAnnouncementMode" })
+        {
+            XElement combo = document.Descendants(Presentation + "ComboBox")
+                .Single(element => (string?)element.Attribute("SelectedValue") == "{Binding Settings." + property + "}");
+            Assert.AreEqual("音声", ParentTab(combo));
+            Assert.HasCount(3, combo.Elements(Presentation + "ComboBoxItem").ToArray());
+        }
     }
 }

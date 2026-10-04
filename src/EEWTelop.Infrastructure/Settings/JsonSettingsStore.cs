@@ -286,6 +286,9 @@ public sealed class JsonSettingsStore : ISettingsStore
         };
         AudioSettings audio = NormalizeIndividualAudioCues(MigrateTsunamiAudio(settings.Audio)) with
         {
+            QuakeAnnouncementMode = NormalizeAudioAnnouncementMode(settings.Audio.QuakeAnnouncementMode),
+            TsunamiAnnouncementMode = NormalizeAudioAnnouncementMode(settings.Audio.TsunamiAnnouncementMode),
+            WeatherAnnouncementMode = NormalizeAudioAnnouncementMode(settings.Audio.WeatherAnnouncementMode),
             MinimumQuakeScale = IsSupportedQuakeAudioThreshold(
                 settings.Audio.MinimumQuakeScale)
                     ? settings.Audio.MinimumQuakeScale
@@ -311,6 +314,14 @@ public sealed class JsonSettingsStore : ISettingsStore
 
         FilterSettings filter = settings.Filter with
         {
+            ExcludedQuakeMaximumScales = QuakeFilterOptions.ResolveExcludedScales(settings.Filter),
+            HideQuakeBelowIntensity3 =
+                QuakeFilterOptions.ResolveExcludedScales(settings.Filter).Contains(JmaScale.One) &&
+                QuakeFilterOptions.ResolveExcludedScales(settings.Filter).Contains(JmaScale.Two),
+            QuakePrefectureCodes = WeatherPrefectureCatalog.NormalizeCodes(settings.Filter.QuakePrefectureCodes),
+            QuakePrefectureMode = Enum.IsDefined(settings.Filter.QuakePrefectureMode)
+                ? settings.Filter.QuakePrefectureMode
+                : QuakePrefectureFilterMode.EventAndPoints,
             WeatherPrefectureCodes = weatherPrefectureCodes,
             WeatherPrefectureCode = weatherPrefectureCodes.Length == 1
                 ? weatherPrefectureCodes[0]
@@ -334,6 +345,9 @@ public sealed class JsonSettingsStore : ISettingsStore
         JmaScale.SixLower or
         JmaScale.SixUpper or
         JmaScale.Seven;
+
+    private static AudioAnnouncementMode NormalizeAudioAnnouncementMode(AudioAnnouncementMode mode) =>
+        Enum.IsDefined(mode) ? mode : AudioAnnouncementMode.Legacy;
 
     private static bool IsSecureWebSocket(string value) =>
         Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) &&
@@ -502,6 +516,10 @@ public sealed class JsonSettingsStore : ISettingsStore
         AppSettings migrated = settings.SchemaVersion switch
         {
             AppSettings.CurrentSchemaVersion => settings,
+            26 => settings with
+            {
+                SchemaVersion = AppSettings.CurrentSchemaVersion,
+            },
             25 => settings with
             {
                 SchemaVersion = AppSettings.CurrentSchemaVersion,
@@ -594,7 +612,7 @@ public sealed class JsonSettingsStore : ISettingsStore
         // Schema 25 and earlier always requested eew.forecast/VXSE45. Preserve
         // that contract choice during migration; only new installations default
         // to eew.warning/VXSE43.
-        return settings.SchemaVersion < AppSettings.CurrentSchemaVersion
+        return settings.SchemaVersion < 26
             ? migrated with
             {
                 Provider = migrated.Provider with

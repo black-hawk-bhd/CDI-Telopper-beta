@@ -9,6 +9,10 @@ public static class EventDisplayFilter
     {
         ArgumentNullException.ThrowIfNull(filter);
         ArgumentNullException.ThrowIfNull(disasterEvent);
+        if (disasterEvent is QuakeEvent quake)
+        {
+            return FilterQuakeInformation(filter, quake);
+        }
         if (disasterEvent is not WeatherWarningEvent weather)
         {
             return IsEnabled(filter, disasterEvent) ? disasterEvent : null;
@@ -24,7 +28,7 @@ public static class EventDisplayFilter
         return disasterEvent switch
         {
             EewEvent => filter.Eew,
-            QuakeEvent quake => filter.Quake && IsQuakeIntensityEnabled(filter, quake),
+            QuakeEvent quake => FilterQuakeInformation(filter, quake) is not null,
             TsunamiEvent => filter.Tsunami,
             WeatherWarningEvent weather => FilterWeatherInformation(filter, weather) is not null,
             VolcanoEvent => filter.Volcano,
@@ -156,13 +160,63 @@ public static class EventDisplayFilter
 
     private static bool IsQuakeIntensityEnabled(FilterSettings filter, QuakeEvent quake)
     {
-        if (!filter.HideQuakeBelowIntensity3)
+        return !QuakeFilterOptions.ResolveExcludedScales(filter)
+            .Contains(quake.Earthquake.MaximumScale);
+    }
+
+    private static QuakeEvent? FilterQuakeInformation(FilterSettings filter, QuakeEvent quake)
+    {
+        if (!filter.Quake)
         {
-            return true;
+            return null;
         }
 
-        JmaScale maximum = quake.Earthquake.MaximumScale;
-        return maximum == JmaScale.Unknown || (int)maximum >= (int)JmaScale.Three;
+        // Cancellations must still clear previously displayed information.
+        if (quake.IsCancelled)
+        {
+            return quake;
+        }
+
+        if (!IsQuakeIntensityEnabled(filter, quake))
+        {
+            return null;
+        }
+
+        string[] codes = WeatherPrefectureCatalog.NormalizeCodes(filter.QuakePrefectureCodes);
+        if (codes.Length == 0)
+        {
+            return quake;
+        }
+
+        bool Matches(string? code) => code is not null && codes.Contains(code);
+        QuakePoint[] points = quake.Points.Where(point => Matches(
+            QuakeFilterOptions.FindPrefectureCode(point.Prefecture, point.MunicipalityCode))).ToArray();
+        LongPeriodIntensityInfo? longPeriod = quake.LongPeriodIntensity;
+        LongPeriodIntensityArea[] areas = longPeriod?.Areas.Where(area => Matches(
+            QuakeFilterOptions.FindPrefectureCode(area.Prefecture))).ToArray() ?? [];
+        bool hasKnownRegion = quake.Points.Any(point =>
+            QuakeFilterOptions.FindPrefectureCode(point.Prefecture, point.MunicipalityCode) is not null) ||
+            (longPeriod?.Areas.Any(area =>
+                QuakeFilterOptions.FindPrefectureCode(area.Prefecture) is not null) ?? false);
+
+        // Hypocenter-only, foreign and advisory telegrams cannot be classified
+        // by observed prefecture. Keep their summaries instead of guessing.
+        if (!hasKnownRegion)
+        {
+            return quake;
+        }
+
+        if (filter.QuakePrefectureMode != QuakePrefectureFilterMode.PointsOnly &&
+            points.Length == 0 && areas.Length == 0)
+        {
+            return null;
+        }
+
+        return filter.QuakePrefectureMode == QuakePrefectureFilterMode.EventOnly
+            ? quake
+            : quake.WithDisplayObservations(points, longPeriod is null
+                ? null
+                : longPeriod with { Areas = areas });
     }
 
     public static string DescribeSuppression(
@@ -175,7 +229,8 @@ public static class EventDisplayFilter
         {
             EewEvent when !filter.Eew => "種別フィルター:緊急地震速報",
             QuakeEvent when !filter.Quake => "種別フィルター:地震情報",
-            QuakeEvent => "最大震度フィルター",
+            QuakeEvent quake when !IsQuakeIntensityEnabled(filter, quake) => "最大震度フィルター",
+            QuakeEvent => "地震の都道府県フィルター",
             TsunamiEvent when !filter.Tsunami => "種別フィルター:津波情報",
             WeatherWarningEvent weather => DescribeWeatherSuppression(filter, weather),
             VolcanoEvent when !filter.Volcano => "種別フィルター:火山情報",

@@ -11,6 +11,27 @@ namespace EEWTelop.Application.Tests;
 public sealed class EventIngestionPipelineTests
 {
     [TestMethod]
+    public void QuakeRegionFilterOnlyChangesDisplayAndRetainsOriginalEventForApi()
+    {
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(QuakeIssueType.DetailScale,
+            [DisplayEventFactory.Point(1, JmaScale.Three, "東京都"),
+             DisplayEventFactory.Point(2, JmaScale.SixUpper, "宮城県")], sourceMode: SourceMode.Sandbox);
+        var clock = new FakeClock();
+        var pipeline = new EventIngestionPipeline(new StubNormalizer(quake), new EventVersionCache(),
+            new PageComposer(), new PriorityCoordinator(clock, DisplayEventFactory.Settings),
+            DisplayEventFactory.Settings, new FilterSettings(true, true, true)
+            { QuakePrefectureCodes = ["13"] });
+        EventIngestionResult result = pipeline.Process(new RawProviderMessage("p2pquake", "{}", SourceMode.Sandbox, clock.UtcNow));
+        Assert.AreSame(quake, result.Event);
+        Assert.HasCount(2, ((QuakeEvent)result.Event!).Points);
+        Assert.AreEqual(SourceMode.Sandbox, result.Program!.SourceMode);
+        string text = string.Join("\n", result.Program.Pages.Select(page => page.AccessibleText));
+        Assert.Contains("東京都固定市1", text);
+        Assert.DoesNotContain("宮城県固定市2", text);
+        Assert.AreEqual(JmaScale.SixUpper, ((QuakeEvent)result.Event).Earthquake.MaximumScale);
+    }
+
+    [TestMethod]
     public void LegacyAxisWeatherTelegramIsIgnoredBeforeVersioningAndDisplay()
     {
         DateTimeOffset issuedAt = new(2026, 8, 12, 8, 4, 9, TimeSpan.Zero);

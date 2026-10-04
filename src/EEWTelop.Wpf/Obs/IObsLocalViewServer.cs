@@ -16,6 +16,8 @@ public interface IObsLocalViewServer : IAsyncDisposable
 
     int ClientCount { get; }
 
+    int GetAudioClientCount(ObsViewChannel channel) => ClientCount;
+
     IReadOnlyDictionary<string, int> RouteClientCounts =>
         new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 

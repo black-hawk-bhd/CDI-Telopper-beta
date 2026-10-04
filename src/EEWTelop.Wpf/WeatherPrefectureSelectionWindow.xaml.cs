@@ -7,9 +7,11 @@ public partial class WeatherPrefectureSelectionWindow : Window
 {
     private readonly WeatherPrefectureSelectionViewModel _viewModel;
 
-    public WeatherPrefectureSelectionWindow(IEnumerable<string>? selectedCodes)
+    public WeatherPrefectureSelectionWindow(IEnumerable<string>? selectedCodes, string informationName = "気象情報")
     {
         InitializeComponent();
+        Title = informationName + "の対象地域";
+        SelectionHeading.Text = informationName + "を表示する地域を選択してください";
         _viewModel = new WeatherPrefectureSelectionViewModel(selectedCodes);
         DataContext = _viewModel;
     }
