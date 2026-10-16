@@ -41,7 +41,9 @@ internal static class PageComposerSupport
             EventId: disasterEvent.Id,
             Kind: disasterEvent.Kind,
             SourceMode: disasterEvent.SourceMode,
-            IssuedAt: disasterEvent.IssuedAt,
+            // Internal display ordering uses the source creation time for EEW.
+            // The domain event and external API retain the original header time.
+            IssuedAt: disasterEvent is EewEvent eew ? eew.SourceMessageTime ?? eew.IssuedAt : disasterEvent.IssuedAt,
             priority,
             Pages: pages,
             StartedAtUtc: disasterEvent.ReceivedAt.ToUniversalTime(),

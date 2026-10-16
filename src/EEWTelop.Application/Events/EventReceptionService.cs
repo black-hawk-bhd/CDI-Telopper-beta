@@ -54,12 +54,17 @@ public sealed class EventReceptionService
     {
         ArgumentNullException.ThrowIfNull(raw);
 
+        bool preserveRaw = false;
         try
         {
             EventIngestionResult result = _pipeline.Process(raw);
+            preserveRaw = result.PreserveRawForReview;
             // Display first. Diagnostic disk I/O must never delay the
             // currently received disaster information from reaching OBS.
             EventProcessed?.Invoke(this, result);
+            if (result.RequiresReview)
+                _alerts?.Raise(new OperationalAlert("eew-ordering-review", OperationalAlertSeverity.Warning,
+                    "EEW電文の確認が必要", string.Join(" ", result.Issues.Select(issue => issue.Message)), DateTimeOffset.UtcNow));
             _comparisonService?.Observe(raw, result, DateTimeOffset.UtcNow);
             return result;
         }
@@ -69,7 +74,10 @@ public sealed class EventReceptionService
             {
                 try
                 {
-                    await _rawArchive.SaveAsync(raw, cancellationToken).ConfigureAwait(false);
+                    if (preserveRaw)
+                        await _rawArchive.SaveForReviewAsync(raw, cancellationToken).ConfigureAwait(false);
+                    else
+                        await _rawArchive.SaveAsync(raw, cancellationToken).ConfigureAwait(false);
                     _alerts?.Recover("raw-archive-write", "生データ保存", "生データ保存が復旧しました。", DateTimeOffset.UtcNow);
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)

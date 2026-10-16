@@ -24,17 +24,23 @@ beta.51 adds per-domain upstream health, a separately authenticated rehearsal AP
 
 beta.50 improves unreported-intensity normalization and labeling, removes trailing full-width station markers only from display text, and preserves observed and unreported entries at the same place. Simulator decoding and additive external API fields are improved while training/live separation remains enforced.
 
-The current public release is **2.0.0-beta.57** (October 4, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.58** (October 16, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.57](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.57)
-- [Detailed Japanese beta.57 manual and specification](README_CDI-Telopper_2.0.0-beta.57.txt)
+- [Download 2.0.0-beta.58](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.58)
+- [Detailed Japanese beta.58 manual and specification](README_CDI-Telopper_2.0.0-beta.58.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
 
+beta.58: a newer, explicit EEW cancellation may be accepted despite a lower serial number, without rewriting source fields. Source message time, event identity and live/test separation govern the exception; stale reports cannot resurrect a cancelled warning. Ordering/cancellation state is persisted within bounded history. JMA XML uses `Control/DateTime`, or an explicit header time only when Control time is absent, never local receipt time. Ambiguous regressions, inconsistent XML cancellation metadata and source times more than five minutes ahead of receipt are held for review. Accepted anomalies and review cases are archived locally with `_ordering-review` filenames even when ordinary raw-message logging is off, under its retention/size limits. Captions, audio and the external API share the ingestion decision. Legacy snapshots without ordering metadata do not establish historical ordering.
+
+All 926 automated tests pass for beta.58. Actual live reception and real OBS checks remain unperformed. See the [release notes](RELEASE_NOTES_2.0.0-beta.58.md) and [validation results](VALIDATION_2.0.0-beta.58.md).
+
 beta.57 replaces the WPF preview with the silent browser preview, showing earthquake, EEW, tsunami and weather panels together. Repeated automatic launches of the same URL are suppressed.
 
 beta.57 adds individual exclusions for earthquake maximum intensities 1 through 6-upper, selectable prefecture filtering for events and/or points, and an option to include intensity 1–2 points in earthquakes with a maximum of 3 or higher (default off). Intensity 7, unknown/unreported intensity and cancellations are not excluded by intensity selection. Source data and external API values remain unchanged.
+
+beta.58 adds an opt-in filter setting that keeps earthquake information containing the normalized “EEW was issued, but no strong shaking was observed” explanation visible despite maximum-intensity exclusions. It defaults off, remains subject to the earthquake category and prefecture settings, and does not classify the earthquake or EEW as cancelled. Enable it in Filters and save/apply. It affects subsequent processing, not automatic redisplay of previously hidden messages.
 
 beta.57 adds per-category audio timing: legacy playback (default), first new announcement only, or new announcements and escalations. Classification uses the announcements observed during the session, with training and production kept separate; it cannot guarantee the true first announcement when starting mid-event or when metadata is missing.
 
@@ -197,10 +203,10 @@ The script restores dependencies, builds every project in the Release configurat
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.57
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.58
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.57\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.58\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
 
 ## External API integration: terms and disclaimer
 

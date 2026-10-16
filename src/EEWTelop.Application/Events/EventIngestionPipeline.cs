@@ -62,6 +62,8 @@ public sealed class EventIngestionPipeline
             NormalizationCompletedAtUtc = startedAtUtc + normalizationElapsed,
             ProcessingCompletedAtUtc = DateTimeOffset.UtcNow,
             ProcessingMilliseconds = stopwatch.Elapsed.TotalMilliseconds,
+            RequiresReview = result.Issues.Any(issue => issue.Path == "eew.ordering.reviewRequired"),
+            PreserveRawForReview = result.Issues.Any(issue => issue.Path.StartsWith("eew.ordering.", StringComparison.Ordinal)),
         };
     }
 
@@ -100,15 +102,19 @@ public sealed class EventIngestionPipeline
 
         // State-only sync must also seed a fresh API session when a signature was
         // restored from disk. It can never replay output; live duplicates still stop here.
-        if (!_versionCache.TryAccept(receivedEvent) && !raw.IsStateSnapshot)
+        EventVersionDecision version = _versionCache.CheckAndAccept(receivedEvent);
+        if (version.Issue is not null)
+            normalized = normalized with { Issues = [.. normalized.Issues, version.Issue] };
+        if (!version.Accepted && !(raw.IsStateSnapshot && version.Disposition == EventVersionDisposition.Duplicate))
         {
             return CreateResult(
                 raw,
-                EventIngestionStatus.Duplicate,
+                version.RequiresReview ? EventIngestionStatus.Ignored : EventIngestionStatus.Duplicate,
                 receivedEvent,
                 null,
                 null,
-                normalized.Issues);
+                normalized.Issues,
+                version.RequiresReview ? "要確認：EEW電文の更新順序を確定できません" : null);
         }
 
         DisasterEvent disasterEvent = receivedEvent is TsunamiEvent tsunami
@@ -361,6 +367,10 @@ public sealed record EventIngestionResult(
     public int UnknownWeatherItemCount { get; init; }
 
     public bool AwaitingPreDisplayEdit { get; init; }
+
+    public bool RequiresReview { get; init; }
+
+    public bool PreserveRawForReview { get; init; }
 
     public string TraceId { get; init; } = string.Empty;
 

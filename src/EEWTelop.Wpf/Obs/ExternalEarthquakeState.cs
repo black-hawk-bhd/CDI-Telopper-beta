@@ -28,7 +28,8 @@ internal sealed class ExternalEarthquakeState
             if (result.Event is EewEvent eew && (_training || !eew.IsTest))
             {
                 string id = eew.Id.ToString();
-                if (_eew.TryGetValue(id, out var previous) && eew.IssuedAt < previous.IssuedAt) return;
+                if (_eew.TryGetValue(id, out var previous) &&
+                    (eew.SourceMessageTime ?? eew.IssuedAt) < (previous.SourceMessageTime ?? previous.IssuedAt)) return;
                 _eew[id] = eew;
                 while (_eew.Count > 100) _eew.Remove(_eew.MinBy(static x => x.Value.IssuedAt).Key);
                 _revision++;
@@ -83,6 +84,7 @@ internal sealed class ExternalEarthquakeState
                 events = _eew.Values.OrderByDescending(static e => e.IssuedAt).Select(e => new
                 {
                     eventId = e.Id.ToString(), provider = e.Provider, issuedAt = e.IssuedAt,
+                    sourceMessageTime = e.SourceMessageTime,
                     receivedAt = e.ReceivedAt, serial = e.Issue.Serial, isCancelled = e.IsCancelled,
                     isWarning = e.IsWarning, isFinal = e.IsFinal, sourceMode = ExternalChannelSource.Mode(e),
                     // Expiry is a CDI display lifetime, not an official cancellation.

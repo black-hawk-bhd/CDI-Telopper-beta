@@ -218,6 +218,10 @@ public sealed record EewEvent : DisasterEvent
     public bool IsFinal { get; }
 
     public bool IsTest { get; }
+
+    // Source publication/creation time, never a fallback to local receipt time.
+    // JMA XML uses Control/DateTime when present, otherwise ReportDateTime.
+    public DateTimeOffset? SourceMessageTime { get; init; }
 }
 
 public sealed record WeatherWarningEvent : DisasterEvent

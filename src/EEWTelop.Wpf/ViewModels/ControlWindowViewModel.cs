@@ -2189,6 +2189,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
             ReceptionStatusText = result.Status switch
             {
+                _ when result.RequiresReview => "要確認：EEW電文の更新順序（ログ・原文を確認）",
                 EventIngestionStatus.Accepted when result.AwaitingPreDisplayEdit &&
                     result.Event is not null =>
                     $"作画前編集待ち: {GetEventKindText(result.Event.Kind)}",
@@ -2209,7 +2210,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                     ? "詳細なし"
                     : string.Join(" ", result.Issues.Select(static issue => issue.Message));
                 FireAndForgetLog(
-                    result.Status == EventIngestionStatus.Invalid
+                    result.Status == EventIngestionStatus.Invalid || result.RequiresReview
                         ? AppLogLevel.Warning
                         : AppLogLevel.Information,
                     result.Status == EventIngestionStatus.Invalid

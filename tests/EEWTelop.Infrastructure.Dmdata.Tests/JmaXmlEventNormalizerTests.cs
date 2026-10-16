@@ -944,6 +944,43 @@ public sealed class JmaXmlEventNormalizerTests
     }
 
     [TestMethod]
+    [DataRow("jma-xml", "0215 0245", "この地震による津波の心配はありません。")]
+    [DataRow("dmdata.jp", "0215 0245", "この地震による津波の心配はありません。")]
+    [DataRow("jma-xml", "0215", "この地震で緊急地震速報を発表しましたが、強い揺れは観測されませんでした。")]
+    [DataRow("dmdata.jp", "0215", "この地震で緊急地震速報を発表しましたが、強い揺れは観測されませんでした。")]
+    public void Vxse53LowIntensityExplanationCanOptOutOfMaximumIntensityFilter(
+        string provider, string codes, string text)
+    {
+        string xml = $"""
+            <Report>
+              <Control><Title>震源・震度に関する情報</Title><Status>通常</Status><PublishingOffice>気象庁</PublishingOffice></Control>
+              <Head><ReportDateTime>2026-10-16T12:52:00+09:00</ReportDateTime><EventID>20261016123810</EventID><Serial>1</Serial><InfoType>発表</InfoType></Head>
+              <Body>
+                <Earthquake><OriginTime>2026-10-16T12:35:00+09:00</OriginTime></Earthquake>
+                <Intensity><Observation><MaxInt>1</MaxInt></Observation></Intensity>
+                <Comments><ForecastComment><Text>{text}</Text><Code>{codes}</Code></ForecastComment></Comments>
+              </Body>
+            </Report>
+            """;
+        var normalizer = new JmaXmlEventNormalizer(new EventSignatureBuilder());
+        NormalizeResult result = normalizer.Normalize(new RawProviderMessage(provider, xml,
+            SourceMode.Production, DateTimeOffset.Parse("2026-10-16T12:54:44+09:00", CultureInfo.InvariantCulture))
+        { ContentFormat = RawProviderContentFormat.JmaXml });
+
+        QuakeEvent quake = Assert.IsInstanceOfType<QuakeEvent>(result.Event);
+        Assert.AreEqual(JmaScale.One, quake.Earthquake.MaximumScale);
+        Assert.IsFalse(quake.IsCancelled);
+        var filter = new FilterSettings(true, true, true, HideQuakeBelowIntensity3: true);
+        Assert.IsNull(EventDisplayFilter.Apply(filter, quake));
+        QuakeEvent displayed = Assert.IsInstanceOfType<QuakeEvent>(EventDisplayFilter.Apply(filter with
+            { ShowQuakeWithEewNoStrongShakingComment = true }, quake));
+        Assert.AreSame(quake, displayed);
+        DisplayProgram program = new PageComposer().Compose(displayed, AppSettings.CreateDefault().Display);
+        Assert.IsTrue(program.Pages.SelectMany(page => page.Blocks).Any(block =>
+            block.PrimaryText.Contains("強い揺れは観測されませんでした", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
     public void Vxse62NormalizesLongPeriodClassWithoutDisplayingExplanatoryComment()
     {
         const string xml = """

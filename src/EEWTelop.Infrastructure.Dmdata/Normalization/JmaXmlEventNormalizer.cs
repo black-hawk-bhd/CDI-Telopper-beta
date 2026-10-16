@@ -456,6 +456,13 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
         bool cancelled = infoType.Contains("取消", StringComparison.Ordinal) ||
             headline.Contains("取消", StringComparison.Ordinal);
         bool hasWarning = telegramType == "VXSE43" || HasEewWarning(document);
+        if (cancelled && (!infoType.Contains("取消", StringComparison.Ordinal) ||
+            string.IsNullOrWhiteSpace(Text(Descendant(reportHead, "EventID")))))
+        {
+            return NormalizeResult.Invalid(new ValidationIssue("eew.ordering.reviewRequired",
+                "要確認：EEW取消の正式な取消区分またはイベントIDを確認できません。更新を保留し、原文を保存します。",
+                ValidationSeverity.Warning));
+        }
         if (telegramType == "VXSE45" && !hasWarning && !cancelled)
         {
             return NormalizeResult.Ignored();
@@ -486,7 +493,13 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
             isWarning: hasWarning || cancelled,
             isFinal,
             cancelled,
-            isTest);
+            isTest)
+        {
+            SourceMessageTime = Descendant(document, "Control") is { } control &&
+                Child(control, "DateTime") is not null
+                    ? ReadDateTime(control, "DateTime")
+                    : ReadDateTime(reportHead, "ReportDateTime"),
+        };
         disasterEvent = disasterEvent with
         {
             Signature = _signatureBuilder.Build(disasterEvent),

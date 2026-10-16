@@ -489,6 +489,11 @@
                                             </ItemsControl>
                                             <TextBlock Text="地震全体の最大震度で判定します。震度7・震度不明・5弱以上未入電・取消情報はこの設定で除外しません。EEW・津波には適用しません。"
                                                        Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,2,0,8" />
+                                            <CheckBox IsChecked="{Binding Settings.ShowQuakeWithEewNoStrongShakingComment}"
+                                                      ToolTip="初期値はOFFです。ONでは「EEWを発表したが強い揺れは観測されなかった」という説明を含む地震情報を、最大震度の非表示設定から除外します。地震情報の表示OFFと都道府県設定は維持します。地震自体を取消扱いにはしません。">
+                                                <TextBlock Text="EEW発表後、強い揺れがなかった地震情報は震度フィルターの例外として表示する"
+                                                           TextWrapping="Wrap" />
+                                            </CheckBox>
                                             <TextBlock Text="地震の対象地域（都道府県）" />
                                             <DockPanel Margin="0,3,0,5">
                                                 <Button DockPanel.Dock="Right" Content="地域を選択…" Click="OnSelectQuakePrefecturesClicked" Margin="8,0,0,0" Padding="12,5" />

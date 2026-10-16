@@ -273,6 +273,10 @@ public sealed record FilterSettings(
     // An explicitly empty array means no maximum-intensity exclusions.
     public JmaScale[]? ExcludedQuakeMaximumScales { get; init; }
 
+    // Opt-in exception for the normalized EEW no-strong-shaking explanation.
+    // Other category and prefecture filters still apply.
+    public bool ShowQuakeWithEewNoStrongShakingComment { get; init; }
+
     public string[] QuakePrefectureCodes { get; init; } = [];
 
     public QuakePrefectureFilterMode QuakePrefectureMode { get; init; } =

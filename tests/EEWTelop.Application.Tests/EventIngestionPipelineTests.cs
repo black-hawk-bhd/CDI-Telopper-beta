@@ -230,6 +230,43 @@ public sealed class EventIngestionPipelineTests
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void LowIntensityEewExplanationIsDisplayedOnlyWithExceptionEnabled(bool enabled)
+    {
+        const string comment = "この地震で緊急地震速報を発表しましたが、強い揺れは観測されませんでした。";
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(QuakeIssueType.DetailScale,
+            [DisplayEventFactory.Point(1, JmaScale.One, "北海道")], comment: comment);
+        var clock = new FakeClock();
+        var coordinator = new PriorityCoordinator(clock, DisplayEventFactory.Settings);
+        var pipeline = new EventIngestionPipeline(new StubNormalizer(quake), new EventVersionCache(),
+            new PageComposer(), coordinator, DisplayEventFactory.Settings,
+            new FilterSettings(true, true, true, HideQuakeBelowIntensity3: true)
+            { ShowQuakeWithEewNoStrongShakingComment = enabled });
+
+        EventIngestionResult result = pipeline.Process(CreateRaw(clock, "{}"));
+
+        Assert.AreEqual(EventIngestionStatus.Accepted, result.Status);
+        Assert.IsNotNull(result.Event);
+        Assert.AreSame(quake, result.Event);
+        Assert.IsFalse(result.Event.IsCancelled);
+        if (enabled)
+        {
+            Assert.IsNotNull(result.Program);
+            Assert.IsNotNull(coordinator.Evaluate().CurrentProgram);
+            Assert.IsNull(result.DisplaySuppressionReason);
+            Assert.IsTrue(result.Program.Pages.SelectMany(page => page.Blocks).Any(block =>
+                block.PrimaryText.Contains("強い揺れは観測されませんでした", StringComparison.Ordinal)));
+        }
+        else
+        {
+            Assert.IsNull(result.Program);
+            Assert.IsNull(coordinator.Evaluate().CurrentProgram);
+            Assert.AreEqual("最大震度フィルター", result.DisplaySuppressionReason);
+        }
+    }
+
+    [TestMethod]
     public void IntensityFilterShowsThreeAndKeepsUnknownMaximumForSafety()
     {
         var filter = new FilterSettings(true, true, true, HideQuakeBelowIntensity3: true);

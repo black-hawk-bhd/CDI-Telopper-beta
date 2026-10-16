@@ -44,6 +44,9 @@ public interface IRawProviderMessageArchive
     ValueTask SaveAsync(
         RawProviderMessage message,
         CancellationToken cancellationToken = default);
+
+    ValueTask SaveForReviewAsync(RawProviderMessage message, CancellationToken cancellationToken = default) =>
+        SaveAsync(message, cancellationToken);
 }
 
 public enum NormalizeStatus

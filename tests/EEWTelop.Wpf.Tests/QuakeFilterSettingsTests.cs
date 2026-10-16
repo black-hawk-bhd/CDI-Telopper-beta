@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using EEWTelop.Application.Configuration;
 using EEWTelop.Application.Logging;
 using EEWTelop.Domain.Events;
@@ -20,6 +21,7 @@ public sealed class QuakeFilterSettingsTests
         Assert.AreEqual("震度6強", editor.QuakeIntensityFilters[^1].Label);
         Assert.AreEqual("全国", editor.QuakePrefectureSelectionSummary);
         Assert.IsFalse(editor.ShowLowIntensityPointsInStrongQuakes);
+        Assert.IsFalse(editor.ShowQuakeWithEewNoStrongShakingComment);
     }
 
     [TestMethod]
@@ -33,6 +35,7 @@ public sealed class QuakeFilterSettingsTests
         editor.SetWeatherPrefectureCodes(["01"]);
         editor.QuakePrefectureMode = QuakePrefectureFilterMode.PointsOnly;
         editor.ShowLowIntensityPointsInStrongQuakes = true;
+        editor.ShowQuakeWithEewNoStrongShakingComment = true;
         AppSettings saved = editor.ToSettings(defaults);
         Assert.HasCount(2, saved.Filter.ExcludedQuakeMaximumScales!);
         Assert.IsFalse(saved.Filter.HideQuakeBelowIntensity3);
@@ -40,13 +43,16 @@ public sealed class QuakeFilterSettingsTests
         Assert.AreEqual("01", saved.Filter.WeatherPrefectureCodes.Single());
         Assert.AreEqual(QuakePrefectureFilterMode.PointsOnly, saved.Filter.QuakePrefectureMode);
         Assert.IsTrue(saved.Display.ShowLowIntensityPointsInStrongQuakes);
+        Assert.IsTrue(saved.Filter.ShowQuakeWithEewNoStrongShakingComment);
         var restored = new SettingsEditorViewModel(saved);
+        Assert.IsTrue(restored.ShowQuakeWithEewNoStrongShakingComment);
         Assert.AreEqual(2, restored.QuakeIntensityFilters.Count(option => option.IsExcluded));
         restored.ResetFilterSettings();
         Assert.IsTrue(restored.QuakeIntensityFilters.All(option => !option.IsExcluded));
         Assert.HasCount(0, restored.QuakePrefectureCodes);
         Assert.AreEqual(QuakePrefectureFilterMode.EventAndPoints, restored.QuakePrefectureMode);
         Assert.IsFalse(restored.ShowLowIntensityPointsInStrongQuakes);
+        Assert.IsFalse(restored.ShowQuakeWithEewNoStrongShakingComment);
     }
 
     [TestMethod]
@@ -95,6 +101,38 @@ public sealed class QuakeFilterSettingsTests
     }
 
     [TestMethod]
+    public async Task OlderSettingsWithoutExplanationExceptionKeepItOff()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "cdi-eew-explanation-settings-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            AppSettings defaults = AppSettings.CreateDefault();
+            string path = Path.Combine(directory, "settings.json");
+            var store = new JsonSettingsStore(path, new UiLogBuffer());
+            await store.SaveAsync(defaults with
+            {
+                Filter = defaults.Filter with
+                {
+                    ExcludedQuakeMaximumScales = [JmaScale.One, JmaScale.Two],
+                    ShowQuakeWithEewNoStrongShakingComment = true,
+                },
+            });
+            JsonNode document = JsonNode.Parse(await File.ReadAllTextAsync(path))!;
+            Assert.IsTrue(document["filter"]!.AsObject().Remove("showQuakeWithEewNoStrongShakingComment"));
+            await File.WriteAllTextAsync(path, document.ToJsonString());
+
+            AppSettings loaded = await store.LoadAsync();
+            Assert.IsFalse(loaded.Filter.ShowQuakeWithEewNoStrongShakingComment);
+            Assert.HasCount(2, loaded.Filter.ExcludedQuakeMaximumScales!);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [TestMethod]
     [DataRow(QuakePrefectureFilterMode.EventAndPoints)]
     [DataRow(QuakePrefectureFilterMode.EventOnly)]
     [DataRow(QuakePrefectureFilterMode.PointsOnly)]
@@ -112,6 +150,7 @@ public sealed class QuakeFilterSettingsTests
                 {
                     ExcludedQuakeMaximumScales = [JmaScale.Two, JmaScale.FiveUpper],
                     QuakePrefectureCodes = ["13", "14"], QuakePrefectureMode = mode,
+                    ShowQuakeWithEewNoStrongShakingComment = true,
                 },
                 Display = defaults.Display with { ShowLowIntensityPointsInStrongQuakes = true },
             });
@@ -119,6 +158,7 @@ public sealed class QuakeFilterSettingsTests
             Assert.HasCount(2, actual.Filter.ExcludedQuakeMaximumScales!);
             Assert.HasCount(2, actual.Filter.QuakePrefectureCodes);
             Assert.AreEqual(mode, actual.Filter.QuakePrefectureMode);
+            Assert.IsTrue(actual.Filter.ShowQuakeWithEewNoStrongShakingComment);
             Assert.IsTrue(actual.Display.ShowLowIntensityPointsInStrongQuakes);
         }
         finally

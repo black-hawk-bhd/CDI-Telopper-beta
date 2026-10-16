@@ -94,6 +94,7 @@ CDI-Telopper が正規化した本番受信情報を、同じPCの外部ツー�
 - 観測点名末尾の全角 `＊` はCDI字幕の表示時だけ除去します。APIの `points[].name` とコードは元の正規化データを保持します。同じ市町村の実測震度と未入電は別の情報として扱ってください。
 - 津波判定は正規化した列挙名（例 `Unknown`, `None`, `Checking`, `Watch`, `Warning`）。未取得の `Unknown` を「津波なし」として描画しない。
 - `eew`: `apiVersion`, `revision`, `hasInformation`, `events[]`。電文に上記識別・時刻・震源のほか `isWarning`, `isFinal`, `isCancelled`, `expiresAt`, `isExpired`, `areas[]` を含む。各areaは `name`, `prefecture`, `intensityFrom`, `intensityTo`, `arrivalTime`。
+- beta.58以降：EEW電文に `sourceMessageTime` を追加（未取得はnull）。送信元の電文作成・発表時刻で、JMA XMLでは `Control/DateTime` を優先し、同要素がない場合のみ明示された `Head/ReportDateTime` を使います。`issuedAt` と `serial` は従来どおりの受信値を保持し、報番号逆行を補正しません。同じイベントの新しい正式な取消は番号が小さくても採用し、古い取消・通常報は反映しません。逆行取消の新旧を確定できない場合はAPIを更新せず要確認とします。利用側もSerialの大小だけで新旧を判断せず、CDIが提供する取消状態を反映してください。
 - EEWの `expiresAt` は発表時刻から10分のAPI上の保持目安であり公式解除ではない。受信元が明示した失効も `isExpired` に反映するため、この時刻より前にtrueになる場合がある。`isExpired=true` または `isCancelled=true` を発表中として表示しない。最大100イベントを保持。地震は最新電文1件であり現在進行中とは限らない。別EventIDの地震取消で現在保持する地震を置き換えない。
 - `hasInformation=false` は未取得であり「地震なし・EEWなし」を保証しない。接続中でも上流取得範囲の完全性は保証されない。地震・EEWの過去状態を勝手に推定・復元しない。
 

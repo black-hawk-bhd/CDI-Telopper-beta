@@ -138,7 +138,12 @@ public sealed partial class WolfxEventNormalizer : IEventNormalizer
             isWarning: true,
             ReadBoolean(root, "isFinal"),
             isCancelled,
-            isTraining || raw.SourceMode != SourceMode.Production);
+            isTraining || raw.SourceMode != SourceMode.Production)
+        {
+            SourceMessageTime = ParseJapanTime(ReadString(root, "AnnouncedTime"),
+                DateTimeOffset.MinValue) is var sourceTime && sourceTime != DateTimeOffset.MinValue
+                    ? sourceTime : null,
+        };
         return SuccessWithSignature(disasterEvent);
     }
 

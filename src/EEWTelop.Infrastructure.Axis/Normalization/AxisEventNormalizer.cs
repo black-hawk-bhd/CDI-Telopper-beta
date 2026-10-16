@@ -131,7 +131,12 @@ internal sealed class AxisEewEventNormalizer : IEventNormalizer
                 isWarning: true,
                 isFinal,
                 isCancelled,
-                isTest: isTraining || raw.SourceMode != SourceMode.Production);
+                isTest: isTraining || raw.SourceMode != SourceMode.Production)
+            {
+                SourceMessageTime = ParseDateTime(ReadString(message, "ReportDateTime"),
+                    DateTimeOffset.MinValue) is var sourceTime && sourceTime != DateTimeOffset.MinValue
+                        ? sourceTime : null,
+            };
             disasterEvent = disasterEvent with
             {
                 Signature = _signatureBuilder.Build(disasterEvent),

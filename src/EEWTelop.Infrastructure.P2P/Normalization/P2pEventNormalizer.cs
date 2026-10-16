@@ -208,7 +208,10 @@ public sealed class P2pEventNormalizer : IEventNormalizer
             isWarning: true,
             isFinal: false,
             dto.Cancelled!.Value,
-            dto.Test ?? false);
+            dto.Test ?? false)
+        {
+            SourceMessageTime = issuedAt,
+        };
 
         disasterEvent = disasterEvent with { Signature = _signatureBuilder.Build(disasterEvent) };
         return NormalizeResult.Success(disasterEvent, issues);

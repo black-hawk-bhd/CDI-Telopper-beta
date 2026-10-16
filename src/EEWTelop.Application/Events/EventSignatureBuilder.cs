@@ -131,6 +131,9 @@ public sealed class EventSignatureBuilder : IEventSignatureBuilder
 
     private static void WriteEew(Utf8JsonWriter writer, EewEvent eew)
     {
+        // Preserve legacy signatures unless XML's creation time adds information.
+        if (eew.SourceMessageTime is { } sourceTime && sourceTime != eew.IssuedAt)
+            writer.WriteString("sourceMessageTime", sourceTime.ToUniversalTime());
         WriteIssue(writer, eew.Issue);
         writer.WriteBoolean("test", eew.IsTest);
         if (eew.Earthquake is not null)

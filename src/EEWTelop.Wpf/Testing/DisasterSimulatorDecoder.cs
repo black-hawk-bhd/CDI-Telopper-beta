@@ -108,7 +108,8 @@ internal static class DisasterSimulatorDecoder
                     string to = TextAlias(a, "intensityTo", "intensityFrom", "intensity");
                     return new EewArea(Text(a, "prefecture"), Text(a, "name"),
                         Scale(from), (int)Scale(to), EewWarningKind.Unknown, Time(a, "arrivalTime"));
-                }).ToArray(), Flag(item, "isWarning"), Flag(item, "isFinal"), cancelled, true),
+                }).ToArray(), Flag(item, "isWarning"), Flag(item, "isFinal"), cancelled, true)
+                { SourceMessageTime = Time(item, "sourceMessageTime") ?? Time(item, "issuedAt") },
             "tsunami" => new TsunamiEvent(eventId, provider, issued, receivedAt, "", SourceMode.ManualTest, issue,
                 Array(item, "areas").Select(a =>
                 {

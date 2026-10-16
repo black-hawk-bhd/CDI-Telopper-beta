@@ -160,6 +160,15 @@ public static class EventDisplayFilter
 
     private static bool IsQuakeIntensityEnabled(FilterSettings filter, QuakeEvent quake)
     {
+        // JMA fixed comment 0245 is preserved as canonical domain text by the
+        // provider normalizer. It does not mean that the earthquake is cancelled.
+        if (filter.ShowQuakeWithEewNoStrongShakingComment &&
+            quake.FreeFormComment.Contains("緊急地震速報を発表しましたが", StringComparison.Ordinal) &&
+            quake.FreeFormComment.Contains("強い揺れは観測されませんでした", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
         return !QuakeFilterOptions.ResolveExcludedScales(filter)
             .Contains(quake.Earthquake.MaximumScale);
     }

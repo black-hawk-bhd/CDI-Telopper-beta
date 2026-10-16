@@ -59,6 +59,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private bool _hideWeatherContinuationOnly;
     private string[] _quakePrefectureCodes;
     private QuakePrefectureFilterMode _quakePrefectureMode;
+    private bool _showQuakeWithEewNoStrongShakingComment;
     private bool _showLowIntensityPointsInStrongQuakes;
     private double _pageDurationSeconds;
     private bool _showPageIndicator;
@@ -225,6 +226,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _quakePrefectureCodes = WeatherPrefectureCatalog.NormalizeCodes(settings.Filter.QuakePrefectureCodes);
         _quakePrefectureMode = Enum.IsDefined(settings.Filter.QuakePrefectureMode)
             ? settings.Filter.QuakePrefectureMode : QuakePrefectureFilterMode.EventAndPoints;
+        _showQuakeWithEewNoStrongShakingComment = settings.Filter.ShowQuakeWithEewNoStrongShakingComment;
         _showLowIntensityPointsInStrongQuakes = settings.Display.ShowLowIntensityPointsInStrongQuakes;
         _pageDurationSeconds = settings.Display.PageDurationSeconds;
         _showPageIndicator = settings.Display.ShowPageIndicator;
@@ -677,6 +679,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(QuakePrefectureSelectionSummary));
     }
     public QuakePrefectureFilterMode QuakePrefectureMode { get => _quakePrefectureMode; set => SetProperty(ref _quakePrefectureMode, value); }
+    public bool ShowQuakeWithEewNoStrongShakingComment { get => _showQuakeWithEewNoStrongShakingComment; set => SetProperty(ref _showQuakeWithEewNoStrongShakingComment, value); }
     public bool ShowLowIntensityPointsInStrongQuakes { get => _showLowIntensityPointsInStrongQuakes; set => SetProperty(ref _showLowIntensityPointsInStrongQuakes, value); }
     public double PageDurationSeconds { get => _pageDurationSeconds; set => SetProperty(ref _pageDurationSeconds, value); }
     public bool ShowPageIndicator { get => _showPageIndicator; set => SetProperty(ref _showPageIndicator, value); }
@@ -879,6 +882,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
                     .Select(option => option.Scale).ToArray(),
                 QuakePrefectureCodes = _quakePrefectureCodes.ToArray(),
                 QuakePrefectureMode = QuakePrefectureMode,
+                ShowQuakeWithEewNoStrongShakingComment = ShowQuakeWithEewNoStrongShakingComment,
                 WeatherWarning = FilterWeatherWarning,
                 WeatherPrefectureCodes = _weatherPrefectureCodes.ToArray(),
                 WeatherPrefectureCode = _weatherPrefectureCodes.Length == 1
@@ -1345,6 +1349,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(HideQuakeBelowIntensity3));
         SetQuakePrefectureCodes(defaults.QuakePrefectureCodes);
         QuakePrefectureMode = defaults.QuakePrefectureMode;
+        ShowQuakeWithEewNoStrongShakingComment = defaults.ShowQuakeWithEewNoStrongShakingComment;
         ShowLowIntensityPointsInStrongQuakes = AppSettings.CreateDefault().Display.ShowLowIntensityPointsInStrongQuakes;
         SetWeatherPrefectureCodes(defaults.WeatherPrefectureCodes);
         FilterWeatherSpecialWarnings = defaults.WeatherSpecialWarnings;

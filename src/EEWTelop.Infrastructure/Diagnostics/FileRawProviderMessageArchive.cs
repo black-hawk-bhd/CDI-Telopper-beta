@@ -38,14 +38,19 @@ public sealed class FileRawProviderMessageArchive : IRawProviderMessageArchive, 
         Volatile.Write(ref _settings, Normalize(settings));
     }
 
-    public async ValueTask SaveAsync(
+    public ValueTask SaveAsync(
         RawProviderMessage message,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) => SaveCoreAsync(message, false, cancellationToken);
+
+    public ValueTask SaveForReviewAsync(RawProviderMessage message, CancellationToken cancellationToken = default) =>
+        SaveCoreAsync(message, true, cancellationToken);
+
+    private async ValueTask SaveCoreAsync(RawProviderMessage message, bool forReview, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(message);
         LogSettings settings = Volatile.Read(ref _settings);
-        if (!settings.SaveRawProviderMessages)
+        if (!settings.SaveRawProviderMessages && !forReview)
         {
             return;
         }
@@ -54,7 +59,7 @@ public sealed class FileRawProviderMessageArchive : IRawProviderMessageArchive, 
         try
         {
             Directory.CreateDirectory(_directory);
-            string stem = BuildStem(message);
+            string stem = BuildStem(message) + (forReview ? "_ordering-review" : string.Empty);
             await WritePayloadAsync(
                 message,
                 message.Payload,

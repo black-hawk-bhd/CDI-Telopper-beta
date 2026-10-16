@@ -12,6 +12,80 @@ public sealed class QuakeDisplayFilterTests
     private static readonly string[] StrongBadges = ["震度5弱以上 未入電", "震度4"];
     private static readonly string[] AllBadges = ["震度5弱以上 未入電", "震度4", "震度2", "震度1"];
     private static readonly string[] TwoBadge = ["震度2"];
+    private const string EewNoStrongShakingComment =
+        "この地震で緊急地震速報を発表しましたが、強い揺れは観測されませんでした。";
+
+    [TestMethod]
+    [DataRow(SourceMode.Production)]
+    [DataRow(SourceMode.Sandbox)]
+    public void EewExplanationBypassesOnlyMaximumIntensityWhenOptedIn(SourceMode sourceMode)
+    {
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(QuakeIssueType.DetailScale,
+            [DisplayEventFactory.Point(1, JmaScale.One, "北海道")],
+            comment: EewNoStrongShakingComment, sourceMode: sourceMode);
+        FilterSettings filter = AppSettings.CreateDefault().Filter with
+            { ExcludedQuakeMaximumScales = [JmaScale.One] };
+        Assert.IsFalse(filter.ShowQuakeWithEewNoStrongShakingComment);
+        Assert.IsNull(EventDisplayFilter.Apply(filter, quake));
+        Assert.AreEqual("最大震度フィルター", EventDisplayFilter.DescribeSuppression(filter, quake));
+
+        FilterSettings enabled = filter with { ShowQuakeWithEewNoStrongShakingComment = true };
+        Assert.AreSame(quake, EventDisplayFilter.Apply(enabled, quake));
+        Assert.IsTrue(EventDisplayFilter.IsEnabled(enabled, quake));
+        Assert.IsFalse(quake.IsCancelled);
+        Assert.AreEqual(sourceMode, quake.SourceMode);
+        Assert.AreEqual(JmaScale.One, quake.Earthquake.MaximumScale);
+        Assert.AreEqual(EewNoStrongShakingComment, quake.FreeFormComment);
+        Assert.IsNull(EventDisplayFilter.Apply(enabled with { Quake = false }, quake));
+        Assert.IsNull(EventDisplayFilter.Apply(enabled with { ShowQuakeWithEewNoStrongShakingComment = false }, quake));
+    }
+
+    [TestMethod]
+    [DataRow("")]
+    [DataRow("この地震による津波の心配はありません。")]
+    [DataRow("この地震で緊急地震速報を発表しましたが")]
+    [DataRow("強い揺れは観測されませんでした。")]
+    public void ExceptionDoesNotBypassFilterForUnrelatedOrIncompleteComments(string comment)
+    {
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(QuakeIssueType.DetailScale,
+            [DisplayEventFactory.Point(1, JmaScale.Two)], comment: comment);
+        FilterSettings filter = AppSettings.CreateDefault().Filter with
+        {
+            ExcludedQuakeMaximumScales = [JmaScale.Two],
+            ShowQuakeWithEewNoStrongShakingComment = true,
+        };
+        Assert.IsNull(EventDisplayFilter.Apply(filter, quake));
+    }
+
+    [TestMethod]
+    [DataRow(QuakePrefectureFilterMode.EventAndPoints)]
+    [DataRow(QuakePrefectureFilterMode.EventOnly)]
+    [DataRow(QuakePrefectureFilterMode.PointsOnly)]
+    public void EewExplanationExceptionKeepsSelectedPrefectureMode(QuakePrefectureFilterMode mode)
+    {
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(QuakeIssueType.DetailScale,
+            [DisplayEventFactory.Point(1, JmaScale.One, "北海道")], comment: EewNoStrongShakingComment);
+        FilterSettings filter = Regional(mode) with
+        {
+            ExcludedQuakeMaximumScales = [JmaScale.One],
+            ShowQuakeWithEewNoStrongShakingComment = true,
+        };
+        DisasterEvent? displayed = EventDisplayFilter.Apply(filter, quake);
+        if (mode == QuakePrefectureFilterMode.PointsOnly)
+        {
+            QuakeEvent visible = Assert.IsInstanceOfType<QuakeEvent>(displayed);
+            Assert.HasCount(0, visible.Points);
+            Assert.AreEqual(EewNoStrongShakingComment, visible.FreeFormComment);
+            Assert.HasCount(1, quake.Points);
+        }
+        else
+        {
+            Assert.IsNull(displayed);
+            Assert.AreEqual("地震の都道府県フィルター", EventDisplayFilter.DescribeSuppression(filter, quake));
+        }
+        Assert.IsNotNull(EventDisplayFilter.Apply(filter with { QuakePrefectureCodes = ["01"] }, quake));
+    }
+
     [TestMethod]
     [DataRow(JmaScale.One)]
     [DataRow(JmaScale.Two)]

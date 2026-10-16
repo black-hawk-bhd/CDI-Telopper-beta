@@ -85,7 +85,7 @@ public sealed class ConcurrentEewProgramComposer
     {
         ActiveEewKey[] obsolete = _activeWarnings
             .Where(pair => pair.Key.SourceMode == sourceMode)
-            .OrderByDescending(static pair => pair.Value.Event.IssuedAt)
+            .OrderByDescending(static pair => pair.Value.Program.IssuedAt)
             .ThenByDescending(static pair => pair.Value.Event.ReceivedAt)
             .Skip(MaximumVisibleWarnings)
             .Select(static pair => pair.Key)
@@ -99,7 +99,7 @@ public sealed class ConcurrentEewProgramComposer
     private ActiveEew[] GetVisible(SourceMode sourceMode) => _activeWarnings
         .Where(pair => pair.Key.SourceMode == sourceMode)
         .Select(static pair => pair.Value)
-        .OrderBy(static item => item.Event.IssuedAt)
+        .OrderBy(static item => item.Program.IssuedAt)
         .ThenBy(static item => item.Event.ReceivedAt)
         .TakeLast(MaximumVisibleWarnings)
         .ToArray();
@@ -127,7 +127,7 @@ public sealed class ConcurrentEewProgramComposer
                 .SelectMany(static block => new[] { block.Badge, block.PrimaryText, block.SecondaryText })
                 .Where(static text => !string.IsNullOrWhiteSpace(text)));
         ActiveEew newest = visible
-            .OrderByDescending(static item => item.Event.IssuedAt)
+            .OrderByDescending(static item => item.Program.IssuedAt)
             .ThenByDescending(static item => item.Event.ReceivedAt)
             .First();
         string programSignature = string.Join("|", visible.Select(static item => item.Program.ProgramId));
@@ -137,7 +137,7 @@ public sealed class ConcurrentEewProgramComposer
             EventId: EventId.Create($"concurrent-eew-{(int)sourceMode}"),
             Kind: EventKind.Eew,
             SourceMode: sourceMode,
-            IssuedAt: newest.Event.IssuedAt,
+            IssuedAt: newest.Program.IssuedAt,
             Priority: OverlayPriority.Eew,
             Pages: [new DisplayPage(1, blocks, accessibleText, null)],
             StartedAtUtc: newest.Program.StartedAtUtc,
