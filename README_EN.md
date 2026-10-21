@@ -24,13 +24,17 @@ beta.51 adds per-domain upstream health, a separately authenticated rehearsal AP
 
 beta.50 improves unreported-intensity normalization and labeling, removes trailing full-width station markers only from display text, and preserves observed and unreported entries at the same place. Simulator decoding and additive external API fields are improved while training/live separation remains enforced.
 
-The current public release is **2.0.0-beta.59** (October 22, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.60** (October 22, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.59](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.59)
-- [Detailed Japanese beta.59 manual and specification](README_CDI-Telopper_2.0.0-beta.59.txt)
+- [Download 2.0.0-beta.60](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.60)
+- [Detailed Japanese beta.60 manual and specification](README_CDI-Telopper_2.0.0-beta.60.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
+
+beta.60: the two-row weather warning/advisory area-list setting now covers all statuses, including releases. Mixed announcements retain separate status pages and repeat prefecture/status on continuation pages. The default remains on; switching it off restores three rows. Narrative pages, names per row, audio and source telegrams are unchanged. All 999 automated tests pass with zero build warnings/errors; live reception and real OBS visual checks remain unperformed. See the [release notes](RELEASE_NOTES_2.0.0-beta.60.md) and [validation results](VALIDATION_2.0.0-beta.60.md).
+
+beta.60: the plain-subtitle alternative to information badges now also applies to past-information replay, training, rehearsal, Simulator, Sandbox and automatic production rotation. Enabling the corresponding mode's option keeps type/intensity text while removing the decorated badge. Normal and rehearsal choices remain independent; training metadata and the separate top-banner option are unchanged.
 
 beta.59 adds manual historical JMA XML retrieval from the official long feeds (several days, hourly updates; no EEW), with selected replay through the review window. Normal-mode badge replacement keeps information types and intensity classes visible as plain subtitle text. Separate replay/training badge settings and an optional final announcement-time page are available. All 978 automated tests pass; real-server retrieval and real OBS visual checks remain unperformed. See the [release notes](RELEASE_NOTES_2.0.0-beta.59.md) and [validation results](VALIDATION_2.0.0-beta.59.md).
 

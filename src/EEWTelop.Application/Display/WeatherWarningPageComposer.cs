@@ -7,7 +7,6 @@ namespace EEWTelop.Application.Display;
 
 internal static partial class WeatherWarningPageComposer
 {
-    private const int ReleaseRowsPerPage = 3;
     private const int ReleaseAreasPerRow = 6;
     private const int AreasPerWarningRow = 3;
     private const int HeadlineLinesPerPage = 2;
@@ -94,6 +93,7 @@ internal static partial class WeatherWarningPageComposer
             }
         }
 
+        int areaRowsPerPage = settings.LimitActiveWeatherAreaRowsToTwo ? 2 : 3;
         WeatherWarningItem[] active = weather.Items
             .Where(static item => item.IsActive)
             .OrderBy(static item => GetStatusDisplayOrder(item.Status))
@@ -122,7 +122,7 @@ internal static partial class WeatherWarningPageComposer
                     settings,
                     GetPriority(releasedWarnings.Max(static item => item.Level)),
                     EndPolicy.AutoHide,
-                    CreateReleasePages(releasedWarnings).ToArray());
+                    CreateReleasePages(releasedWarnings, areaRowsPerPage).ToArray());
             }
 
             var cancel = new DisplayBlock(
@@ -142,9 +142,9 @@ internal static partial class WeatherWarningPageComposer
 
         var pages = new List<PageDraft>();
         pages.AddRange(CreateWarningHeadlinePages(weather, active));
-        pages.AddRange(CreateActiveWarningPages(active, settings.LimitActiveWeatherAreaRowsToTwo ? 2 : 3));
+        pages.AddRange(CreateActiveWarningPages(active, areaRowsPerPage));
 
-        pages.AddRange(CreateReleasePages(releasedWarnings));
+        pages.AddRange(CreateReleasePages(releasedWarnings, areaRowsPerPage));
 
         return PageComposerSupport.CreateProgram(
             weather,
@@ -609,7 +609,8 @@ internal static partial class WeatherWarningPageComposer
     }
 
     private static IEnumerable<PageDraft> CreateReleasePages(
-        WeatherWarningItem[] releasedWarnings)
+        WeatherWarningItem[] releasedWarnings,
+        int rowsPerPage)
     {
         foreach (var group in releasedWarnings.GroupBy(item => new ReleasedWarningKey(
                      GetPrefectureName(item), item.KindName.Trim(), item.Level))
@@ -619,7 +620,7 @@ internal static partial class WeatherWarningPageComposer
         {
             string heading = JoinWeatherRowParts(group.Key.PrefectureName, "｜解除");
             string[] rows = CreateGroupedReleaseRows(group).Select(row => row.PrimaryText).ToArray();
-            foreach (var chunk in rows.Chunk(ReleaseRowsPerPage))
+            foreach (var chunk in rows.Chunk(rowsPerPage))
                 yield return CreateAreaListPage(group.Key.KindName, heading, chunk, DisplayStyleTokens.WeatherCancel);
         }
     }

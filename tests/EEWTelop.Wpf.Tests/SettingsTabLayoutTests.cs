@@ -40,6 +40,18 @@ public sealed class SettingsTabLayoutTests
     }
 
     [TestMethod]
+    public void WeatherTwoRowSettingDescribesAllStatusesAndRetainsItsBinding()
+    {
+        XElement control = LoadControlWindow().Descendants(Presentation + "CheckBox")
+            .Single(item => (string?)item.Attribute("IsChecked") == "{Binding Settings.LimitActiveWeatherAreaRowsToTwo}");
+        Assert.AreEqual("表示", ParentTab(control));
+        string tooltip = (string)control.Attribute("ToolTip")!;
+        StringAssert.Contains(tooltip, "新規発表・更新・継続・解除");
+        StringAssert.Contains(tooltip, "OFFでは従来の3行表示");
+        StringAssert.Contains(tooltip, "説明文のページは変更しません");
+    }
+
+    [TestMethod]
     public void MovedControlsKeepTheirSettingsCommandsAndPasswordHandlers()
     {
         XDocument document = LoadControlWindow();

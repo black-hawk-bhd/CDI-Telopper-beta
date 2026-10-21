@@ -348,6 +348,7 @@ public sealed record DisplaySettings(
 
     public bool SeparateIntensityPagesByScale { get; init; } = true;
 
+    // Keep the persisted key; the limit applies to all warning/advisory area lists, including releases.
     public bool LimitActiveWeatherAreaRowsToTwo { get; init; } = true;
 
     public OutputTransformSettings OutputTransform { get; init; } =
@@ -600,6 +601,7 @@ public sealed record HistorySettings(
 
     public bool HideModeBanner { get; init; }
 
+    // Keep the saved key: true replaces the decorated badge with subtitle text, never erases its label.
     public bool HideInformationBadges { get; init; }
 
     public bool AppendIssuedAtPage { get; init; }

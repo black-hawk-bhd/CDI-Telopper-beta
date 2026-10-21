@@ -213,7 +213,11 @@ public sealed class WeatherWarningPageComposerTests
     }
 
     [TestMethod]
-    public void LargeReleasedWarningAreaListUsesGroupedPages()
+    [DataRow(true, true)]
+    [DataRow(true, false)]
+    [DataRow(false, true)]
+    [DataRow(false, false)]
+    public void LargeReleasedWarningAreaListUsesSelectedRowLimit(bool twoRows, bool isCancelled)
     {
         WeatherWarningItem[] items = Enumerable.Range(1, 40)
             .Select(index => Released(
@@ -222,21 +226,25 @@ public sealed class WeatherWarningPageComposerTests
                 "雷注意報",
                 WeatherWarningLevel.Advisory))
             .ToArray();
-        WeatherWarningEvent weather = CreateWeather(items, isCancelled: true);
+        WeatherWarningEvent weather = CreateWeather(items, isCancelled);
 
         DisplayProgram program = new PageComposer().Compose(
             weather,
-            AppSettings.CreateDefault().Display);
+            AppSettings.CreateDefault().Display with { LimitActiveWeatherAreaRowsToTwo = twoRows });
         DisplayBlock[] releaseBlocks = program.Pages
             .SelectMany(static page => page.Blocks)
             .Where(static block => block.StyleToken == DisplayStyleTokens.WeatherCancel)
             .ToArray();
 
-        Assert.HasCount(3, program.Pages);
+        Assert.HasCount(twoRows ? 4 : 3, program.Pages);
         Assert.HasCount(7, releaseBlocks);
-        Assert.IsTrue(program.Pages.All(static page =>
+        Assert.IsTrue(program.Pages.All(page =>
             page.Blocks.Count(static block =>
-                block.StyleToken == DisplayStyleTokens.WeatherCancel) <= 3));
+                block.StyleToken == DisplayStyleTokens.WeatherCancel) <= (twoRows ? 2 : 3)));
+        Assert.IsTrue(program.Pages.All(page => page.Blocks[0].Badge == "雷注意報" &&
+            page.Blocks[0].PrimaryText.StartsWith("奈良県　｜解除\n", StringComparison.Ordinal)));
+        CollectionAssert.AreEqual(items.Select(item => item.AreaName).ToArray(),
+            releaseBlocks.SelectMany(block => block.PrimaryText.Split('\n').Last().Split('　')).ToArray());
         Assert.AreEqual(
             "地域01　地域02　地域03　地域04　地域05　地域06",
             releaseBlocks[0].PrimaryText.Split('\n').Last());
@@ -405,11 +413,14 @@ public sealed class WeatherWarningPageComposerTests
     }
 
     [TestMethod]
-    public void ActiveWeatherAreaRowsUseTwoLinesByDefaultAndThreeWhenDisabled()
+    [DataRow("発表", "新たに発表")]
+    [DataRow("更新", "更新")]
+    [DataRow("継続", "継続中")]
+    public void ActiveWeatherAreaRowsUseTwoLinesByDefaultAndThreeWhenDisabled(string status, string headingStatus)
     {
         string[] names = ["三宅村", "世田谷区", "千代田区", "御蔵島村", "文京区", "新宿区", "渋谷区", "目黒区", "荒川区"];
         WeatherWarningEvent weather = CreateWeather(
-            names.Select((name, index) => Active(name, $"13{index + 101:00000}", "レベル3土砂災害警報", "継続")).ToArray(),
+            names.Select((name, index) => Active(name, $"13{index + 101:00000}", "レベル3土砂災害警報", status)).ToArray(),
             isCancelled: false);
         DisplaySettings defaults = AppSettings.CreateDefault().Display;
         DisplayProgram twoRows = new PageComposer().Compose(weather, defaults);
@@ -422,11 +433,65 @@ public sealed class WeatherWarningPageComposerTests
         Assert.HasCount(3, WeatherBlocks(threeRows.Pages[0]));
         Assert.AreEqual(WeatherBlocks(twoRows.Pages[1])[0].PrimaryText.Split('\n').Last(),
             WeatherBlocks(threeRows.Pages[0])[2].PrimaryText);
-        Assert.AreEqual("東京都　｜継続中", WeatherBlocks(twoRows.Pages[1])[0].PrimaryText.Split('\n')[0]);
+        Assert.AreEqual("東京都　｜" + headingStatus, WeatherBlocks(twoRows.Pages[1])[0].PrimaryText.Split('\n')[0]);
         CollectionAssert.AreEquivalent(names,
             twoRows.Pages.SelectMany(WeatherBlocks)
                 .SelectMany(block => block.PrimaryText.Split('\n').Last().Split('　'))
                 .ToArray());
+    }
+
+    [TestMethod]
+    [DataRow(WeatherWarningLevel.SpecialWarning, "大雨特別警報")]
+    [DataRow(WeatherWarningLevel.Warning, "大雨警報")]
+    [DataRow(WeatherWarningLevel.Advisory, "大雨注意報")]
+    public void EveryWeatherStatusUsesSelectedRowsWithoutDroppingAreasInAnyMode(
+        WeatherWarningLevel level, string kind)
+    {
+        WeatherWarningItem[] items = new[] { ("新規", "発表"), ("更新", "更新"), ("継続", "継続") }
+            .SelectMany(pair => Enumerable.Range(1, 9).Select(index =>
+                Active($"{pair.Item1}{index:00}", $"13{index:00000}", kind, pair.Item2) with { Level = level }))
+            .Concat(Enumerable.Range(1, 13).Select(index =>
+                Released($"解除{index:00}", $"13{index + 100:00000}", kind, level)))
+            .ToArray();
+        foreach (SourceMode mode in Enum.GetValues<SourceMode>())
+        {
+            WeatherWarningEvent weather = CreateWeather(items, false, sourceMode: mode);
+            var defaults = AppSettings.CreateDefault().Display;
+            DisplayProgram twoRows = new PageComposer().Compose(weather, defaults);
+            DisplayProgram threeRows = new PageComposer().Compose(weather,
+                defaults with { LimitActiveWeatherAreaRowsToTwo = false });
+            Assert.HasCount(8, twoRows.Pages);
+            Assert.HasCount(4, threeRows.Pages);
+            CollectionAssert.AreEqual(
+                threeRows.Pages.SelectMany(page => page.Blocks)
+                    .Where(block => block.StyleToken != DisplayStyleTokens.PageIndicator)
+                    .Select(block => block.PrimaryText.Split('\n').Last()).ToArray(),
+                twoRows.Pages.SelectMany(page => page.Blocks)
+                    .Where(block => block.StyleToken != DisplayStyleTokens.PageIndicator)
+                    .Select(block => block.PrimaryText.Split('\n').Last()).ToArray());
+            foreach (DisplayProgram program in new[] { twoRows, threeRows })
+            {
+                int limit = ReferenceEquals(program, twoRows) ? 2 : 3;
+                foreach (DisplayPage page in program.Pages)
+                {
+                    DisplayBlock[] blocks = page.Blocks
+                        .Where(block => block.StyleToken != DisplayStyleTokens.PageIndicator).ToArray();
+                    Assert.IsTrue(blocks.Length <= limit);
+                    Assert.AreEqual(kind, blocks[0].Badge);
+                    StringAssert.StartsWith(blocks[0].PrimaryText, "東京都　｜");
+                    Assert.AreEqual(1, blocks.Count(block => block.Badge.Length > 0));
+                    string[] names = blocks.SelectMany(block => block.PrimaryText.Split('\n').Last().Split('　')).ToArray();
+                    Assert.AreEqual(1, names.Select(name => name[..2]).Distinct().Count());
+                }
+                CollectionAssert.AreEquivalent(items.Select(item => item.AreaName).ToArray(),
+                    program.Pages.SelectMany(page => page.Blocks)
+                        .Where(block => block.StyleToken != DisplayStyleTokens.PageIndicator)
+                        .SelectMany(block => block.PrimaryText.Split('\n').Last().Split('　')).ToArray());
+                Assert.AreEqual(mode, program.SourceMode);
+            }
+            Assert.HasCount(40, weather.Items);
+            Assert.AreEqual("WEATHER-RELEASE-DISPLAY-TEST", weather.Signature);
+        }
     }
 
     [TestMethod]
@@ -920,13 +985,14 @@ public sealed class WeatherWarningPageComposerTests
     private static WeatherWarningEvent CreateWeather(
         IReadOnlyList<WeatherWarningItem> items,
         bool isCancelled,
-        string informationType = "") => new(
+        string informationType = "",
+        SourceMode sourceMode = SourceMode.HistoryRehearsal) => new(
             EventId.Create("weather-release-display-test"),
             "nii-jma-xml",
             IssuedAt,
             IssuedAt,
             "WEATHER-RELEASE-DISPLAY-TEST",
-            SourceMode.HistoryRehearsal,
+            sourceMode,
             new IssueInfo(
                 "気象庁",
                 IssuedAt,

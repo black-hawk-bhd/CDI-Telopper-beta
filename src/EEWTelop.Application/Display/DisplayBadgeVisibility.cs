@@ -15,7 +15,7 @@ public static class DisplayBadgeVisibility
     public static DisplayBlock FormatBlockForOutput(
         DisplayBlock block, DisplayProgram program, DisplaySettings settings)
     {
-        if (!IsNormalProduction(program) || !settings.HideNormalInformationBadges ||
+        if (!HideInformationBadges(program, settings) ||
             string.IsNullOrWhiteSpace(block.Badge)) return block;
 
         // Retain all type/severity text in the subtitle. Weather area headers stay above

@@ -97,8 +97,9 @@
                             </StackPanel>
                             <CheckBox Content="再掲・訓練・リハーサル時、上部の区分バッジを非表示"
                                       Foreground="White" IsChecked="{Binding Settings.HideReplayModeBanner}" />
-                            <CheckBox Content="再掲・訓練・リハーサル時、情報種別のバッジを非表示"
-                                      Foreground="White" IsChecked="{Binding Settings.HideReplayInformationBadges}" />
+                            <CheckBox Content="再掲・訓練・リハーサル時、情報種別をバッジではなく字幕で表示"
+                                      Foreground="White" IsChecked="{Binding Settings.HideReplayInformationBadges}"
+                                      ToolTip="ONでは情報種別・震度の文字を字幕に残し、バッジの背景・枠を表示しません。OFFは従来のバッジ表示です。過去情報・動作訓練・Simulator・Sandbox・自動再掲にも適用します。上部の区分表示は別設定です。" />
                             <CheckBox Content="再掲の最終ページに「これは○月○日○時○分発表の情報です」を追加"
                                       Foreground="White" IsChecked="{Binding Settings.AppendReplayIssuedAtPage}" />
                             <TextBlock Text="非表示にすると本番と見分けにくくなります。誤送出に注意してください。内部の訓練区分・元電文は変わりません。新着本番には適用しません。設定の保存はメイン画面の［保存して反映］で行います。"

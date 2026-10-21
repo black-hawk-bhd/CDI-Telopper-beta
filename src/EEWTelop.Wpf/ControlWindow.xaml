@@ -589,7 +589,7 @@
                                                   ToolTip="初期値はONです。OFFにすると異なる震度を同じページに表示します。保存して反映後、新しく生成する震度ページに適用します。" />
                                         <CheckBox Content="気象警報・注意報の地名を1ページ2行で表示"
                                                   IsChecked="{Binding Settings.LimitActiveWeatherAreaRowsToTwo}"
-                                                  ToolTip="初期値はONです。OFFでは従来の3行表示です。発表中・継続中の地名一覧のみ対象で、余った地名は次ページに表示します。" />
+                                                  ToolTip="初期値はONです。新規発表・更新・継続・解除など、全ての状態の地名一覧に適用します。余った地名は都道府県・状態を添えて次ページに表示します。OFFでは従来の3行表示です。説明文のページは変更しません。" />
                                         <CheckBox Content="津波予報（0.2m／若干の海面変動）を表示"
                                                   IsChecked="{Binding Settings.ShowTsunamiForecast}" />
                                         <TextBlock Text="緊急地震速報（EEW）の自動消去秒（0は消さない）" Foreground="{StaticResource MutedBrush}" />

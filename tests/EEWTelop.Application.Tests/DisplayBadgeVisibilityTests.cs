@@ -121,6 +121,41 @@ public sealed class DisplayBadgeVisibilityTests
         Assert.AreSame(source, DisplayBadgeVisibility.FormatBlockForOutput(source, replay, display));
     }
 
+    [TestMethod]
+    [DataRow(SourceMode.ManualTest, false)]
+    [DataRow(SourceMode.ManualTest, true)]
+    [DataRow(SourceMode.HistoryRehearsal, false)]
+    [DataRow(SourceMode.HistoryRehearsal, true)]
+    [DataRow(SourceMode.Sandbox, false)]
+    [DataRow(SourceMode.Production, true)]
+    [DataRow(SourceMode.Production, false)]
+    public void EveryNonNormalModeKeepsTypeAndUnreportedIntensityAsSubtitle(SourceMode mode, bool replay)
+    {
+        var settings = AppSettings.CreateDefault().Display;
+        var program = Program(mode) with
+        {
+            IsReplayPresentation = replay,
+            HideInformationBadges = true,
+            RehearsalLabel = mode == SourceMode.Production && replay ? "" : "訓練・過去情報",
+        };
+        const string rows = "地域A　地域B\n地域C";
+        var warning = new DisplayBlock("大雨警報", rows, "", DisplayStyleTokens.WeatherWarning)
+            { WeatherHeading = "東京都｜継続中" };
+        var output = DisplayBadgeVisibility.FormatBlockForOutput(warning, program, settings);
+        Assert.AreEqual("大雨警報　東京都｜継続中", output.WeatherHeading);
+        Assert.AreEqual(rows, output.PrimaryText);
+        Assert.AreEqual("東京都｜継続中", warning.WeatherHeading);
+        var unreported = new DisplayBlock("震度5弱以上 未入電", "地域A", "", DisplayStyleTokens.Intensity);
+        Assert.AreEqual("震度5弱以上 未入電　地域A",
+            DisplayBadgeVisibility.FormatBlockForOutput(unreported, program, settings).PrimaryText);
+        Assert.AreEqual(mode, program.SourceMode);
+        Assert.AreEqual(replay, program.IsReplayPresentation);
+        Assert.IsFalse(DisplayBadgeVisibility.HideModeBanner(program, settings));
+        var badgeMode = program with { HideInformationBadges = false };
+        Assert.AreSame(warning, DisplayBadgeVisibility.FormatBlockForOutput(warning, badgeMode,
+            settings with { HideNormalInformationBadges = true }));
+    }
+
     private static DisplayProgram Program(SourceMode mode) => new("badge-test", EventId.Create("badge-test"),
         EventKind.WeatherWarning, mode, DateTimeOffset.UnixEpoch, OverlayPriority.WeatherWarning,
         [new DisplayPage(1, [new DisplayBlock("大雨警報", "渋谷区", "", DisplayStyleTokens.WeatherWarning)], "大雨警報 渋谷区", null)],

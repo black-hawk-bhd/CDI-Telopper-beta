@@ -62,7 +62,9 @@ public sealed class ReplaySettingsTests
         Assert.AreEqual(hideBadge, obs.Blocks[0].HideBadge);
         Assert.AreEqual(!hideBadge, overlay.Blocks[0].IsBadgeVisible);
         Assert.IsTrue(overlay.Blocks[0].HasWeatherContext);
-        Assert.AreEqual("東京都｜継続中", overlay.Blocks[0].WeatherContext);
+        Assert.AreEqual(hideBadge ? "大雨警報　東京都｜継続中" : "東京都｜継続中", overlay.Blocks[0].WeatherContext);
+        Assert.AreEqual(overlay.Blocks[0].WeatherContext, obs.Blocks[0].WeatherHeading);
+        Assert.AreEqual("東京都｜継続中", source.Pages[0].Blocks[0].WeatherHeading);
         Assert.AreEqual("大雨警報", obs.Blocks[0].Badge);
         Assert.AreEqual(SourceMode.HistoryRehearsal, obs.SourceMode);
     }
@@ -84,6 +86,54 @@ public sealed class ReplaySettingsTests
         Assert.AreEqual("live-new", store.Read(ObsViewChannel.General, now).ProgramId);
         store.ClearProgram(EventKind.Quake, now, live.ProgramId);
         Assert.IsFalse(store.Read(ObsViewChannel.General, now).HasProgram);
+    }
+
+    [TestMethod]
+    [DataRow(SourceMode.HistoryRehearsal, false)]
+    [DataRow(SourceMode.ManualTest, false)]
+    [DataRow(SourceMode.Sandbox, false)]
+    [DataRow(SourceMode.Production, true)]
+    [DataRow(SourceMode.Production, false)]
+    public void EveryReplayTrainingAndRehearsalOutputKeepsSeverityAndCanSwitchBack(SourceMode mode, bool replay)
+    {
+        var settings = AppSettings.CreateDefault();
+        var now = DateTimeOffset.UnixEpoch;
+        var first = new DisplayBlock("津波注意報", "地域A", "1m", DisplayStyleTokens.Tsunami);
+        var continuation = new DisplayBlock("", "地域B", "1m", DisplayStyleTokens.Tsunami);
+        var page = new DisplayPage(1, [first, continuation], "津波注意報 地域A 地域B", null);
+        var source = new DisplayProgram("all-mode-subtitles", EventId.Create("all-mode-subtitles"), EventKind.Tsunami,
+            mode, now, OverlayPriority.TsunamiWatch, [page], now, EndPolicy.AutoHide,
+            mode == SourceMode.Production && replay ? "" : "操作テスト／訓練");
+        var program = ReplayPresentation.Apply(source, settings.History with
+            { HideInformationBadges = true }, source.IssuedAt, replay, true);
+        var coordinator = new PriorityCoordinator(new Clock(), settings.Display);
+        var snapshot = coordinator.Apply(program);
+        var store = new ObsSnapshotStore(settings.Display, now);
+        var published = store.Publish(snapshot, settings.Display, now);
+        var obs = store.Read(ObsViewChannel.Tsunami, now);
+        var overlay = new OverlayViewModel();
+        overlay.Apply(snapshot, settings.Display);
+        Assert.IsTrue(obs.Blocks[0].HideBadge);
+        Assert.AreEqual("津波注意報　地域A", obs.Blocks[0].PrimaryText);
+        Assert.AreEqual(obs.Blocks[0].PrimaryText, published.Blocks[0].PrimaryText);
+        Assert.AreEqual(obs.Blocks[0].PrimaryText, overlay.Blocks[0].SubtitlePrimaryText);
+        Assert.IsFalse(overlay.Blocks[0].IsBadgeVisible);
+        Assert.AreEqual("地域B", obs.Blocks[1].PrimaryText);
+        Assert.AreEqual("1m", obs.Blocks[0].SecondaryText);
+        Assert.AreEqual(source.RehearsalLabel, obs.RehearsalLabel);
+        Assert.AreEqual(source.SourceMode, obs.SourceMode);
+        Assert.AreEqual(1, obs.PageCount);
+        Assert.AreEqual(page.AccessibleText, obs.AccessibleText);
+        Assert.AreEqual("地域A", first.PrimaryText);
+        var badgeProgram = program with { HideInformationBadges = false };
+        var badgeCoordinator = new PriorityCoordinator(new Clock(), settings.Display);
+        var badgeSnapshot = badgeCoordinator.Apply(badgeProgram);
+        var badgeOutput = store.Publish(badgeSnapshot, settings.Display, now);
+        overlay.Apply(badgeSnapshot, settings.Display);
+        Assert.IsFalse(badgeOutput.Blocks[0].HideBadge);
+        Assert.AreEqual("地域A", badgeOutput.Blocks[0].PrimaryText);
+        Assert.IsTrue(overlay.Blocks[0].IsBadgeVisible);
+        Assert.AreEqual(source.RehearsalLabel, overlay.RehearsalLabel);
     }
 
     private sealed class Clock : EEWTelop.Application.Abstractions.IClock
