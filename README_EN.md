@@ -24,13 +24,15 @@ beta.51 adds per-domain upstream health, a separately authenticated rehearsal AP
 
 beta.50 improves unreported-intensity normalization and labeling, removes trailing full-width station markers only from display text, and preserves observed and unreported entries at the same place. Simulator decoding and additive external API fields are improved while training/live separation remains enforced.
 
-The current public release is **2.0.0-beta.58** (October 16, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.59** (October 22, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.58](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.58)
-- [Detailed Japanese beta.58 manual and specification](README_CDI-Telopper_2.0.0-beta.58.txt)
+- [Download 2.0.0-beta.59](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.59)
+- [Detailed Japanese beta.59 manual and specification](README_CDI-Telopper_2.0.0-beta.59.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
+
+beta.59 adds manual historical JMA XML retrieval from the official long feeds (several days, hourly updates; no EEW), with selected replay through the review window. Normal-mode badge replacement keeps information types and intensity classes visible as plain subtitle text. Separate replay/training badge settings and an optional final announcement-time page are available. All 978 automated tests pass; real-server retrieval and real OBS visual checks remain unperformed. See the [release notes](RELEASE_NOTES_2.0.0-beta.59.md) and [validation results](VALIDATION_2.0.0-beta.59.md).
 
 beta.58: a newer, explicit EEW cancellation may be accepted despite a lower serial number, without rewriting source fields. Source message time, event identity and live/test separation govern the exception; stale reports cannot resurrect a cancelled warning. Ordering/cancellation state is persisted within bounded history. JMA XML uses `Control/DateTime`, or an explicit header time only when Control time is absent, never local receipt time. Ambiguous regressions, inconsistent XML cancellation metadata and source times more than five minutes ahead of receipt are held for review. Accepted anomalies and review cases are archived locally with `_ordering-review` filenames even when ordinary raw-message logging is off, under its retention/size limits. Captions, audio and the external API share the ingestion decision. Legacy snapshots without ordering metadata do not establish historical ordering.
 

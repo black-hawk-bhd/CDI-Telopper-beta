@@ -16,6 +16,10 @@ public sealed record HistoryFetchRequest(
     public string NiiReportUrl { get; init; } = string.Empty;
 
     public string LocalXmlFilePath { get; init; } = string.Empty;
+
+    public JmaHistoryContent JmaContent { get; init; }
+
+    public string JmaReportUrl { get; init; } = string.Empty;
 }
 
 public interface IHistoryMessageSource : IAsyncDisposable
@@ -69,6 +73,8 @@ public sealed class HistoryRehearsalLoader : IHistoryRehearsalLoader
             NiiContent = history.NiiContent,
             NiiReportUrl = history.NiiReportUrl,
             LocalXmlFilePath = history.LocalXmlFilePath,
+            JmaContent = history.JmaContent,
+            JmaReportUrl = history.JmaReportUrl,
         };
         IReadOnlyList<RawProviderMessage> messages = await _source.FetchAsync(
             request,

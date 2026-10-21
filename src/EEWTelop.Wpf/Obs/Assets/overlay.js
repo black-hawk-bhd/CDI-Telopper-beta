@@ -91,7 +91,7 @@ function renderBlock(item, previousBadge) {
   const volcanoStyle = style.startsWith("volcano-") || style === "eruption-flash";
   const reservesBadge = (style === "intensity" || style === "tsunami" || style === "correction" || weatherStyle || volcanoStyle) &&
     (item.badge || previousBadge);
-  if (reservesBadge) {
+  if (reservesBadge && !item.hideBadge) {
     const badgeText = item.badge || previousBadge;
     const badge = textNode(`badge${item.badge ? "" : " placeholder"}`, badgeText);
     const colors = badgeColors.get(badgeText) ?? (style === "weather-special-warning"
@@ -119,7 +119,9 @@ function renderBlock(item, previousBadge) {
   }
   const texts = document.createElement("div");
   if (hasWeatherContext) {
-    block.appendChild(textNode("primary weather-context", explicitHeading || item.primaryText.slice(0, contextEnd)));
+    const context = textNode("primary weather-context", explicitHeading || item.primaryText.slice(0, contextEnd));
+    if (item.hideBadge) context.style.gridColumn = "1 / -1";
+    block.appendChild(context);
   }
   texts.className = "texts";
   texts.appendChild(textNode("primary", hasWeatherContext && !explicitHeading ? item.primaryText.slice(contextEnd + 1) : item.primaryText));

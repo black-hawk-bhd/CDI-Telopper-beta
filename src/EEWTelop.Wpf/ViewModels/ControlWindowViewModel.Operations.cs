@@ -366,7 +366,7 @@ public sealed partial class ControlWindowViewModel
                 item.ResultText = verdict;
                 if (visible?.Event is { } disasterEvent && visible.Program is { } program)
                 {
-                    DisplayRehearsal(disasterEvent, program, "テストライブラリ／訓練");
+                    DisplayRehearsal(disasterEvent, program, "テストライブラリ／訓練", isReplay: false);
                     ReceptionStatusText = "テストライブラリをリハーサル出力しました";
                 }
             });

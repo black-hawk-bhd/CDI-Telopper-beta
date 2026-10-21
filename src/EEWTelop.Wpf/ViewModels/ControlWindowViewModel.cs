@@ -106,6 +106,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     private bool _isHistoryRehearsalRunning;
     private int _e2eAcceptedTelopRevision;
     private HistoryReplayItemViewModel? _selectedHistoryItem;
+    private readonly Dictionary<EventKind, string> _historyOutputPrograms = [];
     private string _historyRehearsalStatusText;
     private string _historyCancellationStatus = "停止しました";
     private CoordinatorSnapshot? _lastCoordinatorSnapshot;
@@ -1354,6 +1355,9 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             disasterEvent.Provider == "cdi-disaster-simulator" && disasterEvent.SourceMode == SourceMode.ManualTest)
             program = program with { HideSimulatorTrainingBanner = true };
 
+        program = ReplayPresentation.Apply(program, Settings.ToSettings(_settings).History,
+            disasterEvent.IssuedAt, isReplay: false, _settings.Display.ShowPageIndicator);
+
         CoordinatorSnapshot snapshot = previewCoordinator.Apply(program);
         _obsSnapshotStore.AddMonitorTelegram(disasterEvent, program, _settings.Display, "訓練表示");
         _obsSnapshotStore.PublishProgram(
@@ -1547,7 +1551,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     private void DisplayRehearsal(
         DisasterEvent disasterEvent,
         DisplayProgram sourceProgram,
-        string label)
+        string label,
+        bool isReplay = true)
     {
         CancelTestScenario();
         var coordinator = new PriorityCoordinator(_services.Clock, _settings.Display);
@@ -1559,6 +1564,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             StartedAtUtc = nowUtc,
             RehearsalLabel = label,
         };
+        program = ReplayPresentation.Apply(program, Settings.ToSettings(_settings).History,
+            disasterEvent.IssuedAt, isReplay, _settings.Display.ShowPageIndicator);
         CoordinatorSnapshot snapshot = coordinator.Apply(program);
         _obsSnapshotStore.PublishProgram(disasterEvent, program, _settings.Display, nowUtc);
         _previewCoordinator = coordinator;
@@ -1981,6 +1988,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         {
             await _dispatcher.InvokeAsync(() =>
             {
+                ClearHistoryOutputPrograms();
                 IDisplayCoordinator? historyCoordinator = Volatile.Read(ref _historyCoordinator);
                 if (historyCoordinator is not null &&
                     ReferenceEquals(Volatile.Read(ref _activeCoordinator), historyCoordinator))
@@ -2050,7 +2058,10 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 DisplayProgram program = item.Program with
                 {
                     ProgramId = $"history:{disasterEvent.Id.Value}:{_services.IdGenerator.NewId()}",
+                    StartedAtUtc = _services.Clock.UtcNow,
                 };
+                program = ReplayPresentation.Apply(program, requested.History, disasterEvent.IssuedAt,
+                    isReplay: true, requested.Display.ShowPageIndicator);
                 TimeSpan itemDuration = HistoryReplayTiming.GetItemDuration(
                     program,
                     requested.Display,
@@ -2061,6 +2072,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 await _dispatcher.InvokeAsync(() =>
                 {
                     SelectedHistoryItem = item;
+                    _historyOutputPrograms[program.Kind] = program.ProgramId;
                     if (_historyApiSession is not null) _obsServer?.ObserveApiRehearsal(disasterEvent, _historyApiSession);
                     Volatile.Write(ref _historyCoordinator, coordinator);
                     Volatile.Write(ref _activeCoordinator, coordinator);
@@ -2115,6 +2127,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         string finalStatus,
         CancellationTokenSource cancellation) => _dispatcher.InvokeAsync(() =>
         {
+            ClearHistoryOutputPrograms();
             IDisplayCoordinator? historyCoordinator = Volatile.Read(ref _historyCoordinator);
             if (historyCoordinator is not null &&
                 ReferenceEquals(Volatile.Read(ref _activeCoordinator), historyCoordinator))
@@ -2134,6 +2147,13 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             IsHistoryRehearsalRunning = false;
             cancellation.Dispose();
         });
+
+    private void ClearHistoryOutputPrograms()
+    {
+        foreach (var output in _historyOutputPrograms)
+            _obsSnapshotStore.ClearProgram(output.Key, _services.Clock.UtcNow, output.Value);
+        _historyOutputPrograms.Clear();
+    }
 
     private static string GetHistoryItemType(DisasterEvent disasterEvent) => disasterEvent switch
     {
@@ -2314,7 +2334,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 }
                 _obsSnapshotStore.PublishProgram(
                     result.Event,
-                    result.Program,
+                    ApplyTrainingPresentation(result.Program),
                     _settings.Display,
                     _services.Clock.UtcNow);
             }
@@ -2816,6 +2836,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             EndPolicy = EndPolicy.LoopUntilReplaced,
             MaximumDisplayCycles = 1,
         };
+        replayProgram = ReplayPresentation.Apply(replayProgram, _settings.History, selection.Event.IssuedAt,
+            isReplay: true, _settings.Display.ShowPageIndicator);
         var coordinator = new PriorityCoordinator(_services.Clock, _settings.Display);
         coordinator.Apply(replayProgram);
         _productionReplayCoordinator = coordinator;
@@ -2848,6 +2870,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     {
         _lastCoordinatorSnapshot = snapshot;
         CoordinatorSnapshot displaySnapshot = ApplyManualSubtitleEdit(snapshot);
+        if (displaySnapshot.CurrentProgram is { } current)
+            displaySnapshot = displaySnapshot with { CurrentProgram = ApplyTrainingPresentation(current) };
         RemoveObsoleteSubtitleEdits(snapshot);
         Overlay.Apply(displaySnapshot, _settings.Display);
         _obsSnapshotStore.Publish(displaySnapshot, _settings.Display, _services.Clock.UtcNow);
@@ -2857,6 +2881,21 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         {
             QueueStateSave(snapshot, lastShutdownWasClean: false);
         }
+    }
+
+    private DisplayProgram ApplyTrainingPresentation(DisplayProgram program)
+    {
+        // Includes received sandbox/test telegrams as well as explicit operator training.
+        // A new live production program with no training label is never altered.
+        if (program.SourceMode == SourceMode.Production && string.IsNullOrWhiteSpace(program.RehearsalLabel))
+            return program;
+        if (program.HideReplayModeBanner == Settings.HideReplayModeBanner &&
+            program.HideInformationBadges == Settings.HideReplayInformationBadges) return program;
+        return program with
+        {
+            HideReplayModeBanner = Settings.HideReplayModeBanner,
+            HideInformationBadges = Settings.HideReplayInformationBadges,
+        };
     }
 
     private CoordinatorSnapshot ApplyManualSubtitleEdit(CoordinatorSnapshot snapshot)

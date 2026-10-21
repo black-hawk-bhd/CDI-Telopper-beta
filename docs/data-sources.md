@@ -12,6 +12,26 @@ An unauthenticated provider that retrieves XML directly from JMA's public feeds.
 
 [JMA feed documentation and usage notes](https://xml.kishou.go.jp/xmlpull.html)
 
+### Manual history / replay
+
+The received/past telegram window can fetch the official `eqvol_l.xml` and
+`extra_l.xml` long feeds. JMA publishes several days of telegrams in these feeds,
+updated hourly; this is not an unlimited historical archive or an EEW source.
+Choose a supported category and 1–100 items, or a direct official XML URL under
+`https://www.data.jma.go.jp/developer/xml/data/`. Only HTTPS URLs on that host and
+path are accepted; redirects are disabled. Legacy live-excluded weather codes
+are also excluded from feed selection. Normalization and compatibility semantics
+are shared with the live JMA XML parser.
+
+Reads are manual, serialized and bounded (8 MiB per response). Feed reads are
+cached for one minute and telegram bodies in a bounded in-memory session cache,
+with a 250 ms delay before each uncached telegram. Re-fetching a cached telegram
+does not send another request. Partial/failed retrieval is reported as a failure,
+not a successful complete history. Retrieval only fills the review list: it does
+not emit captions or audio, update live API state, or enter live deduplication.
+Replays remain `HistoryRehearsal` even when their visible mode label is hidden.
+For older telegrams, use the NII archive or a locally saved XML file.
+
 
 
 ## Place-name ruby in telegram review

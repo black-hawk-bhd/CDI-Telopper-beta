@@ -35,6 +35,8 @@ public sealed class HistoryRehearsalLoaderTests
             {
                 NiiReportUrl = niiReportUrl,
                 LocalXmlFilePath = localXmlFilePath,
+                JmaContent = JmaHistoryContent.Tsunami,
+                JmaReportUrl = "https://www.data.jma.go.jp/developer/xml/data/sample.xml",
             },
             settings.Provider);
 
@@ -49,6 +51,8 @@ public sealed class HistoryRehearsalLoaderTests
         Assert.AreEqual(settings.Provider, source.LastRequest.Provider);
         Assert.AreEqual(niiReportUrl, source.LastRequest.NiiReportUrl);
         Assert.AreEqual(localXmlFilePath, source.LastRequest.LocalXmlFilePath);
+        Assert.AreEqual(JmaHistoryContent.Tsunami, source.LastRequest.JmaContent);
+        Assert.AreEqual("https://www.data.jma.go.jp/developer/xml/data/sample.xml", source.LastRequest.JmaReportUrl);
 
         await loader.DisposeAsync();
         Assert.IsTrue(source.IsDisposed);

@@ -321,6 +321,11 @@ public sealed record DisplaySettings(
     int Width,
     int Height)
 {
+    public bool HideNormalModeBanner { get; init; }
+
+    // Keep the serialized name for compatibility. True now replaces the badge with subtitle text.
+    public bool HideNormalInformationBadges { get; init; }
+
     public bool ShowLowIntensityPointsInStrongQuakes { get; init; }
 
     // Fixed phrases can be customized before telegrams are received. Keys are
@@ -588,6 +593,16 @@ public sealed record HistorySettings(
     public string LocalXmlFilePath { get; init; } = string.Empty;
 
     public bool Repeat { get; init; }
+
+    public JmaHistoryContent JmaContent { get; init; }
+
+    public string JmaReportUrl { get; init; } = string.Empty;
+
+    public bool HideModeBanner { get; init; }
+
+    public bool HideInformationBadges { get; init; }
+
+    public bool AppendIssuedAtPage { get; init; }
 }
 
 public sealed record CompatibilitySettings(
@@ -670,6 +685,16 @@ public enum HistoryApi
     History = 1,
     NiiJmaXml = 2,
     LocalJmaXml = 3,
+    JmaXml = 4,
+}
+
+public enum JmaHistoryContent
+{
+    AllSupported = 0,
+    Quake,
+    Tsunami,
+    Weather,
+    Volcano,
 }
 
 public enum NiiHistoryContent

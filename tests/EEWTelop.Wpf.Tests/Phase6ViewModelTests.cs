@@ -2359,6 +2359,95 @@ public sealed class Phase6ViewModelTests
         }
     }
 
+    [TestMethod]
+    public async Task ReplayOptionsHideBothBadgesWithoutChangingSourceAndAppendOnlyOnce()
+    {
+        QuakeEvent quake = CreateHistoryQuake();
+        AppServices services = CreateServices(ProviderConnectionState.Stopped,
+            historyLoader: new FakeHistoryRehearsalLoader([quake]));
+        var store = new ObsSnapshotStore(services.InitialSettings.Display, services.Clock.UtcNow);
+        await using var viewModel = new ControlWindowViewModel(services, services.InitialSettings,
+            new FakeConfirmationService(), new ImmediateUiDispatcher(), store);
+        viewModel.Settings.HideReplayModeBanner = true;
+        viewModel.Settings.HideReplayInformationBadges = true;
+        viewModel.Settings.AppendReplayIssuedAtPage = true;
+        viewModel.LoadHistoryForReviewCommand.Execute(null);
+        await WaitUntilAsync(() => viewModel.ReceivedTelegrams.Count == 1 && !viewModel.IsTelegramHistoryLoading);
+        Assert.IsFalse(store.Read().HasProgram);
+        ReceivedTelegramViewModel source = viewModel.ReceivedTelegrams.Single();
+        int originalCount = source.Program.Pages.Count;
+        viewModel.RedisplayReceivedTelegramCommand.Execute(null);
+        ObsViewSnapshot replay = store.Read();
+        Assert.AreEqual(SourceMode.HistoryRehearsal, replay.SourceMode);
+        Assert.AreEqual(string.Empty, replay.RehearsalLabel);
+        Assert.IsTrue(replay.Blocks.All(static block => block.HideBadge));
+        Assert.AreEqual(originalCount + 1, replay.PageCount);
+        Assert.IsFalse(viewModel.Overlay.HasRehearsalLabel);
+        Assert.IsTrue(viewModel.Overlay.Blocks.All(static block => !block.IsBadgeVisible));
+        Assert.AreEqual(originalCount, source.Program.Pages.Count);
+        Assert.IsNotEmpty(source.Program.RehearsalLabel);
+        viewModel.RedisplayReceivedTelegramCommand.Execute(null);
+        Assert.AreEqual(originalCount + 1, store.Read().PageCount);
+        viewModel.Settings.AppendReplayIssuedAtPage = false;
+        viewModel.Settings.HideReplayModeBanner = false;
+        viewModel.Settings.HideReplayInformationBadges = false;
+        viewModel.RedisplayReceivedTelegramCommand.Execute(null);
+        Assert.AreEqual(originalCount, store.Read().PageCount);
+        Assert.IsNotEmpty(store.Read().RehearsalLabel);
+        Assert.IsFalse(store.Read().Blocks.Any(static block => block.HideBadge));
+    }
+
+    [TestMethod]
+    public async Task TrainingAndHistoryRehearsalUseBadgeChoicesButDoNotModifyLivePrograms()
+    {
+        AppServices services = CreateServices(ProviderConnectionState.Stopped,
+            historyLoader: new FakeHistoryRehearsalLoader([CreateHistoryQuake()]));
+        var store = new ObsSnapshotStore(services.InitialSettings.Display, services.Clock.UtcNow);
+        await using var viewModel = new ControlWindowViewModel(services, services.InitialSettings,
+            new FakeConfirmationService(), new ImmediateUiDispatcher(), store);
+        viewModel.Settings.HideReplayModeBanner = true;
+        viewModel.Settings.HideReplayInformationBadges = true;
+        viewModel.SelectedScenario = viewModel.Scenarios.Single(static item => item.Id == "detail-scale");
+        viewModel.RunTestCommand.Execute(null);
+        Assert.AreEqual(SourceMode.ManualTest, store.Read().SourceMode);
+        Assert.AreEqual(string.Empty, store.Read().RehearsalLabel);
+        Assert.IsTrue(store.Read().Blocks.All(static block => block.HideBadge));
+        viewModel.ClearDisplayCommand.Execute(null);
+        viewModel.StartHistoryRehearsalCommand.Execute(null);
+        await WaitUntilAsync(() => viewModel.HistoryItems.Count == 1 && store.Read().HasProgram);
+        Assert.AreEqual(SourceMode.HistoryRehearsal, store.Read().SourceMode);
+        Assert.AreEqual(string.Empty, store.Read().RehearsalLabel);
+        Assert.IsTrue(store.Read().Blocks.All(static block => block.HideBadge));
+        viewModel.StopHistoryRehearsalCommand.Execute(null);
+        await WaitUntilAsync(() => !viewModel.IsHistoryRehearsalRunning);
+        Assert.IsNull(services.DisplayCoordinator.Evaluate().CurrentProgram);
+        Assert.IsFalse(store.Read(ObsViewChannel.General, services.Clock.UtcNow).HasProgram);
+    }
+
+    [TestMethod]
+    [DataRow(SourceMode.Production)]
+    [DataRow(SourceMode.ManualTest)]
+    [DataRow(SourceMode.Sandbox)]
+    public async Task ReceivedLiveProgramsKeepBadgesWhileTrainingReceptionCanHideThem(SourceMode mode)
+    {
+        QuakeEvent quake = CreateQuake(mode, "received-badge-safety");
+        var defaults = AppSettings.CreateDefault();
+        AppSettings settings = defaults with { History = defaults.History with
+            { HideModeBanner = true, HideInformationBadges = true, AppendIssuedAtPage = true } };
+        AppServices services = CreateServices(ProviderConnectionState.Stopped, suppliedSettings: settings,
+            suppliedNormalizer: new StubNormalizer(quake));
+        var store = new ObsSnapshotStore(settings.Display, services.Clock.UtcNow);
+        await using var viewModel = new ControlWindowViewModel(services, settings,
+            new FakeConfirmationService(), new ImmediateUiDispatcher(), store);
+        await services.ReceptionService.ProcessAsync(new RawProviderMessage("test", "{}", mode, services.Clock.UtcNow));
+        ObsViewSnapshot output = store.Read();
+        Assert.IsTrue(output.HasProgram);
+        Assert.AreEqual(mode, output.SourceMode);
+        Assert.AreEqual(mode != SourceMode.Production, output.Blocks.All(static block => block.HideBadge));
+        Assert.AreEqual(services.PageComposer.Compose(quake, settings.Display).Pages.Count, output.PageCount);
+        Assert.AreEqual(string.Empty, output.RehearsalLabel);
+    }
+
     private sealed class FakeHistoryRehearsalLoader(IReadOnlyList<DisasterEvent> events)
         : IHistoryRehearsalLoader
     {

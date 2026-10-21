@@ -42,6 +42,15 @@ public sealed record DisplayProgram(
     // Session-only presentation option. Never persisted or used to reclassify training data.
     [System.Text.Json.Serialization.JsonIgnore]
     public bool HideSimulatorTrainingBanner { get; init; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HideReplayModeBanner { get; init; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HideInformationBadges { get; init; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsReplayPresentation { get; init; }
 }
 
 public sealed record DisplayPage(

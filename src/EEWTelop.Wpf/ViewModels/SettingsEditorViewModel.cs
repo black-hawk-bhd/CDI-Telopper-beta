@@ -76,6 +76,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private double _letterSpacingEm;
     private double _lineSpacing;
     private double _fontScale;
+    private bool _hideNormalModeBanner;
+    private bool _hideNormalInformationBadges;
     private int _autoHideSeconds;
     private int _eewAutoHideSeconds;
     private int _quakeAutoHideSeconds;
@@ -147,6 +149,11 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private string _niiHistoryReportUrl;
     private string _localHistoryXmlFilePath;
     private bool _historyRepeat;
+    private JmaHistoryContent _jmaHistoryContent;
+    private string _jmaHistoryReportUrl;
+    private bool _hideReplayModeBanner;
+    private bool _hideReplayInformationBadges;
+    private bool _appendReplayIssuedAtPage;
     private bool _enrichQuakeById;
     private bool _confirmTestInProduction;
     private readonly int _uiLogMaxEntries;
@@ -246,6 +253,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _autoHideSeconds = settings.Display.AutoHideSeconds;
         _eewAutoHideSeconds = settings.Display.EffectiveEewAutoHideSeconds;
         _quakeAutoHideSeconds = settings.Display.EffectiveQuakeAutoHideSeconds;
+        _hideNormalModeBanner = settings.Display.HideNormalModeBanner;
+        _hideNormalInformationBadges = settings.Display.HideNormalInformationBadges;
         _tsunamiAutoHideSeconds = settings.Display.EffectiveTsunamiAutoHideSeconds;
         _weatherWarningAutoHideSeconds =
             settings.Display.EffectiveWeatherWarningAutoHideSeconds;
@@ -351,6 +360,11 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _niiHistoryReportUrl = settings.History.NiiReportUrl ?? string.Empty;
         _localHistoryXmlFilePath = settings.History.LocalXmlFilePath ?? string.Empty;
         _historyRepeat = settings.History.Repeat;
+        _jmaHistoryContent = settings.History.JmaContent;
+        _jmaHistoryReportUrl = settings.History.JmaReportUrl ?? string.Empty;
+        _hideReplayModeBanner = settings.History.HideModeBanner;
+        _hideReplayInformationBadges = settings.History.HideInformationBadges;
+        _appendReplayIssuedAtPage = settings.History.AppendIssuedAtPage;
         _enrichQuakeById = settings.Compatibility.EnrichQuakeById;
         _confirmTestInProduction = settings.Safety.ConfirmTestInProduction;
         _uiLogMaxEntries = settings.Log.UiMaxEntries;
@@ -430,20 +444,31 @@ public sealed class SettingsEditorViewModel : ObservableObject
 
     public ObservableCollection<AudioCueOptionViewModel> TsunamiAudioCues { get; }
 
-    public IReadOnlyList<HistoryApiOption> HistoryApis { get; } =
+    public IReadOnlyList<HistoryApiOption> HistoryApis { get; } = (
         BuildFeatures.ExtendedFeaturesEnabled
             ?
-            [
+            new HistoryApiOption[] {
                 new(HistoryApi.JmaQuake, "P2P地震情報（jma/quake）"),
                 new(HistoryApi.History, "P2P履歴（地震・津波・EEW）"),
                 new(HistoryApi.NiiJmaXml, "気象庁防災情報XML DB（NII）"),
                 new(HistoryApi.LocalJmaXml, "外部JMA XMLファイル"),
-            ]
+            }
             :
-            [
+            new HistoryApiOption[] {
                 new(HistoryApi.JmaQuake, "P2P地震情報（jma/quake）"),
                 new(HistoryApi.History, "P2P履歴（地震・津波・EEW）"),
-            ];
+            }).Concat(BuildFeatures.DmdataProviderEnabled
+                ? new[] { new HistoryApiOption(HistoryApi.JmaXml, "気象庁XML（公式・数日分／毎時更新）") }
+                : Array.Empty<HistoryApiOption>()).ToArray();
+
+    public IReadOnlyList<JmaHistoryContentOption> JmaHistoryContents { get; } =
+    [
+        new(JmaHistoryContent.AllSupported, "対応する全種別（EEW対象外）"),
+        new(JmaHistoryContent.Quake, "地震・南海トラフ等"),
+        new(JmaHistoryContent.Tsunami, "津波"),
+        new(JmaHistoryContent.Weather, "気象"),
+        new(JmaHistoryContent.Volcano, "火山"),
+    ];
 
     public IReadOnlyList<NiiHistoryContentOption> NiiHistoryContents { get; } =
     [
@@ -696,6 +721,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public double LetterSpacingEm { get => _letterSpacingEm; set => SetProperty(ref _letterSpacingEm, 0); }
     public double LineSpacing { get => _lineSpacing; set => SetProperty(ref _lineSpacing, 1); }
     public double FontScale { get => _fontScale; set => SetProperty(ref _fontScale, 1); }
+    public bool HideNormalModeBanner { get => _hideNormalModeBanner; set => SetProperty(ref _hideNormalModeBanner, value); }
+    public bool HideNormalInformationBadges { get => _hideNormalInformationBadges; set => SetProperty(ref _hideNormalInformationBadges, value); }
     public int AutoHideSeconds { get => _autoHideSeconds; set => SetProperty(ref _autoHideSeconds, value); }
     public int EewAutoHideSeconds { get => _eewAutoHideSeconds; set => SetProperty(ref _eewAutoHideSeconds, value); }
     public int QuakeAutoHideSeconds { get => _quakeAutoHideSeconds; set => SetProperty(ref _quakeAutoHideSeconds, value); }
@@ -796,11 +823,21 @@ public sealed class SettingsEditorViewModel : ObservableObject
             if (SetProperty(ref _historyApi, value))
             {
                 OnPropertyChanged(nameof(IsNiiHistoryApi));
+                OnPropertyChanged(nameof(IsJmaHistoryApi));
+                OnPropertyChanged(nameof(IsLocalHistoryApi));
             }
         }
     }
 
     public bool IsNiiHistoryApi => HistoryApi == HistoryApi.NiiJmaXml;
+
+    public bool IsJmaHistoryApi => HistoryApi == HistoryApi.JmaXml;
+    public bool IsLocalHistoryApi => HistoryApi == HistoryApi.LocalJmaXml;
+    public JmaHistoryContent JmaHistoryContent { get => _jmaHistoryContent; set => SetProperty(ref _jmaHistoryContent, value); }
+    public string JmaHistoryReportUrl { get => _jmaHistoryReportUrl; set => SetProperty(ref _jmaHistoryReportUrl, value); }
+    public bool HideReplayModeBanner { get => _hideReplayModeBanner; set => SetProperty(ref _hideReplayModeBanner, value); }
+    public bool HideReplayInformationBadges { get => _hideReplayInformationBadges; set => SetProperty(ref _hideReplayInformationBadges, value); }
+    public bool AppendReplayIssuedAtPage { get => _appendReplayIssuedAtPage; set => SetProperty(ref _appendReplayIssuedAtPage, value); }
 
     public int HistoryLimit { get => _historyLimit; set => SetProperty(ref _historyLimit, value); }
     public int HistoryIntervalSeconds { get => _historyIntervalSeconds; set => SetProperty(ref _historyIntervalSeconds, value); }
@@ -910,6 +947,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 Math.Clamp(Height, 180, 4320))
             {
                 EewAutoHideSeconds = Math.Clamp(EewAutoHideSeconds, 0, 3600),
+                HideNormalModeBanner = HideNormalModeBanner,
+                HideNormalInformationBadges = HideNormalInformationBadges,
                 QuakeAutoHideSeconds = Math.Clamp(QuakeAutoHideSeconds, 0, 3600),
                 TsunamiAutoHideSeconds = Math.Clamp(TsunamiAutoHideSeconds, 0, 3600),
                 WeatherWarningAutoHideSeconds = Math.Clamp(
@@ -1049,6 +1088,11 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 NiiReportUrl = NiiHistoryReportUrl.Trim(),
                 LocalXmlFilePath = LocalHistoryXmlFilePath.Trim(),
                 Repeat = HistoryRepeat,
+                JmaContent = JmaHistoryContent,
+                JmaReportUrl = JmaHistoryReportUrl.Trim(),
+                HideModeBanner = HideReplayModeBanner,
+                HideInformationBadges = HideReplayInformationBadges,
+                AppendIssuedAtPage = AppendReplayIssuedAtPage,
             },
             Compatibility = new CompatibilitySettings(EnrichQuakeById),
             Log = new LogSettings(UiLogMaxEntries)
@@ -1374,6 +1418,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
         DisplaySettings defaults = AppSettings.CreateDefault().Display;
         PageDurationSeconds = defaults.PageDurationSeconds;
         ShowPageIndicator = defaults.ShowPageIndicator;
+        HideNormalModeBanner = defaults.HideNormalModeBanner;
+        HideNormalInformationBadges = defaults.HideNormalInformationBadges;
         ShowTsunamiForecast = defaults.ShowTsunamiForecast;
         ShowLowIntensityPointsInStrongQuakes = defaults.ShowLowIntensityPointsInStrongQuakes;
         SeparateIntensityPagesByScale = defaults.SeparateIntensityPagesByScale;
@@ -1446,6 +1492,11 @@ public sealed class SettingsEditorViewModel : ObservableObject
         NiiHistoryReportUrl = defaults.NiiReportUrl;
         LocalHistoryXmlFilePath = defaults.LocalXmlFilePath;
         HistoryRepeat = defaults.Repeat;
+        JmaHistoryContent = defaults.JmaContent;
+        JmaHistoryReportUrl = defaults.JmaReportUrl;
+        HideReplayModeBanner = defaults.HideModeBanner;
+        HideReplayInformationBadges = defaults.HideInformationBadges;
+        AppendReplayIssuedAtPage = defaults.AppendIssuedAtPage;
     }
 
     public void ResetLogSettings()
@@ -1678,6 +1729,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
 }
 
 public sealed record HistoryApiOption(HistoryApi Value, string Label);
+
+public sealed record JmaHistoryContentOption(JmaHistoryContent Value, string Label);
 
 public sealed record NiiHistoryContentOption(NiiHistoryContent Value, string Label);
 

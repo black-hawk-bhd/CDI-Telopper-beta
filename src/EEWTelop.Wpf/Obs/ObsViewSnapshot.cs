@@ -42,6 +42,7 @@ public sealed record ObsViewBlock(
     string StyleToken)
 {
     public string WeatherHeading { get; init; } = string.Empty;
+    public bool HideBadge { get; init; }
 }
 
 public enum ObsViewChannel
@@ -147,11 +148,14 @@ public sealed partial class ObsSnapshotStore
         }
     }
 
-    public void ClearProgram(EventKind kind, DateTimeOffset now)
+    public void ClearProgram(EventKind kind, DateTimeOffset now, string? expectedProgramId = null)
     {
         lock (_gate)
         {
             ObsViewChannel? channel = ToViewChannel(kind);
+            if (expectedProgramId is not null && (channel is null ||
+                !_programs.TryGetValue(channel.Value, out ObsProgramState? expected) ||
+                expected.Program.ProgramId != expectedProgramId)) return;
             if (channel is not null &&
                 _programs.TryGetValue(channel.Value, out ObsProgramState? state) &&
                 state.Program.Kind == kind)
@@ -159,7 +163,7 @@ public sealed partial class ObsSnapshotStore
                 _programs.Remove(channel.Value);
             }
 
-            if (_snapshot.Kind == kind)
+            if (_snapshot.Kind == kind && (expectedProgramId is null || _snapshot.ProgramId == expectedProgramId))
             {
                 ObsViewSnapshot empty = CreateEmpty(_snapshot, now, ++_sequence);
                 _snapshot = empty with
@@ -222,7 +226,7 @@ public sealed partial class ObsSnapshotStore
                 ProgramId: program.ProgramId,
                 Kind: program.Kind,
                 SourceMode: program.SourceMode,
-                RehearsalLabel: GetRehearsalLabel(program),
+                RehearsalLabel: GetRehearsalLabel(program, settings),
                 PageIndex: snapshot.CurrentPageIndex,
                 PageCount: program.Pages.Count,
                 PageIndicator: settings.ShowPageIndicator && program.Pages.Count > 1
@@ -231,11 +235,7 @@ public sealed partial class ObsSnapshotStore
                 AccessibleText: page.AccessibleText,
                 Blocks: page.Blocks
                     .Where(static block => block.StyleToken != DisplayStyleTokens.PageIndicator)
-                    .Select(static block => new ObsViewBlock(
-                        block.Badge,
-                        block.PrimaryText,
-                        block.SecondaryText,
-                        block.StyleToken) { WeatherHeading = block.WeatherHeading })
+                    .Select(block => CreateViewBlock(block, program, settings))
                     .ToArray(),
                 AudioSequence: _snapshot.AudioSequence,
                 AudioAction: _snapshot.AudioAction,
@@ -454,7 +454,7 @@ public sealed partial class ObsSnapshotStore
             ProgramId: program.ProgramId,
             Kind: program.Kind,
             SourceMode: program.SourceMode,
-            RehearsalLabel: GetRehearsalLabel(program),
+            RehearsalLabel: GetRehearsalLabel(program, settings),
             PageIndex: pageIndex,
             PageCount: program.Pages.Count,
             PageIndicator: settings.ShowPageIndicator && program.Pages.Count > 1
@@ -463,11 +463,7 @@ public sealed partial class ObsSnapshotStore
             AccessibleText: page.AccessibleText,
             Blocks: page.Blocks
                 .Where(static block => block.StyleToken != DisplayStyleTokens.PageIndicator)
-                .Select(static block => new ObsViewBlock(
-                    block.Badge,
-                    block.PrimaryText,
-                    block.SecondaryText,
-                    block.StyleToken) { WeatherHeading = block.WeatherHeading })
+                .Select(block => CreateViewBlock(block, program, settings))
                 .ToArray(),
             AudioSequence: 0,
             AudioAction: string.Empty,
@@ -476,6 +472,16 @@ public sealed partial class ObsSnapshotStore
         {
             OutputTransform = settings.OutputTransform,
         };
+
+    private static ObsViewBlock CreateViewBlock(DisplayBlock source, DisplayProgram program, DisplaySettings settings)
+    {
+        DisplayBlock block = DisplayBadgeVisibility.FormatBlockForOutput(source, program, settings);
+        return new ObsViewBlock(block.Badge, block.PrimaryText, block.SecondaryText, block.StyleToken)
+        {
+            WeatherHeading = block.WeatherHeading,
+            HideBadge = DisplayBadgeVisibility.HideInformationBadges(program, settings),
+        };
+    }
 
     private ObsViewSnapshot WithChannelAudio(ObsViewSnapshot snapshot, ObsViewChannel channel) =>
         _channelAudio.TryGetValue(channel, out ObsAudioCommand? command)
@@ -525,8 +531,9 @@ public sealed partial class ObsSnapshotStore
         }
     }
 
-    private static string GetRehearsalLabel(DisplayProgram program)
+    private static string GetRehearsalLabel(DisplayProgram program, DisplaySettings settings)
     {
+        if (DisplayBadgeVisibility.HideModeBanner(program, settings)) return string.Empty;
         if (program.HideSimulatorTrainingBanner && program.SourceMode == SourceMode.ManualTest)
             return string.Empty;
         if (!string.IsNullOrWhiteSpace(program.RehearsalLabel))

@@ -578,6 +578,12 @@
                                         <TextBlock Text="ページ秒数（1.0〜30.0 / 0.5刻み）" Foreground="{StaticResource MutedBrush}" />
                                         <TextBox Text="{Binding Settings.PageDurationSeconds}" />
                                         <CheckBox Content="ページ番号を表示" IsChecked="{Binding Settings.ShowPageIndicator}" />
+                                        <CheckBox Content="通常モード：上部の区分バッジを非表示"
+                                                  IsChecked="{Binding Settings.HideNormalModeBanner}"
+                                                  ToolTip="初期値はOFFです。元から区分表示のない情報では見た目は変わりません。再掲・訓練・リハーサルは別設定です。" />
+                                        <CheckBox Content="通常モード：情報種別をバッジではなく字幕で表示"
+                                                  IsChecked="{Binding Settings.HideNormalInformationBadges}"
+                                                  ToolTip="ONでは情報種別や震度を字幕の文字で残し、バッジの背景・枠を表示しません。OFFは従来のバッジ表示です。地名・状態・ページ分けは維持します。再掲・訓練・リハーサルは別設定です。保存して反映後、表示中の本番情報にも適用します。" />
                                         <CheckBox Content="震度階級ごとにページを分ける"
                                                   IsChecked="{Binding Settings.SeparateIntensityPagesByScale}"
                                                   ToolTip="初期値はONです。OFFにすると異なる震度を同じページに表示します。保存して反映後、新しく生成する震度ページに適用します。" />
@@ -601,7 +607,7 @@
                                         <Button Content="ページと文字を初期設定に戻す"
                                                 Command="{Binding ResetDisplaySettingsCommand}"
                                                 Margin="0,8,0,0"
-                                                ToolTip="ページ時間、自動消去時間、震度階級別ページ分割、津波予報表示、受信前の定型文編集を初期化します。" />
+                                                ToolTip="ページ時間、通常モードのバッジ非表示、自動消去時間、震度階級別ページ分割、津波予報表示、受信前の定型文編集を初期化します。" />
                                     </StackPanel>
                                 </GroupBox>
                             </StackPanel>

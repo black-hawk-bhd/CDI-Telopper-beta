@@ -195,16 +195,19 @@ public sealed class OverlayViewModel : ObservableObject
                 DisplayStyleTokens.EewHeaderTest) > 1;
         IsSubtitleProgram = program.Kind != EventKind.Eew;
         ProgramId = program.ProgramId;
-        RehearsalLabel = program.HideSimulatorTrainingBanner && program.SourceMode == SourceMode.ManualTest
+        RehearsalLabel = DisplayBadgeVisibility.HideModeBanner(program, settings) ||
+            program.HideSimulatorTrainingBanner && program.SourceMode == SourceMode.ManualTest
             ? string.Empty : program.RehearsalLabel;
         PageIndicator = settings.ShowPageIndicator && program.Pages.Count > 1
             ? $"{snapshot.CurrentPageIndex + 1} / {program.Pages.Count}"
             : "";
         AccessibleText = page.AccessibleText;
+        bool hideInformationBadges = DisplayBadgeVisibility.HideInformationBadges(program, settings);
         string previousBadge = string.Empty;
-        foreach (DisplayBlock block in page.Blocks.Where(
+        foreach (DisplayBlock sourceBlock in page.Blocks.Where(
             static block => block.StyleToken != DisplayStyleTokens.PageIndicator))
         {
+            DisplayBlock block = DisplayBadgeVisibility.FormatBlockForOutput(sourceBlock, program, settings);
             bool reservesPreviousBadge = string.IsNullOrWhiteSpace(block.Badge) &&
                 (block.StyleToken is DisplayStyleTokens.Intensity or DisplayStyleTokens.Tsunami ||
                  block.StyleToken.StartsWith("weather-", StringComparison.Ordinal) ||
@@ -218,10 +221,10 @@ public sealed class OverlayViewModel : ObservableObject
             Blocks.Add(new OverlayBlockViewModel(
                 block.Badge,
                 string.IsNullOrWhiteSpace(block.Badge) ? previousBadge : block.Badge,
-                !string.IsNullOrWhiteSpace(block.Badge) || reservesPreviousBadge,
+                !hideInformationBadges && (!string.IsNullOrWhiteSpace(block.Badge) || reservesPreviousBadge),
                 block.PrimaryText,
                 block.SecondaryText,
-                block.StyleToken) { WeatherHeading = block.WeatherHeading });
+                block.StyleToken) { WeatherHeading = block.WeatherHeading, HideBadge = hideInformationBadges });
         }
     }
 
@@ -282,7 +285,8 @@ public sealed record OverlayBlockViewModel(
     string StyleToken)
 {
     public string WeatherHeading { get; init; } = string.Empty;
-    public bool IsBadgeVisible => !string.IsNullOrWhiteSpace(Badge);
+    public bool HideBadge { get; init; }
+    public bool IsBadgeVisible => !HideBadge && !string.IsNullOrWhiteSpace(Badge);
 
     public double BadgeOpacity => IsBadgeVisible ? 1 : 0;
 
@@ -291,7 +295,7 @@ public sealed record OverlayBlockViewModel(
 
     // Area-list pages keep context in the source text for history and speech.
     // Only their first line is lifted beside the badge in the subtitle layout.
-    public bool HasWeatherContext => IsWeather && IsBadgeVisible && (WeatherHeading.Length > 0 ||
+    public bool HasWeatherContext => IsWeather && !string.IsNullOrWhiteSpace(Badge) && (WeatherHeading.Length > 0 ||
         PrimaryText.IndexOf('\n') is > 0 && PrimaryText.Split('\n')[0].Contains('｜'));
 
     public string WeatherContext => HasWeatherContext ? WeatherHeading.Length > 0 ? WeatherHeading : PrimaryText.Split('\n')[0] : string.Empty;

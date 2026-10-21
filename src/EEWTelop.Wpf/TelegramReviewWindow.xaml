@@ -56,7 +56,57 @@
         </Grid>
 
         <Border Grid.Row="1" Background="#FF202C38" CornerRadius="6" Padding="10" Margin="0,12,0,12">
-            <TextBlock Text="{Binding TelegramReviewStatusText}" TextWrapping="Wrap" />
+            <StackPanel>
+                <TextBlock Text="{Binding TelegramReviewStatusText}" TextWrapping="Wrap" />
+                <Expander Header="取得元と再掲・訓練の表示設定" Foreground="White" Margin="0,8,0,0">
+                    <ScrollViewer MaxHeight="280" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="4,8,12,0">
+                            <TextBlock Text="過去電文の取得元（取得だけでは字幕・音声は送出しません）" />
+                            <ComboBox ItemsSource="{Binding Settings.HistoryApis}" DisplayMemberPath="Label"
+                                      SelectedValuePath="Value" SelectedValue="{Binding Settings.HistoryApi}" />
+                            <StackPanel IsEnabled="{Binding Settings.IsJmaHistoryApi}" Margin="0,8,0,0">
+                                <TextBlock Text="気象庁XMLの対象種別" />
+                                <ComboBox ItemsSource="{Binding Settings.JmaHistoryContents}" DisplayMemberPath="Label"
+                                          SelectedValuePath="Value" SelectedValue="{Binding Settings.JmaHistoryContent}" />
+                                <TextBlock Text="気象庁の個別XML URL（任意・指定時はその1件のみ）" Margin="0,5,0,0" />
+                                <TextBox Text="{Binding Settings.JmaHistoryReportUrl, UpdateSourceTrigger=PropertyChanged}" MaxLength="2048" />
+                                <TextBlock Text="公式の長期フィードは数日分・毎時更新。EEWは対象外です。それ以前はNIIまたは保存済みXMLを利用してください。"
+                                           TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
+                            </StackPanel>
+                            <Expander Header="NII・外部XMLの設定" Foreground="White" Margin="0,8,0,0">
+                                <StackPanel>
+                                    <StackPanel IsEnabled="{Binding Settings.IsNiiHistoryApi}">
+                                        <TextBlock Text="NII検索日・取得対象（最大20件）" />
+                                        <DatePicker SelectedDate="{Binding Settings.NiiHistoryDate}" />
+                                        <ComboBox ItemsSource="{Binding Settings.NiiHistoryContents}" DisplayMemberPath="Label"
+                                                  SelectedValuePath="Value" SelectedValue="{Binding Settings.NiiHistoryContent}" />
+                                        <TextBlock Text="NII個別電文URL（任意・検索日より優先）" />
+                                        <TextBox Text="{Binding Settings.NiiHistoryReportUrl, UpdateSourceTrigger=PropertyChanged}" MaxLength="2048" />
+                                        <TextBlock Text="データ提供：気象庁防災情報XMLデータベース（国立情報学研究所）／CC BY 4.0" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <TextBlock Text="外部JMA XML（最大2MiB）" Margin="0,6,0,0" />
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right" Content="XMLを選択…" Command="{Binding BrowseHistoryXmlFileCommand}" />
+                                        <TextBox Text="{Binding Settings.LocalHistoryXmlFilePath}" IsReadOnly="True" />
+                                    </DockPanel>
+                                </StackPanel>
+                            </Expander>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,8">
+                                <TextBlock Text="取得件数（1～100）" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding Settings.HistoryLimit}" Width="65" Margin="8,0,0,0" />
+                            </StackPanel>
+                            <CheckBox Content="再掲・訓練・リハーサル時、上部の区分バッジを非表示"
+                                      Foreground="White" IsChecked="{Binding Settings.HideReplayModeBanner}" />
+                            <CheckBox Content="再掲・訓練・リハーサル時、情報種別のバッジを非表示"
+                                      Foreground="White" IsChecked="{Binding Settings.HideReplayInformationBadges}" />
+                            <CheckBox Content="再掲の最終ページに「これは○月○日○時○分発表の情報です」を追加"
+                                      Foreground="White" IsChecked="{Binding Settings.AppendReplayIssuedAtPage}" />
+                            <TextBlock Text="非表示にすると本番と見分けにくくなります。誤送出に注意してください。内部の訓練区分・元電文は変わりません。新着本番には適用しません。設定の保存はメイン画面の［保存して反映］で行います。"
+                                       Foreground="#FFFFC66D" TextWrapping="Wrap" Margin="0,6,0,0" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </Expander>
+            </StackPanel>
         </Border>
 
         <Border Grid.Row="2" Background="#FF18212B" CornerRadius="6" Padding="10" Margin="0,0,0,12">

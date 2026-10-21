@@ -186,6 +186,7 @@ public sealed class JsonSettingsStore : ISettingsStore
             settings.History.NiiDate > DateOnly.FromDateTime(DateTime.Today) ||
             !Enum.IsDefined(settings.History.Api) ||
             !Enum.IsDefined(settings.History.NiiContent) ||
+            !Enum.IsDefined(settings.History.JmaContent) ||
             !Enum.IsDefined(settings.Provider.DmdataEewContractType) ||
             !Enum.IsDefined(settings.Provider.DmdataAuthenticationMode) ||
             settings.Log.RawMessageRetentionDays is < 1 or > 90 ||
