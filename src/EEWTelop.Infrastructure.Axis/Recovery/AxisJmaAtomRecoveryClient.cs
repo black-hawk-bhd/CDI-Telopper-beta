@@ -25,6 +25,7 @@ internal sealed class AxisJmaAtomRecoveryClient : IAxisRecoveryClient
     private const int MaximumFeedBytes = 4 * 1024 * 1024;
     private const int MaximumTelegramBytes = 24 * 1024 * 1024;
     private const int MaximumEntriesPerFeed = 40;
+    private static readonly TimeSpan MaximumResponseDuration = TimeSpan.FromSeconds(20);
     private static readonly Uri SeismologyFeed =
         new("https://www.data.jma.go.jp/developer/xml/feed/eqvol.xml");
     private static readonly Uri MeteorologyFeed =
@@ -130,6 +131,7 @@ internal sealed class AxisJmaAtomRecoveryClient : IAxisRecoveryClient
         DateTimeOffset since,
         CancellationToken cancellationToken)
     {
+        using var deadline = CreateResponseDeadline(cancellationToken);
         using var request = new HttpRequestMessage(HttpMethod.Get, feed);
         request.Headers.UserAgent.ParseAdd("CDI-Telopper/2 AXIS-gap-recovery");
         if (_entityTags.TryGetValue(feed, out EntityTagHeaderValue? tag))
@@ -140,24 +142,15 @@ internal sealed class AxisJmaAtomRecoveryClient : IAxisRecoveryClient
         using HttpResponseMessage response = await _httpClient.SendAsync(
             request,
             HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken).ConfigureAwait(false);
+            deadline.Token).ConfigureAwait(false);
         if (response.StatusCode == HttpStatusCode.NotModified)
         {
             return [];
         }
 
         response.EnsureSuccessStatusCode();
-        if (response.Content.Headers.ContentLength is long length && length > MaximumFeedBytes)
-        {
-            throw new InvalidDataException("JMA Atom recovery feed exceeded the safety limit.");
-        }
-
-        byte[] bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken)
-            .ConfigureAwait(false);
-        if (bytes.Length > MaximumFeedBytes)
-        {
-            throw new InvalidDataException("JMA Atom recovery feed exceeded the safety limit.");
-        }
+        byte[] bytes = await ReadBoundedBodyAsync(response.Content, MaximumFeedBytes,
+            "JMA Atom recovery feed exceeded the safety limit.", deadline.Token).ConfigureAwait(false);
 
         if (response.Headers.ETag is EntityTagHeaderValue entityTag)
         {
@@ -188,25 +181,16 @@ internal sealed class AxisJmaAtomRecoveryClient : IAxisRecoveryClient
             throw new InvalidDataException("JMA Atom recovery link used an unexpected origin.");
         }
 
+        using var deadline = CreateResponseDeadline(cancellationToken);
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.UserAgent.ParseAdd("CDI-Telopper/2 AXIS-gap-recovery");
         using HttpResponseMessage response = await _httpClient.SendAsync(
             request,
             HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken).ConfigureAwait(false);
+            deadline.Token).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
-        if (response.Content.Headers.ContentLength is long length &&
-            length > MaximumTelegramBytes)
-        {
-            throw new InvalidDataException("JMA recovery telegram exceeded the safety limit.");
-        }
-
-        byte[] bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken)
-            .ConfigureAwait(false);
-        if (bytes.Length > MaximumTelegramBytes)
-        {
-            throw new InvalidDataException("JMA recovery telegram exceeded the safety limit.");
-        }
+        byte[] bytes = await ReadBoundedBodyAsync(response.Content, MaximumTelegramBytes,
+            "JMA recovery telegram exceeded the safety limit.", deadline.Token).ConfigureAwait(false);
 
         string xml = new UTF8Encoding(false, true).GetString(bytes);
         XDocument parsed = XDocument.Parse(xml, LoadOptions.None);
@@ -216,6 +200,36 @@ internal sealed class AxisJmaAtomRecoveryClient : IAxisRecoveryClient
         }
 
         return xml;
+    }
+
+    private CancellationTokenSource CreateResponseDeadline(CancellationToken cancellationToken)
+    {
+        var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        // ResponseHeadersRead ends HttpClient.Timeout coverage at the headers.
+        // Keep a finite deadline for the body too, respecting shorter timeouts.
+        TimeSpan timeout = _httpClient.Timeout;
+        deadline.CancelAfter(timeout > TimeSpan.Zero && timeout < MaximumResponseDuration
+            ? timeout : MaximumResponseDuration);
+        return deadline;
+    }
+
+    private static async Task<byte[]> ReadBoundedBodyAsync(
+        HttpContent content, int maximumBytes, string error, CancellationToken cancellationToken)
+    {
+        if (content.Headers.ContentLength is long length && length > maximumBytes)
+            throw new InvalidDataException(error);
+        await using Stream input = await content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var output = new MemoryStream();
+        byte[] buffer = new byte[16 * 1024];
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int count = (int)Math.Min(buffer.Length, maximumBytes - output.Length + 1);
+            int read = await input.ReadAsync(buffer.AsMemory(0, count), cancellationToken).ConfigureAwait(false);
+            if (read == 0) return output.ToArray();
+            if (read > maximumBytes - output.Length) throw new InvalidDataException(error);
+            output.Write(buffer, 0, read);
+        }
     }
 
     private static AtomEntry? TryReadEntry(XElement entry, XNamespace atom)

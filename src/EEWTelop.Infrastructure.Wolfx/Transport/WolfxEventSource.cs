@@ -6,7 +6,6 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
 using EEWTelop.Application.Abstractions;
 using EEWTelop.Application.Configuration;
@@ -114,13 +113,7 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
             _lifetimeCancellation.Token,
             readerCancellation.Token);
         ResetReconnectSignalIfCancelled();
-        var channel = Channel.CreateUnbounded<RawProviderMessage>(
-            new UnboundedChannelOptions
-            {
-                SingleReader = true,
-                SingleWriter = options.ReceiveEew ^ options.ReceiveQuake,
-                AllowSynchronousContinuations = false,
-            });
+        var channel = new ProviderMessageBuffer();
         var branches = new List<Task>(2);
         if (options.ReceiveEew)
         {
@@ -128,7 +121,7 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
                 "EEW",
                 options.EewWebSocketUri,
                 "jma_eew",
-                channel.Writer,
+                channel,
                 runCancellation.Token));
         }
 
@@ -138,14 +131,14 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
                 "地震情報",
                 options.QuakeWebSocketUri,
                 "jma_eqlist",
-                channel.Writer,
+                channel,
                 runCancellation.Token));
         }
 
-        Task completion = CompleteWhenFinishedAsync(branches, channel.Writer);
+        Task completion = CompleteWhenFinishedAsync(branches, channel);
         try
         {
-            await foreach (RawProviderMessage message in channel.Reader
+            await foreach (RawProviderMessage message in channel
                 .ReadAllAsync(runCancellation.Token).ConfigureAwait(false))
             {
                 yield return message;
@@ -219,7 +212,7 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
         string label,
         Uri endpoint,
         string expectedType,
-        ChannelWriter<RawProviderMessage> writer,
+        ProviderMessageBuffer writer,
         CancellationToken cancellationToken)
     {
         int retry = 0;
@@ -395,7 +388,7 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
 
     private static async Task CompleteWhenFinishedAsync(
         IReadOnlyCollection<Task> branches,
-        ChannelWriter<RawProviderMessage> writer)
+        ProviderMessageBuffer writer)
     {
         try
         {

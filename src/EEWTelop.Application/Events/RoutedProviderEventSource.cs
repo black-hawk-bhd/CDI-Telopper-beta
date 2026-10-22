@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using System.Threading.Channels;
 using EEWTelop.Application.Configuration;
 using EEWTelop.Application.Operations;
 
@@ -134,25 +133,19 @@ public sealed class RoutedProviderEventSource : IEventSource,
         using var runCancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken);
         lock (_gate) _runCancellation = runCancellation;
-        var channel = Channel.CreateUnbounded<RawProviderMessage>(
-            new UnboundedChannelOptions
-            {
-                SingleReader = true,
-                SingleWriter = selected.Length == 1,
-                AllowSynchronousContinuations = false,
-            });
+        var channel = new ProviderMessageBuffer();
         Task[] pumps = selected
             .Select(provider => PumpAsync(
                 provider,
                 _sources[provider],
-                channel.Writer,
+                channel,
                 runCancellation.Token))
             .ToArray();
-        Task completion = CompleteWhenFinishedAsync(pumps, channel.Writer);
+        Task completion = CompleteWhenFinishedAsync(pumps, channel);
 
         try
         {
-            await foreach (RawProviderMessage message in channel.Reader
+            await foreach (RawProviderMessage message in channel
                 .ReadAllAsync(runCancellation.Token).ConfigureAwait(false))
             {
                 yield return message;
@@ -169,8 +162,11 @@ public sealed class RoutedProviderEventSource : IEventSource,
             {
             }
 
-            Interlocked.Exchange(ref _readerActive, 0);
-            lock (_gate) _runCancellation = null;
+            lock (_gate)
+            {
+                if (ReferenceEquals(_runCancellation, runCancellation)) _runCancellation = null;
+                Interlocked.Exchange(ref _readerActive, 0);
+            }
         }
     }
 
@@ -240,7 +236,7 @@ public sealed class RoutedProviderEventSource : IEventSource,
     private async Task PumpAsync(
         ReceptionProvider provider,
         IEventSource source,
-        ChannelWriter<RawProviderMessage> writer,
+        ProviderMessageBuffer writer,
         CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
@@ -262,7 +258,7 @@ public sealed class RoutedProviderEventSource : IEventSource,
 
     private static async Task CompleteWhenFinishedAsync(
         Task[] pumps,
-        ChannelWriter<RawProviderMessage> writer)
+        ProviderMessageBuffer writer)
     {
         try
         {

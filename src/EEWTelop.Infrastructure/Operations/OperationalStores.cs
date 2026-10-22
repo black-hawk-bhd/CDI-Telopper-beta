@@ -172,7 +172,7 @@ public sealed class JsonSettingsProfileStore : ISettingsProfileStore
     }
 }
 
-public sealed class FileTestCaseLibrary : ITestCaseLibrary
+public sealed partial class FileTestCaseLibrary : ITestCaseLibrary
 {
     public const string JmaXmlTestProviderName = "test-library-jma-xml";
     public const string DmdataTestProviderName = "dmdata";
@@ -356,38 +356,6 @@ public sealed class FileTestCaseLibrary : ITestCaseLibrary
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
         return Task.CompletedTask;
-    }
-
-    public async Task<TestCaseManifest> ImportPackageAsync(string zipPath, CancellationToken cancellationToken = default)
-    {
-        string temporary = Path.Combine(Path.GetTempPath(), $"qtcase-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(temporary);
-        try
-        {
-            using ZipArchive archive = ZipFile.OpenRead(zipPath);
-            foreach (ZipArchiveEntry entry in archive.Entries)
-            {
-                string destination = Path.GetFullPath(Path.Combine(temporary, entry.FullName));
-                if (!destination.StartsWith(Path.GetFullPath(temporary) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidDataException("ZIP内に不正なパスがあります。");
-                if (string.IsNullOrEmpty(entry.Name)) { Directory.CreateDirectory(destination); continue; }
-                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-                entry.ExtractToFile(destination, overwrite: false);
-            }
-            string manifestPath = Path.Combine(temporary, "manifest.json");
-            TestCaseManifest original = TryReadManifest(manifestPath) ?? throw new InvalidDataException("manifest.jsonがありません。");
-            foreach (string file in original.PayloadFiles)
-                ValidatePayload(ResolveManagedFile(temporary, file));
-            if (!string.IsNullOrWhiteSpace(original.ReferenceImageFile))
-                ValidatePayload(ResolveManagedFile(temporary, original.ReferenceImageFile));
-            string id = Guid.NewGuid().ToString("N");
-            string destinationDirectory = GetCaseDirectory(id);
-            Directory.Move(temporary, destinationDirectory);
-            var imported = original with { Id = id, CreatedAtUtc = DateTimeOffset.UtcNow };
-            await WriteManifestAsync(destinationDirectory, imported, cancellationToken).ConfigureAwait(false);
-            return imported;
-        }
-        finally { if (Directory.Exists(temporary)) Directory.Delete(temporary, recursive: true); }
     }
 
     public async Task<TestCaseManifest> DuplicateAsync(string id, CancellationToken cancellationToken = default)

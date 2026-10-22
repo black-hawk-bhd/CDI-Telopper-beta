@@ -2,6 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
+    <RuntimeFrameworkVersion Condition="'$(RuntimeFrameworkVersion)' == ''">8.0.32</RuntimeFrameworkVersion>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>disable</ImplicitUsings>
@@ -12,10 +13,10 @@
     <Product>CDI-Telopper</Product>
     <Description>Comprehensive Disaster Information Telopper</Description>
     <ApplicationIcon>Assets\CDI-Telopper.ico</ApplicationIcon>
-    <Version Condition="'$(Version)' == ''">2.0.0-beta.60</Version>
+    <Version Condition="'$(Version)' == ''">2.0.0-beta.61</Version>
     <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">2.0.0.0</AssemblyVersion>
     <FileVersion Condition="'$(FileVersion)' == ''">2.0.0.0</FileVersion>
-    <InformationalVersion Condition="'$(InformationalVersion)' == ''">2.0.0-beta.60</InformationalVersion>
+    <InformationalVersion Condition="'$(InformationalVersion)' == ''">2.0.0-beta.61</InformationalVersion>
     <AxisProviderEnabled Condition="'$(AxisProviderEnabled)' == ''">true</AxisProviderEnabled>
     <DefineConstants Condition="'$(AxisProviderEnabled)' == 'true'">$(DefineConstants);QTELOPPER_AXIS_PROVIDER</DefineConstants>
     <DmdataProviderEnabled Condition="'$(DmdataProviderEnabled)' == ''">true</DmdataProviderEnabled>

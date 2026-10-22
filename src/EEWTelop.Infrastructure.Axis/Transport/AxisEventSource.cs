@@ -291,41 +291,41 @@ public sealed class AxisEventSource : IEventSource, IProviderConfigurableEventSo
         // Never replay old telegrams on the first application connection.
         // Gap recovery is reserved for a reconnect after a known connected
         // interval, preventing stale warnings from appearing at startup.
-        Task<IReadOnlyList<RawProviderMessage>> recovery = recoverySince is null
-            ? Task.FromResult<IReadOnlyList<RawProviderMessage>>([])
-            : FetchRecoveryAsync(
-                recoverySince.Value,
-                options,
-                recoveryCancellation.Token);
+        await using IAsyncEnumerator<RawProviderMessage> recoveryReader = ReadRecoveryAsync(
+            recoverySince, options, new ProviderMessageBuffer(), recoveryCancellation.Token)
+            .GetAsyncEnumerator(recoveryCancellation.Token);
+        Task<bool>? recoveryNext = null;
         bool recoveryEmitted = false;
         try
         {
+            recoveryNext = recoveryReader.MoveNextAsync().AsTask();
             while (socket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
             {
                 Task<string?> receive = ReceiveTextAsync(socket, cancellationToken);
-                if (!recoveryEmitted &&
-                    await Task.WhenAny(receive, recovery).ConfigureAwait(false) == recovery)
+                while (!recoveryEmitted &&
+                    await Task.WhenAny(receive, recoveryNext).ConfigureAwait(false) == recoveryNext)
                 {
-                    foreach (RawProviderMessage recovered in await recovery.ConfigureAwait(false))
+                    if (!await recoveryNext.ConfigureAwait(false))
                     {
-                        yield return recovered;
+                        recoveryEmitted = true;
+                        break;
                     }
-
-                    recoveryEmitted = true;
+                    yield return recoveryReader.Current;
+                    recoveryNext = recoveryReader.MoveNextAsync().AsTask();
                 }
 
                 string? payload = await receive.ConfigureAwait(false);
                 if (payload is null)
                 {
-                    if (!recoveryEmitted)
+                    while (!recoveryEmitted)
                     {
-                        foreach (RawProviderMessage recovered in
-                            await recovery.ConfigureAwait(false))
+                        if (!await recoveryNext.ConfigureAwait(false))
                         {
-                            yield return recovered;
+                            recoveryEmitted = true;
+                            break;
                         }
-
-                        recoveryEmitted = true;
+                        yield return recoveryReader.Current;
+                        recoveryNext = recoveryReader.MoveNextAsync().AsTask();
                     }
 
                     break;
@@ -410,21 +410,49 @@ public sealed class AxisEventSource : IEventSource, IProviderConfigurableEventSo
             recoveryCancellation.Cancel();
             try
             {
-                await Task.WhenAll(heartbeat, recovery).ConfigureAwait(false);
+                await heartbeat.ConfigureAwait(false);
             }
             catch (Exception exception) when (exception is OperationCanceledException or
                 WebSocketException or ObjectDisposedException)
             {
             }
+            // Finish any pending MoveNext before disposing the async iterator.
+            if (recoveryNext is not null)
+            {
+                try { await recoveryNext.ConfigureAwait(false); }
+                catch (OperationCanceledException) when (recoveryCancellation.IsCancellationRequested) { }
+            }
         }
     }
 
-    private async Task<IReadOnlyList<RawProviderMessage>> FetchRecoveryAsync(
+    internal async IAsyncEnumerable<RawProviderMessage> ReadRecoveryAsync(
+        DateTimeOffset? since,
+        AxisProviderOptions options,
+        ProviderMessageBuffer buffer,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        if (since is null) yield break;
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        Task producer = FetchRecoveryAsync(since.Value, options, buffer, stop.Token);
+        try
+        {
+            await foreach (RawProviderMessage message in buffer.ReadAllAsync(stop.Token).ConfigureAwait(false))
+                yield return message;
+        }
+        finally
+        {
+            stop.Cancel();
+            await producer.ConfigureAwait(false);
+        }
+    }
+
+    private async Task FetchRecoveryAsync(
         DateTimeOffset since,
         AxisProviderOptions options,
+        ProviderMessageBuffer buffer,
         CancellationToken cancellationToken)
     {
-        var recovered = new List<RawProviderMessage>();
+        int recovered = 0;
         try
         {
             await foreach (RawProviderMessage message in _recoveryClient
@@ -436,14 +464,15 @@ public sealed class AxisEventSource : IEventSource, IProviderConfigurableEventSo
                 if (AxisWeatherTelegramPolicy.IsAssignedRecoveryTelegram(telegramType) &&
                     AxisWeatherTelegramPolicy.ShouldAccept(telegramType))
                 {
-                    recovered.Add(message);
+                    await buffer.WriteAsync(message, cancellationToken).ConfigureAwait(false);
+                    recovered++;
                 }
             }
 
             await LogAsync(
                 AppLogLevel.Information,
                 "AxisGapRecoveryCompleted",
-                $"AXIS start/reconnect recovery completed. messages={recovered.Count}",
+                $"AXIS start/reconnect recovery completed. messages={recovered}",
                 exception: null,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
         }
@@ -461,7 +490,7 @@ public sealed class AxisEventSource : IEventSource, IProviderConfigurableEventSo
                 cancellationToken).ConfigureAwait(false);
         }
 
-        return recovered;
+        finally { buffer.TryComplete(); }
     }
 
     public ValueTask StopAsync(CancellationToken cancellationToken = default)

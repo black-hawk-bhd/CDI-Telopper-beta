@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using System.Threading.Channels;
 using EEWTelop.Application.Configuration;
 using EEWTelop.Application.Operations;
 
@@ -19,6 +18,7 @@ public sealed class ParallelEventSource : IEventSource, IProviderConfigurableEve
     private ProviderConnectionSnapshot _connection;
     private int _readerActive;
     private bool _disposed;
+    private CancellationTokenSource? _runCancellation;
 
     public ParallelEventSource(IReadOnlyList<ParallelEventSourceBranch> branches)
     {
@@ -109,22 +109,17 @@ public sealed class ParallelEventSource : IEventSource, IProviderConfigurableEve
 
         using var runCancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken);
-        var channel = Channel.CreateUnbounded<RawProviderMessage>(
-            new UnboundedChannelOptions
-            {
-                SingleReader = true,
-                SingleWriter = false,
-                AllowSynchronousContinuations = false,
-            });
+        lock (_gate) _runCancellation = runCancellation;
+        var channel = new ProviderMessageBuffer();
         Task[] pumps = _branches
-            .Select(branch => PumpAsync(branch, channel.Writer, runCancellation.Token))
+            .Select(branch => PumpAsync(branch, channel, runCancellation.Token))
             .ToArray();
-        Task completion = CompleteWhenFinishedAsync(pumps, channel.Writer);
+        Task completion = CompleteWhenFinishedAsync(pumps, channel);
 
         try
         {
-            await foreach (RawProviderMessage message in channel.Reader
-                .ReadAllAsync(cancellationToken).ConfigureAwait(false))
+            await foreach (RawProviderMessage message in channel
+                .ReadAllAsync(runCancellation.Token).ConfigureAwait(false))
             {
                 yield return message;
             }
@@ -140,12 +135,17 @@ public sealed class ParallelEventSource : IEventSource, IProviderConfigurableEve
             {
             }
 
-            Interlocked.Exchange(ref _readerActive, 0);
+            lock (_gate)
+            {
+                if (ReferenceEquals(_runCancellation, runCancellation)) _runCancellation = null;
+                Interlocked.Exchange(ref _readerActive, 0);
+            }
         }
     }
 
     public async ValueTask StopAsync(CancellationToken cancellationToken = default)
     {
+        lock (_gate) _runCancellation?.Cancel();
         await Task.WhenAll(_branches.Select(branch =>
             branch.Source.StopAsync(cancellationToken).AsTask())).ConfigureAwait(false);
     }
@@ -166,6 +166,7 @@ public sealed class ParallelEventSource : IEventSource, IProviderConfigurableEve
         }
 
         _disposed = true;
+        await StopAsync().ConfigureAwait(false);
         foreach (ParallelEventSourceBranch branch in _branches)
         {
             branch.Source.ConnectionChanged -= OnSourceConnectionChanged;
@@ -175,7 +176,7 @@ public sealed class ParallelEventSource : IEventSource, IProviderConfigurableEve
 
     private static async Task PumpAsync(
         ParallelEventSourceBranch branch,
-        ChannelWriter<RawProviderMessage> writer,
+        ProviderMessageBuffer writer,
         CancellationToken cancellationToken)
     {
         await foreach (RawProviderMessage message in branch.Source
@@ -190,7 +191,7 @@ public sealed class ParallelEventSource : IEventSource, IProviderConfigurableEve
 
     private static async Task CompleteWhenFinishedAsync(
         Task[] pumps,
-        ChannelWriter<RawProviderMessage> writer)
+        ProviderMessageBuffer writer)
     {
         try
         {
