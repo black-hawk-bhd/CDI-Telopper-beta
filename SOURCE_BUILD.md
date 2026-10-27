@@ -1,4 +1,4 @@
-# CDI-Telopper 2.0.0-beta.61 unified source build
+# CDI-Telopper 2.0.0-beta.62 unified source build
 
 Formal name: **Comprehensive Disaster Information Telopper**
 
@@ -19,6 +19,10 @@ powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 
 The script restores packages, builds the complete solution in Release mode,
 and runs all automated tests. Warnings are treated as errors.
+
+The optional Chrome rendering regression test for the EEW vertical layout is
+`node scripts/verify-eew-vertical.cjs`. It uses an isolated profile and mock
+loopback page, without live reception or OBS. See [the layout guide](docs/eew-vertical-style.md).
 
 The project-local `.dotnet8` SDK takes precedence when present, so update it as
 well as any system SDK. Self-contained builds require .NET 8.0.32 or newer and
@@ -50,12 +54,12 @@ stream instead of being retained as a complete batch before delivery.
 After verification succeeds, build the current unified beta release:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.61
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.62
 ```
 
 Self-contained folder and single-file packages are written under:
 
-- `artifacts\release\2.0.0-beta.61\win-x64`
+- `artifacts\release\2.0.0-beta.62\win-x64`
 
 The former stable/separated source-package helpers are not included in the
 public repository and are not part of the current unified release procedure.

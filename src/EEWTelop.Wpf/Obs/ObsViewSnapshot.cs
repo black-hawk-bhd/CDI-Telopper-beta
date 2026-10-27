@@ -33,6 +33,8 @@ public sealed record ObsViewSnapshot(
 {
     public OutputTransformSettings OutputTransform { get; init; } =
         OutputTransformSettings.Default;
+
+    public bool UseVerticalEewWarningLayout { get; init; }
 }
 
 public sealed record ObsViewBlock(
@@ -43,6 +45,7 @@ public sealed record ObsViewBlock(
 {
     public string WeatherHeading { get; init; } = string.Empty;
     public bool HideBadge { get; init; }
+    public EewWarningCard? EewCard { get; init; }
 }
 
 public enum ObsViewChannel
@@ -243,6 +246,7 @@ public sealed partial class ObsSnapshotStore
                 AudioIssuedAtUtc: _snapshot.AudioIssuedAtUtc)
             {
                 OutputTransform = settings.OutputTransform,
+                UseVerticalEewWarningLayout = settings.UseVerticalEewWarningLayout,
             };
             return _snapshot;
         }
@@ -385,6 +389,7 @@ public sealed partial class ObsSnapshotStore
                 LetterSpacingEm = settings.LetterSpacingEm,
                 LineSpacing = settings.LineSpacing,
                 OutputTransform = settings.OutputTransform,
+                UseVerticalEewWarningLayout = settings.UseVerticalEewWarningLayout,
             };
             return _snapshot;
         }
@@ -419,6 +424,7 @@ public sealed partial class ObsSnapshotStore
             AudioIssuedAtUtc: null)
         {
             OutputTransform = settings.OutputTransform,
+            UseVerticalEewWarningLayout = settings.UseVerticalEewWarningLayout,
         };
 
     private static ObsViewSnapshot CreateEmpty(
@@ -432,6 +438,7 @@ public sealed partial class ObsSnapshotStore
             existing.AudioCue, existing.AudioIssuedAtUtc)
         {
             OutputTransform = existing.OutputTransform,
+            UseVerticalEewWarningLayout = existing.UseVerticalEewWarningLayout,
         };
 
     private static ObsViewSnapshot CreateProgramSnapshot(
@@ -471,6 +478,7 @@ public sealed partial class ObsSnapshotStore
             AudioIssuedAtUtc: null)
         {
             OutputTransform = settings.OutputTransform,
+            UseVerticalEewWarningLayout = settings.UseVerticalEewWarningLayout,
         };
 
     private static ObsViewBlock CreateViewBlock(DisplayBlock source, DisplayProgram program, DisplaySettings settings)
@@ -480,6 +488,7 @@ public sealed partial class ObsSnapshotStore
         {
             WeatherHeading = block.WeatherHeading,
             HideBadge = DisplayBadgeVisibility.HideInformationBadges(program, settings),
+            EewCard = block.EewCard,
         };
     }
 

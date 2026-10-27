@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '2.0.0-beta.61',
+    [string]$Version = '2.0.0-beta.62',
     [string]$RuntimeIdentifier = 'win-x64',
     [string]$OutputLabel = '',
     [ValidateSet('true', 'false')]
@@ -132,7 +132,7 @@ function Add-DistributionFiles {
     }
     $guidesDirectory = Join-Path $Directory 'docs'
     New-Item -ItemType Directory -Path $guidesDirectory | Out-Null
-    foreach ($guideFile in @('data-sources.md', 'dmdata-oauth.md')) {
+    foreach ($guideFile in @('data-sources.md', 'dmdata-oauth.md', 'eew-vertical-style.md')) {
         $guidePath = Join-Path $workspaceRoot "docs\$guideFile"
         if (Test-Path -LiteralPath $guidePath) {
             Copy-Item -LiteralPath $guidePath -Destination (Join-Path $guidesDirectory $guideFile)

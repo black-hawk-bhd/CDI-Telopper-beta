@@ -3,7 +3,8 @@ using EEWTelop.Domain.Events;
 namespace EEWTelop.Application.Display;
 
 /// <summary>
-/// 緊急地震速報の対象地域を府県予報区単位へ正規化し、広域発表時だけ地方名へ集約します。
+/// 緊急地震速報の対象地域を府県予報区単位へ正規化します。
+/// 広域発表時は地方名へ、複数の北海道の表示地名は北海道へ集約します。
 /// </summary>
 public static class EewAreaLabelFormatter
 {
@@ -63,7 +64,7 @@ public static class EewAreaLabelFormatter
 
         if (districts.Length < RegionalAggregationThreshold)
         {
-            return districts.Select(static district => district.Label).ToArray();
+            return CollapseHokkaidoLabels(districts.Select(static district => district.Label).ToArray());
         }
 
         Dictionary<string, ForecastDistrict[]> districtsByRegion = districts
@@ -97,7 +98,43 @@ public static class EewAreaLabelFormatter
             }
         }
 
+        return CollapseHokkaidoLabels(result);
+    }
+
+    private static IReadOnlyList<string> CollapseHokkaidoLabels(IReadOnlyList<string> labels)
+    {
+        // Apply after the existing regional rules so Hokkaido's reduction does not
+        // change the thresholds/aggregation of Kanto, Tohoku or other regions.
+        if (labels.Count(IsHokkaidoLabel) < 2)
+        {
+            return labels;
+        }
+
+        var result = new List<string>(labels.Count);
+        bool emittedHokkaido = false;
+        foreach (string label in labels)
+        {
+            if (!IsHokkaidoLabel(label))
+            {
+                result.Add(label);
+            }
+            else if (!emittedHokkaido)
+            {
+                result.Add("北海道");
+                emittedHokkaido = true;
+            }
+        }
+
         return result;
+    }
+
+    private static bool IsHokkaidoLabel(string label)
+    {
+        string compact = Compact(label);
+        return compact.StartsWith("北海道", StringComparison.Ordinal) ||
+               compact.StartsWith("利尻", StringComparison.Ordinal) ||
+               compact.StartsWith("礼文", StringComparison.Ordinal) ||
+               compact.StartsWith("奥尻", StringComparison.Ordinal);
     }
 
     private static bool ShouldAggregate(

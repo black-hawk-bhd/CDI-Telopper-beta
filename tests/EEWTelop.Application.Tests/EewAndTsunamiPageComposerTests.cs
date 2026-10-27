@@ -29,8 +29,7 @@ public sealed class EewAndTsunamiPageComposerTests
     private static readonly string[] ExpectedTokyoIslandLabels =
         ["関東", "伊豆諸島"];
 
-    private static readonly string[] ExpectedHokkaidoDistrictLabels =
-        ["北海道道央", "北海道道南", "北海道道北", "北海道道東"];
+    private static readonly string[] ExpectedHokkaidoLabels = ["北海道"];
 
     private readonly PageComposer _composer = new();
 
@@ -183,7 +182,7 @@ public sealed class EewAndTsunamiPageComposerTests
     }
 
     [TestMethod]
-    public void EewNormalizesDetailedHokkaidoAreasToFourForecastDistricts()
+    public void EewCombinesMultipleHokkaidoForecastDistrictsIntoHokkaido()
     {
         EewArea[] areas =
         [
@@ -196,7 +195,7 @@ public sealed class EewAndTsunamiPageComposerTests
         IReadOnlyList<string> labels = EewAreaLabelFormatter.Format(areas);
 
         CollectionAssert.AreEqual(
-            ExpectedHokkaidoDistrictLabels,
+            ExpectedHokkaidoLabels,
             labels.ToArray());
     }
 

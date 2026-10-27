@@ -14,7 +14,11 @@ internal static class EewPageComposer
                 string.Empty,
                 "緊急地震速報（取消）",
                 string.Empty,
-                DisplayStyleTokens.EewHeaderCancel));
+                DisplayStyleTokens.EewHeaderCancel)
+            {
+                EewCard = new EewWarningCard("緊急地震速報（取消）",
+                    PageComposerSupport.GetCancellationText("緊急地震速報"), string.Empty, [], true),
+            });
             blocks.Add(new DisplayBlock(
                 string.Empty,
                 PageComposerSupport.GetCancellationText("緊急地震速報"),
@@ -23,15 +27,21 @@ internal static class EewPageComposer
         }
         else
         {
+            string hypocenterName = string.IsNullOrWhiteSpace(eew.Earthquake?.Hypocenter?.Name)
+                ? "震源地不明"
+                : eew.Earthquake.Hypocenter.Name;
+            IReadOnlyList<string> areaLabels = EewAreaLabelFormatter.Format(eew.Areas);
             blocks.Add(new DisplayBlock(
                 string.Empty,
                 "緊急地震速報（気象庁）",
                 string.Empty,
-                DisplayStyleTokens.EewHeader));
-
-            string hypocenterName = string.IsNullOrWhiteSpace(eew.Earthquake?.Hypocenter?.Name)
-                ? "震源地不明"
-                : eew.Earthquake.Hypocenter.Name;
+                DisplayStyleTokens.EewHeader)
+            {
+                EewCard = eew.IsWarning
+                    ? new EewWarningCard("緊急地震速報（気象庁）", $"{hypocenterName}で地震",
+                        "強い揺れに警戒", areaLabels.Count == 0 ? ["対象地域情報なし"] : areaLabels, false)
+                    : null,
+            });
             blocks.Add(new DisplayBlock(
                 string.Empty,
                 eew.IsWarning
@@ -40,7 +50,6 @@ internal static class EewPageComposer
                 string.Empty,
                 DisplayStyleTokens.EewWarning));
 
-            IReadOnlyList<string> areaLabels = EewAreaLabelFormatter.Format(eew.Areas);
             blocks.Add(new DisplayBlock(
                 string.Empty,
                 areaLabels.Count == 0 ? "対象地域情報なし" : string.Join('　', areaLabels),

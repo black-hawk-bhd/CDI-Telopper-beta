@@ -132,6 +132,51 @@ function renderBlock(item, previousBadge) {
   return block;
 }
 
+function renderVerticalEewCard(card) {
+  const panel = document.createElement("article");
+  panel.className = `vertical-eew-card${card.isCancelled ? " cancelled" : ""}`;
+  const areas = document.createElement("div");
+  areas.className = "vertical-eew-areas";
+  // Keep each declared display label intact; never split a name at spaces or punctuation.
+  const labels = card.isCancelled ? [card.message] : card.areas;
+  for (const label of labels ?? []) {
+    const area = document.createElement("span");
+    area.className = "vertical-eew-area";
+    area.textContent = label;
+    areas.appendChild(area);
+  }
+  panel.appendChild(areas);
+  const rail = textNode("vertical-eew-rail", "");
+  rail.appendChild(textNode("vertical-eew-title", card.title));
+  if (!card.isCancelled) rail.appendChild(textNode("vertical-eew-message", card.message));
+  panel.appendChild(rail);
+  panel.appendChild(textNode("vertical-eew-instruction", card.instruction));
+  return panel;
+}
+
+function fitVerticalEew() {
+  // Fit the actual rendered content, including long/unknown names and many regions.
+  // No region is discarded to avoid overlap, and fitting never changes the source text.
+  for (const panel of blocks.querySelectorAll(".vertical-eew-card")) {
+    for (const [selector, maximum] of [[".vertical-eew-title", 56], [".vertical-eew-message", 42],
+      [".vertical-eew-areas", 48], [".vertical-eew-instruction", 24]]) {
+      const node = panel.querySelector(selector);
+      if (!node) continue;
+      node.style.fontSize = `${maximum}px`;
+      if (node.scrollWidth <= node.clientWidth + 1 && node.scrollHeight <= node.clientHeight + 1) continue;
+      let low = 1;
+      let high = maximum;
+      for (let step = 0; step < 12; step++) {
+        const size = (low + high) / 2;
+        node.style.fontSize = `${size}px`;
+        if (node.scrollWidth <= node.clientWidth + 1 && node.scrollHeight <= node.clientHeight + 1) low = size;
+        else high = size;
+      }
+      node.style.fontSize = `${Math.floor(low * 10) / 10}px`;
+    }
+  }
+}
+
 function applySnapshot(state) {
   applyOutputTransform(state.outputTransform);
   canvas.className = String(state.backgroundMode ?? "Transparent").toLowerCase();
@@ -145,11 +190,19 @@ function applySnapshot(state) {
     const style = String(item.styleToken ?? "");
     return style === "eew-header" || style === "eew-header-cancel" || style === "eew-header-test";
   }).length;
-  content.className = `${isEew ? "eew" : "subtitle"}${eewHeaderCount > 1 ? " concurrent" : ""}${state.rehearsalLabel ? " has-banner" : ""}`;
-  let previousBadge = "";
-  for (const item of items) {
-    blocks.appendChild(renderBlock(item, previousBadge));
-    if (item.badge) previousBadge = item.badge;
+  const cards = items.filter(item => item.eewCard).map(item => item.eewCard);
+  const vertical = isEew && state.useVerticalEewWarningLayout === true &&
+    cards.length > 0 && cards.length === eewHeaderCount;
+  content.className = `${isEew ? "eew" : "subtitle"}${eewHeaderCount > 1 ? " concurrent" : ""}${vertical ? " vertical" : ""}${state.rehearsalLabel ? " has-banner" : ""}`;
+  if (vertical) {
+    for (const card of cards) blocks.appendChild(renderVerticalEewCard(card));
+    fitVerticalEew();
+  } else {
+    let previousBadge = "";
+    for (const item of items) {
+      blocks.appendChild(renderBlock(item, previousBadge));
+      if (item.badge) previousBadge = item.badge;
+    }
   }
   canvas.style.setProperty("--font-scale", String(Number(state.fontScale) || 1));
   canvas.style.setProperty("--letter-spacing", `${Number(state.letterSpacingEm) || 0}em`);

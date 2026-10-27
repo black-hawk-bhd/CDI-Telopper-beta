@@ -321,6 +321,9 @@ public sealed record DisplaySettings(
     int Width,
     int Height)
 {
+    // Opt-in presentation only. Forecasts retain the existing horizontal layout.
+    public bool UseVerticalEewWarningLayout { get; init; }
+
     public bool HideNormalModeBanner { get; init; }
 
     // Keep the serialized name for compatibility. True now replaces the badge with subtitle text.

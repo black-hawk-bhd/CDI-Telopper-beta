@@ -66,7 +66,17 @@ public sealed record DisplayBlock(
     string StyleToken)
 {
     public string WeatherHeading { get; init; } = string.Empty;
+
+    // Structured presentation data avoids splitting hypocenter/area names in the browser.
+    public EewWarningCard? EewCard { get; init; }
 }
+
+public sealed record EewWarningCard(
+    string Title,
+    string Message,
+    string Instruction,
+    IReadOnlyList<string> Areas,
+    bool IsCancelled);
 
 public static class DisplayStyleTokens
 {

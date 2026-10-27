@@ -66,6 +66,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private bool _showTsunamiForecast;
     private bool _separateIntensityPagesByScale;
     private bool _limitActiveWeatherAreaRowsToTwo;
+    private bool _useVerticalEewWarningLayout;
     private double _outputScale;
     private double _outputOffsetX;
     private double _outputOffsetY;
@@ -240,6 +241,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _showTsunamiForecast = settings.Display.ShowTsunamiForecast;
         _separateIntensityPagesByScale = settings.Display.SeparateIntensityPagesByScale;
         _limitActiveWeatherAreaRowsToTwo = settings.Display.LimitActiveWeatherAreaRowsToTwo;
+        _useVerticalEewWarningLayout = settings.Display.UseVerticalEewWarningLayout;
         _outputScale = OutputTransformSettings.Default.Scale;
         _outputOffsetX = OutputTransformSettings.Default.OffsetX;
         _outputOffsetY = OutputTransformSettings.Default.OffsetY;
@@ -711,6 +713,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public bool ShowTsunamiForecast { get => _showTsunamiForecast; set => SetProperty(ref _showTsunamiForecast, value); }
     public bool SeparateIntensityPagesByScale { get => _separateIntensityPagesByScale; set => SetProperty(ref _separateIntensityPagesByScale, value); }
     public bool LimitActiveWeatherAreaRowsToTwo { get => _limitActiveWeatherAreaRowsToTwo; set => SetProperty(ref _limitActiveWeatherAreaRowsToTwo, value); }
+    public bool UseVerticalEewWarningLayout { get => _useVerticalEewWarningLayout; set => SetProperty(ref _useVerticalEewWarningLayout, value); }
     public double OutputScale { get => _outputScale; set => SetProperty(ref _outputScale, OutputTransformSettings.Default.Scale); }
     public double OutputOffsetX { get => _outputOffsetX; set => SetProperty(ref _outputOffsetX, OutputTransformSettings.Default.OffsetX); }
     public double OutputOffsetY { get => _outputOffsetY; set => SetProperty(ref _outputOffsetY, OutputTransformSettings.Default.OffsetY); }
@@ -959,6 +962,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 ShowLowIntensityPointsInStrongQuakes = ShowLowIntensityPointsInStrongQuakes,
                 SeparateIntensityPagesByScale = SeparateIntensityPagesByScale,
                 LimitActiveWeatherAreaRowsToTwo = LimitActiveWeatherAreaRowsToTwo,
+                UseVerticalEewWarningLayout = UseVerticalEewWarningLayout,
                 SubtitlePhraseOverrides = new Dictionary<string, string>(
                     _subtitlePhraseOverrides,
                     StringComparer.Ordinal),
@@ -1424,6 +1428,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         ShowLowIntensityPointsInStrongQuakes = defaults.ShowLowIntensityPointsInStrongQuakes;
         SeparateIntensityPagesByScale = defaults.SeparateIntensityPagesByScale;
         LimitActiveWeatherAreaRowsToTwo = defaults.LimitActiveWeatherAreaRowsToTwo;
+        UseVerticalEewWarningLayout = defaults.UseVerticalEewWarningLayout;
         LetterSpacingEm = defaults.LetterSpacingEm;
         LineSpacing = defaults.LineSpacing;
         FontScale = defaults.FontScale;

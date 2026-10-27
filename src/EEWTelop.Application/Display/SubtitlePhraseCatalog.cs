@@ -101,6 +101,11 @@ public static class SubtitlePhraseCatalog
             {
                 PrimaryText = ReplaceKnownPhrases(block.PrimaryText, replacements),
                 SecondaryText = ReplaceKnownPhrases(block.SecondaryText, replacements),
+                EewCard = block.EewCard is { } card ? card with
+                {
+                    Message = ReplaceKnownPhrases(card.Message, replacements),
+                    Instruction = ReplaceKnownPhrases(card.Instruction, replacements),
+                } : null,
             }).ToArray();
             string accessibleText = string.Join(
                 Environment.NewLine,

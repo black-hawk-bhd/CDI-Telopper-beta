@@ -24,13 +24,15 @@ beta.51 adds per-domain upstream health, a separately authenticated rehearsal AP
 
 beta.50 improves unreported-intensity normalization and labeling, removes trailing full-width station markers only from display text, and preserves observed and unreported entries at the same place. Simulator decoding and additive external API fields are improved while training/live separation remains enforced.
 
-The current public release is **2.0.0-beta.61** (October 22, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.62** (October 27, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.61](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.61)
-- [Detailed Japanese beta.61 manual and specification](README_CDI-Telopper_2.0.0-beta.61.txt)
+- [Download 2.0.0-beta.62](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.62)
+- [Detailed Japanese beta.62 manual and specification](README_CDI-Telopper_2.0.0-beta.62.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
+
+beta.62 adds an optional vertical EEW warning layout under Display / Pages and text. It defaults off, keeping the existing horizontal layout. The browser monitor and OBS share the same existing colors and bold Gothic font, with separate cards for two independent warnings and their cancellations. Multiple Hokkaido display labels, including Rishiri/Rebun and Okushiri, now collapse to one Hokkaido label in both layouts. Single labels, other regional aggregation rules and original region data are preserved. All 1,077 automated tests and 10 Chrome rendering checks pass with zero build warnings/errors. Live reception and real OBS checks remain unperformed. See the [layout guide](docs/eew-vertical-style.md), [release notes](RELEASE_NOTES_2.0.0-beta.62.md) and [validation results](VALIDATION_2.0.0-beta.62.md).
 
 beta.61 updates the bundled runtime to .NET 8.0.32 and rejects older self-contained runtime packs. Test-case ZIP imports now enforce compressed, entry-count and expanded-size budgets. AXIS gap recovery enforces streamed response limits and deadlines. Reception mergers and the AXIS recovery stream apply bounded, cancellable backpressure rather than silently dropping accepted messages. Existing settings, display behavior and live/training metadata remain intact. All 1,052 automated tests pass with zero build warnings/errors. Live-provider and real OBS visual checks remain unperformed. See the [release notes](RELEASE_NOTES_2.0.0-beta.61.md) and [validation results](VALIDATION_2.0.0-beta.61.md).
 
