@@ -25,7 +25,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace EEWTelop.Wpf.Tests;
 
 [TestClass]
-public sealed class Phase6ViewModelTests
+public sealed partial class Phase6ViewModelTests
 {
     private static readonly string[] EmbeddedClientWeatherScopes =
         ["socket.start", "socket.close", "telegram.get.weather"];
@@ -2280,6 +2280,10 @@ public sealed class Phase6ViewModelTests
 
         public bool DisconnectResult { get; set; } = true;
 
+        public bool ResetAllSettingsResult { get; set; }
+
+        public int ResetAllSettingsCallCount { get; private set; }
+
         public int CallCount { get; private set; }
 
         public int DisconnectCallCount { get; private set; }
@@ -2294,6 +2298,12 @@ public sealed class Phase6ViewModelTests
         {
             DisconnectCallCount++;
             return DisconnectResult;
+        }
+
+        public bool ConfirmResetAllSettings()
+        {
+            ResetAllSettingsCallCount++;
+            return ResetAllSettingsResult;
         }
     }
 

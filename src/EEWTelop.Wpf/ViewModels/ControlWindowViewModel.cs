@@ -60,6 +60,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     private readonly CancellationTokenSource _axisTokenRefreshStop = new();
     private readonly SemaphoreSlim _axisTokenRefreshGate = new(1, 1);
     private readonly SemaphoreSlim _obsLifecycle = new(1, 1);
+    private readonly SemaphoreSlim _settingsApplyGate = new(1, 1);
     private readonly object _stateQueueGate = new();
     private readonly object _weatherAudioGate = new();
     private readonly EewAudioPriorityGate _eewAudioPriority = new();
@@ -173,23 +174,24 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         _lastConnectionSnapshot = services.EventSource.Connection;
         services.IngestionPipeline.HoldBeforeDisplay = false;
 
-        ConnectCommand = new RelayCommand(StartConnection, () => !IsConnectedOrConnecting && !IsDmdataOAuthBusy && !_dmdataOAuthReceptionActive);
+        ConnectCommand = new RelayCommand(StartConnection, () => !IsConnectedOrConnecting && !IsDmdataOAuthBusy && !IsResettingAllSettings && !_dmdataOAuthReceptionActive);
         DisconnectCommand = new RelayCommand(
             RequestManualDisconnect,
             () => IsConnectedOrConnecting || _dmdataOAuthReceptionActive);
-        SaveSettingsCommand = new RelayCommand(() => _ = SaveSettingsFromCommandAsync(), () => !IsDmdataOAuthBusy);
-        ResetAudioSettingsCommand = new RelayCommand(Settings.ResetAudioSettings);
-        ResetReceptionSettingsCommand = new RelayCommand(Settings.ResetReceptionSettings);
-        ResetFilterSettingsCommand = new RelayCommand(Settings.ResetFilterSettings);
+        SaveSettingsCommand = new RelayCommand(() => _ = SaveSettingsFromCommandAsync(), () => !IsDmdataOAuthBusy && !IsResettingAllSettings);
+        ResetAllSettingsCommand = new RelayCommand(() => _ = ResetAllSettingsAsync(), () => !IsDmdataOAuthBusy && !IsResettingAllSettings);
+        ResetAudioSettingsCommand = new RelayCommand(() => Settings.ResetAudioSettings());
+        ResetReceptionSettingsCommand = new RelayCommand(() => Settings.ResetReceptionSettings());
+        ResetFilterSettingsCommand = new RelayCommand(() => Settings.ResetFilterSettings());
         ResetCompatibilityAndSafetySettingsCommand = new RelayCommand(
-            Settings.ResetCompatibilityAndSafetySettings);
-        ResetDisplaySettingsCommand = new RelayCommand(Settings.ResetDisplaySettings);
+            () => Settings.ResetCompatibilityAndSafetySettings());
+        ResetDisplaySettingsCommand = new RelayCommand(() => Settings.ResetDisplaySettings());
         ResetProductionReplaySettingsCommand = new RelayCommand(
-            Settings.ResetProductionReplaySettings);
-        ResetCanvasSettingsCommand = new RelayCommand(Settings.ResetCanvasSettings);
-        ResetObsLocalViewSettingsCommand = new RelayCommand(Settings.ResetObsLocalViewSettings);
-        ResetObsWebSocketSettingsCommand = new RelayCommand(Settings.ResetObsWebSocketSettings);
-        ResetHistorySettingsCommand = new RelayCommand(Settings.ResetHistorySettings);
+            () => Settings.ResetProductionReplaySettings());
+        ResetCanvasSettingsCommand = new RelayCommand(() => Settings.ResetCanvasSettings());
+        ResetObsLocalViewSettingsCommand = new RelayCommand(() => Settings.ResetObsLocalViewSettings());
+        ResetObsWebSocketSettingsCommand = new RelayCommand(() => Settings.ResetObsWebSocketSettings());
+        ResetHistorySettingsCommand = new RelayCommand(() => Settings.ResetHistorySettings());
         ResetLogSettingsCommand = new RelayCommand(() =>
         {
             Settings.ResetLogSettings();
@@ -403,6 +405,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     public RelayCommand DisconnectCommand { get; }
 
     public RelayCommand SaveSettingsCommand { get; }
+
+    public RelayCommand ResetAllSettingsCommand { get; }
 
     public RelayCommand ResetAudioSettingsCommand { get; }
 
@@ -676,8 +680,26 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
     public async Task SaveSettingsAsync()
     {
-        if (IsDmdataOAuthBusy) return;
+        if (IsDmdataOAuthBusy || IsResettingAllSettings || _disposed) return;
         AppSettings updated = Settings.ToSettings(_settings);
+        await ApplySettingsAsync(updated).ConfigureAwait(false);
+    }
+
+    private async Task ApplySettingsAsync(AppSettings updated)
+    {
+        await _settingsApplyGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await ApplySettingsCoreAsync(updated).ConfigureAwait(false);
+        }
+        finally
+        {
+            _settingsApplyGate.Release();
+        }
+    }
+
+    private async Task ApplySettingsCoreAsync(AppSettings updated)
+    {
         if (updated.Provider.Routing.Uses(ReceptionProvider.Axis))
         {
 #if QTELOPPER_AXIS_PROVIDER
@@ -882,6 +904,9 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         }
 
         _disposed = true;
+        await _settingsResetTask.ConfigureAwait(false);
+        await _settingsApplyGate.WaitAsync().ConfigureAwait(false);
+        _settingsApplyGate.Release();
         Settings.PropertyChanged -= OnDmdataContractSettingsChanged;
         DmdataContracts.PropertyChanged -= OnDmdataContractsChanged;
         _dmdataOAuthStop.Cancel();
@@ -967,6 +992,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         _axisTokenRefreshStop.Dispose();
         _axisTokenRefreshGate.Dispose();
         _obsLifecycle.Dispose();
+        _settingsApplyGate.Dispose();
         _dmdataOAuthStop.Dispose();
     }
 

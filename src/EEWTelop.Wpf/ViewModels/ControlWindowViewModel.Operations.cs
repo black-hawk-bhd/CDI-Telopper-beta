@@ -126,7 +126,7 @@ public sealed partial class ControlWindowViewModel
         RunSelfCheckCommand = new RelayCommand(() => _ = RunSelfCheckAsync(), () => !IsSelfCheckRunning);
         SaveProfileCommand = new RelayCommand(() => _ = SaveProfileAsync(NewProfileName));
         ApplyProfileCommand = new RelayCommand(() => _ = ApplyProfileAsync(),
-            () => SelectedProfileName is not null && !IsDmdataOAuthBusy);
+            () => SelectedProfileName is not null && !IsDmdataOAuthBusy && !IsResettingAllSettings);
         DuplicateProfileCommand = new RelayCommand(() => _ = DuplicateProfileAsync(), () => SelectedProfileName is not null);
         DeleteProfileCommand = new RelayCommand(() => _ = DeleteProfileAsync(), () => SelectedProfileName is not null);
         ImportProfileCommand = new RelayCommand(() => ImportProfileRequested?.Invoke());
@@ -200,7 +200,7 @@ public sealed partial class ControlWindowViewModel
 
     private async Task ApplyProfileAsync()
     {
-        if (IsDmdataOAuthBusy || _services.ProfileStore is null || SelectedProfileName is null) return;
+        if (IsDmdataOAuthBusy || IsResettingAllSettings || _services.ProfileStore is null || SelectedProfileName is null) return;
         try
         {
             SettingsProfileDocument profile = await _services.ProfileStore.LoadAsync(SelectedProfileName, _settings).ConfigureAwait(false);
@@ -213,14 +213,9 @@ public sealed partial class ControlWindowViewModel
             {
                 // OAuth may have started while the profile was being loaded.
                 // Keep the settings editor and its authorization context together.
-                if (IsDmdataOAuthBusy || !_confirmationService.ConfirmProfileApply(differences) || IsDmdataOAuthBusy) return;
-                SettingsEditorViewModel oldEditor = Settings;
-                oldEditor.PropertyChanged -= OnDmdataContractSettingsChanged;
-                Settings = new SettingsEditorViewModel(profile.Settings);
-                Settings.PropertyChanged += OnDmdataContractSettingsChanged;
-                DmdataContracts.Invalidate();
-                OnPropertyChanged(nameof(Settings));
-                SettingsEditorChanged?.Invoke(oldEditor, Settings);
+                if (IsDmdataOAuthBusy || IsResettingAllSettings || !_confirmationService.ConfirmProfileApply(differences) ||
+                    IsDmdataOAuthBusy || IsResettingAllSettings) return;
+                ReplaceSettingsEditor(profile.Settings);
                 saveTask = SaveSettingsAsync();
             });
             if (saveTask is null) return;

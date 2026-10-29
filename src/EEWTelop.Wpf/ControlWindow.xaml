@@ -1343,6 +1343,16 @@
                                 <TextBlock Text="本ソフトウェアは気象庁・受信サービス提供元の公式ソフトウェアではありません。情報の即時性・完全性・動作を保証するものではなく、防災判断には公式情報を併用してください。外部API連携を含む利用条件は「利用規約・免責事項」をご確認ください。"
                                            Foreground="#FFFFC66D" TextWrapping="Wrap" />
                             </Border>
+                            <GroupBox Header="設定の初期化" Margin="0,20,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="受信元・表示・音声・出力など、すべての設定を初期状態に戻して保存・反映します。APIキーやOBSパスワードの入力も初期化されます。実行前に警告と確認が表示されます。"
+                                               TextWrapping="Wrap" Foreground="#FFFFC66D" Margin="0,0,0,8" />
+                                    <Button Content="すべての設定を初期状態に戻す"
+                                            AutomationProperties.AutomationId="ResetAllSettingsButton"
+                                            HorizontalAlignment="Left"
+                                            Command="{Binding ResetAllSettingsCommand}" />
+                                </StackPanel>
+                            </GroupBox>
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>

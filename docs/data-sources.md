@@ -32,7 +32,22 @@ not emit captions or audio, update live API state, or enter live deduplication.
 Replays remain `HistoryRehearsal` even when their visible mode label is hidden.
 For older telegrams, use the NII archive or a locally saved XML file.
 
+### NII archive retrieval
 
+The manual NII archive source uses the [NII JMA XML database](https://agora.ex.nii.ac.jp/cps/weather/report/).
+Each daily index or individual telegram request has a 60-second deadline covering
+both response headers and the complete body. A timeout, interrupted connection,
+or transient HTTP error (408, 429, 500, 502, 503, 504) is retried once after at
+least two seconds. A longer `Retry-After` is respected; if it exceeds 30 seconds,
+the request fails without an early retry. Requests remain paced at least one
+second apart. Cancellation, permanent HTTP errors, oversized responses and invalid
+telegram pages are not retried.
+
+Only successfully retrieved XML is cached on disk. Failed retrieval keeps existing
+cache entries for the next manual attempt and reports failure rather than a
+complete result containing only part of the requested history. Timeout messages
+identify whether the daily index or an individual telegram failed. Retrieval
+remains separate from live state, captions and audio.
 
 ## Place-name ruby in telegram review
 

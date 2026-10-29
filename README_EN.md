@@ -24,13 +24,15 @@ beta.51 adds per-domain upstream health, a separately authenticated rehearsal AP
 
 beta.50 improves unreported-intensity normalization and labeling, removes trailing full-width station markers only from display text, and preserves observed and unreported entries at the same place. Simulator decoding and additive external API fields are improved while training/live separation remains enforced.
 
-The current public release is **2.0.0-beta.63** (October 29, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.64** (October 29, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.63](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.63)
-- [Detailed Japanese beta.63 manual and specification](README_CDI-Telopper_2.0.0-beta.63.txt)
+- [Download 2.0.0-beta.64](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.64)
+- [Detailed Japanese beta.64 manual and specification](README_CDI-Telopper_2.0.0-beta.64.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
+
+beta.64 adds a confirmation-protected reset of all saved settings under About / Reset settings. Selecting Yes saves and applies defaults, clearing stored API keys, AXIS tokens, OBS passwords and audio-file selections. Archived telegrams, logs, test data, profiles and DMDATA OAuth authorization remain intact. NII archive requests now have a 60-second deadline covering headers and body, with one delayed retry for transient failures and reuse of successfully cached XML. All 1,128 automated tests pass with zero build warnings/errors. See the [release notes](RELEASE_NOTES_2.0.0-beta.64.md) and [validation results](VALIDATION_2.0.0-beta.64.md).
 
 beta.63 migrates all 15 projects to .NET 10 and bundles runtime 10.0.14 in both distribution formats. It addresses CVE-2026-111497, disables Brotli for the JMA startup tsunami snapshot, and rejects unsupported content encodings before reading the body. Self-contained restore/publish settings and bundled-runtime checks are aligned. Vertical EEW cards can now be left-aligned, with right alignment remaining the default. All 1,096 automated tests, seven runtime guard cases and 13 Chrome rendering checks pass with zero build warnings/errors. Live reception and real OBS checks remain unperformed. See the [release notes](RELEASE_NOTES_2.0.0-beta.63.md), [validation results](VALIDATION_2.0.0-beta.63.md) and [migration notes](docs/dotnet10-migration.md).
 

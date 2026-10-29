@@ -41,6 +41,8 @@ public sealed partial class NiiJmaXmlHistoryMessageSource : IHistoryMessageSourc
     private readonly IAppLogWriter? _logWriter;
     private readonly bool _ownsHttpClient;
     private readonly TimeSpan _requestInterval;
+    private readonly TimeSpan _requestTimeout;
+    private readonly TimeSpan _retryDelay;
     private readonly SemaphoreSlim _requestGate = new(1, 1);
     private DateTimeOffset _lastNetworkRequestAt = DateTimeOffset.MinValue;
 
@@ -59,6 +61,20 @@ public sealed partial class NiiJmaXmlHistoryMessageSource : IHistoryMessageSourc
         bool ownsHttpClient = false,
         IAppLogWriter? logWriter = null,
         TimeSpan? requestInterval = null)
+        : this(httpClient, cacheDirectory, clock, DefaultRequestTimeout, DefaultRetryDelay,
+            ownsHttpClient, logWriter, requestInterval)
+    {
+    }
+
+    internal NiiJmaXmlHistoryMessageSource(
+        HttpClient httpClient,
+        string cacheDirectory,
+        IClock clock,
+        TimeSpan requestTimeout,
+        TimeSpan retryDelay,
+        bool ownsHttpClient = false,
+        IAppLogWriter? logWriter = null,
+        TimeSpan? requestInterval = null)
     {
         ArgumentNullException.ThrowIfNull(httpClient);
         ArgumentException.ThrowIfNullOrWhiteSpace(cacheDirectory);
@@ -73,6 +89,12 @@ public sealed partial class NiiJmaXmlHistoryMessageSource : IHistoryMessageSourc
         {
             throw new ArgumentOutOfRangeException(nameof(requestInterval));
         }
+        if (requestTimeout <= TimeSpan.Zero || requestTimeout > TimeSpan.FromMinutes(2))
+            throw new ArgumentOutOfRangeException(nameof(requestTimeout));
+        if (retryDelay < TimeSpan.Zero || retryDelay > MaximumRetryDelay)
+            throw new ArgumentOutOfRangeException(nameof(retryDelay));
+        _requestTimeout = requestTimeout;
+        _retryDelay = retryDelay;
     }
 
     public async Task<IReadOnlyList<RawProviderMessage>> FetchAsync(
@@ -343,7 +365,8 @@ public sealed partial class NiiJmaXmlHistoryMessageSource : IHistoryMessageSourc
 
     private static HttpClient CreateHttpClient()
     {
-        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        // Each attempt has its own deadline covering response headers and body.
+        var client = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         client.DefaultRequestHeaders.UserAgent.ParseAdd("CDI-Telopper/2.0 (manual-history-rehearsal)");
         return client;
     }
@@ -413,30 +436,9 @@ public sealed partial class NiiJmaXmlHistoryMessageSource : IHistoryMessageSourc
         return (xml, false);
     }
 
-    private async Task<string> GetStringAsync(
-        Uri uri,
-        int maximumBytes,
-        CancellationToken cancellationToken)
+    private static async Task<string> ReadResponseAsync(
+        HttpResponseMessage response, Uri uri, int maximumBytes, CancellationToken cancellationToken)
     {
-        if (uri.Scheme != Uri.UriSchemeHttps ||
-            !uri.Host.Equals(DatabaseBaseUri.Host, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("NII history requests are restricted to the configured HTTPS host.");
-        }
-
-        await WaitForRequestSlotAsync(cancellationToken).ConfigureAwait(false);
-        using HttpResponseMessage response = await _httpClient.GetAsync(
-            uri,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new HttpRequestException(
-                $"NII history server returned HTTP {(int)response.StatusCode} ({response.ReasonPhrase}).",
-                inner: null,
-                response.StatusCode);
-        }
-
         long? contentLength = response.Content.Headers.ContentLength;
         if (contentLength > maximumBytes)
         {

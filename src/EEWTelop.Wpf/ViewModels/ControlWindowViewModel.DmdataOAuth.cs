@@ -16,7 +16,7 @@ public sealed partial class ControlWindowViewModel
 
     public bool IsDmdataOAuthBusy => _isDmdataOAuthBusy;
     public bool CanManageDmdataOAuth => _services.DmdataOAuthService is not null &&
-        !_isDmdataOAuthBusy && !DmdataContracts.IsBusy && !_dmdataOAuthReceptionActive && !IsConnectedOrConnecting;
+        !_isDmdataOAuthBusy && !IsResettingAllSettings && !DmdataContracts.IsBusy && !_dmdataOAuthReceptionActive && !IsConnectedOrConnecting;
     public string DmdataOAuthStatusText => _dmdataOAuthStatusText;
     public DmdataContractsViewModel DmdataContracts { get; }
 
@@ -102,6 +102,7 @@ public sealed partial class ControlWindowViewModel
         ConnectCommand.RaiseCanExecuteChanged();
         DisconnectCommand.RaiseCanExecuteChanged();
         SaveSettingsCommand.RaiseCanExecuteChanged();
+        ResetAllSettingsCommand.RaiseCanExecuteChanged();
         ApplyProfileCommand.RaiseCanExecuteChanged();
     });
 

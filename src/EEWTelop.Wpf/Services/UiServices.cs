@@ -12,6 +12,8 @@ public interface IConfirmationService
     bool ConfirmProfileApply(string differences) => true;
 
     bool ConfirmDeleteAllTestCases(int count) => true;
+
+    bool ConfirmResetAllSettings() => false;
 }
 
 public interface IUiDispatcher
@@ -42,6 +44,18 @@ public sealed class MessageBoxConfirmationService : IConfirmationService
         "プロファイルの適用確認",
         MessageBoxButton.YesNo,
         MessageBoxImage.Question,
+        MessageBoxResult.No) == MessageBoxResult.Yes;
+
+    public bool ConfirmResetAllSettings() => MessageBox.Show(
+        "すべての設定を初期状態に戻し、保存して反映しますか？\n\n" +
+        "受信元・表示・フィルター・音声・出力・履歴・安全設定などを初期化します。" +
+        "APIキー・AXISトークン・OBSパスワード・音声ファイルの指定・編集中の未保存設定も失われます。\n" +
+        "受信接続やOBS出力が再設定され、OBSのURLが変わる場合があります。この操作は元に戻せません。\n\n" +
+        "保存済み電文・ログ・テストデータ・保存済みプロファイルは削除しません。" +
+        "DMDATAのOAuth認可は解除しません。解除する場合は受信タブで別途操作してください。",
+        "すべての設定を初期化する確認",
+        MessageBoxButton.YesNo,
+        MessageBoxImage.Warning,
         MessageBoxResult.No) == MessageBoxResult.Yes;
 
     public bool ConfirmDeleteAllTestCases(int count) => MessageBox.Show(
