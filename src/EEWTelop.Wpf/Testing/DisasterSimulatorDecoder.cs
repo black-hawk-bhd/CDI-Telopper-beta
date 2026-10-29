@@ -26,8 +26,8 @@ internal static class DisasterSimulatorDecoder
         n.ValueKind == JsonValueKind.Number && n.TryGetDouble(out var d) && double.IsFinite(d) ? d : null;
     private static DateTimeOffset? Time(JsonElement v, string name) => DateTimeOffset.TryParse(
         Text(v, name), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var d) ? d : null;
-    private static IEnumerable<JsonElement> Array(JsonElement v, string name) =>
-        Get(v, name) is var a && a.ValueKind == JsonValueKind.Array ? a.EnumerateArray() : [];
+    private static JsonElement.ArrayEnumerator Array(JsonElement v, string name) =>
+        Get(v, name) is var a && a.ValueKind == JsonValueKind.Array ? a.EnumerateArray() : default;
     private static T EnumValue<T>(JsonElement v, string name) where T : struct, Enum =>
         Enum.TryParse<T>(Text(v, name), out var result) && Enum.IsDefined(result) ? result : default;
 

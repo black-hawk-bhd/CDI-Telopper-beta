@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '2.0.0-beta.62',
+    [string]$Version = '2.0.0-beta.63',
     [string]$RuntimeIdentifier = 'win-x64',
     [string]$OutputLabel = '',
     [ValidateSet('true', 'false')]
@@ -11,17 +11,22 @@ param(
     [ValidateSet('Both', 'SingleFileOnly')]
     [string]$PackageMode = 'Both',
     [switch]$SkipSmokeTest,
-    [switch]$SkipSha256
+    [switch]$SkipSha256,
+    [string]$DotnetPath = ''
 )
 
 $ErrorActionPreference = 'Stop'
 
 $workspaceRoot = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
-$localDotnet = Join-Path $workspaceRoot '.dotnet8\dotnet.exe'
-$dotnet = if (Test-Path -LiteralPath $localDotnet) { $localDotnet } else { 'dotnet' }
+$localDotnet = Join-Path $workspaceRoot '.dotnet-sdk\dotnet.exe'
+$dotnet = if (-not [string]::IsNullOrWhiteSpace($DotnetPath)) { $DotnetPath }
+    elseif (Test-Path -LiteralPath $localDotnet) { $localDotnet } else { 'dotnet' }
 $dotnetCommand = Get-Command $dotnet -ErrorAction Stop
+$dotnet = $dotnetCommand.Source
 $dotnetRoot = Split-Path -Parent $dotnetCommand.Source
 $project = Join-Path $workspaceRoot 'src\EEWTelop.Wpf\EEWTelop.Wpf.csproj'
+$targetFramework = [string](([xml](Get-Content -LiteralPath $project -Raw)).Project.PropertyGroup.TargetFramework |
+    Where-Object { $_ } | Select-Object -First 1)
 $versionMatch = [regex]::Match(
     $Version,
     '^(?<major>0|[1-9][0-9]*)\.(?<minor>0|[1-9][0-9]*)\.(?<patch>0|[1-9][0-9]*)(?<suffix>-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$')
@@ -52,6 +57,9 @@ $msbuildProperties = @(
     "-p:DmdataProviderEnabled=$DmdataProviderEnabled",
     "-p:ExtendedFeaturesEnabled=$ExtendedFeaturesEnabled",
     '-p:NuGetAudit=false'
+    # RID alone does not imply self-contained. Restore the same
+    # deployment graph that both --no-restore publish commands consume.
+    '-p:SelfContained=true'
 )
 $enabledProviders = @('P2PQuake', 'Wolfx')
 if ($DmdataProviderEnabled -eq 'true') { $enabledProviders += 'DMDATA.JP' }
@@ -102,7 +110,8 @@ function Add-DistributionFiles {
         [string]$Directory,
         [bool]$SingleFile,
         [string]$Commit,
-        [string]$BuiltAtUtc
+        [string]$BuiltAtUtc,
+        [object[]]$RuntimeFrameworks
     )
 
     $licenses = Join-Path $Directory 'licenses'
@@ -132,7 +141,7 @@ function Add-DistributionFiles {
     }
     $guidesDirectory = Join-Path $Directory 'docs'
     New-Item -ItemType Directory -Path $guidesDirectory | Out-Null
-    foreach ($guideFile in @('data-sources.md', 'dmdata-oauth.md', 'eew-vertical-style.md')) {
+    foreach ($guideFile in @('data-sources.md', 'dmdata-oauth.md', 'eew-vertical-style.md', 'dotnet10-migration.md')) {
         $guidePath = Join-Path $workspaceRoot "docs\$guideFile"
         if (Test-Path -LiteralPath $guidePath) {
             Copy-Item -LiteralPath $guidePath -Destination (Join-Path $guidesDirectory $guideFile)
@@ -162,13 +171,29 @@ function Add-DistributionFiles {
         commit = $Commit
         builtAtUtc = $BuiltAtUtc
         runtimeIdentifier = $RuntimeIdentifier
-        targetFramework = 'net8.0-windows'
+        targetFramework = $targetFramework
         selfContained = $true
+        runtimeFrameworks = $RuntimeFrameworks
         singleFile = $SingleFile
         extendedFeaturesEnabled = $ExtendedFeaturesEnabled -eq 'true'
         trimmed = $false
     }
-    $metadata | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Directory 'version.json') -Encoding UTF8
+    $metadata | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $Directory 'version.json') -Encoding UTF8
+}
+
+function Get-PublishedRuntimeFrameworks {
+    param([string]$RuntimeConfigPath)
+
+    $frameworks = @((Get-Content -LiteralPath $RuntimeConfigPath -Raw | ConvertFrom-Json).runtimeOptions.includedFrameworks)
+    foreach ($name in @('Microsoft.NETCore.App', 'Microsoft.WindowsDesktop.App')) {
+        $frameworkMatches = @($frameworks | Where-Object { $_.name -eq $name })
+        $runtimeVersion = $null
+        if ($frameworkMatches.Count -ne 1 -or -not [Version]::TryParse($frameworkMatches[0].version, [ref]$runtimeVersion) -or
+            $runtimeVersion.Major -ne 10 -or $runtimeVersion -lt [Version]'10.0.14') {
+            throw "Published $name must be self-contained .NET 10.0.14 or newer: $RuntimeConfigPath"
+        }
+    }
+    return $frameworks
 }
 
 function Test-PublishedApplication {
@@ -229,6 +254,7 @@ try {
             '-p:PublishTrimmed=false',
             '-p:DebugType=None',
             '-p:DebugSymbols=false') + $msbuildProperties)
+        $folderFrameworks = @(Get-PublishedRuntimeFrameworks (Join-Path $folderOutput 'CDI-Telopper.runtimeconfig.json'))
     }
 
     Invoke-Dotnet (@(
@@ -243,13 +269,16 @@ try {
         '-p:PublishTrimmed=false',
         '-p:DebugType=None',
         '-p:DebugSymbols=false') + $msbuildProperties)
+    # The SDK keeps the runtimeconfig used for the single-file bundle in bin/.
+    $singleRuntimeConfig = Join-Path $workspaceRoot "src\EEWTelop.Wpf\bin\Release\$targetFramework\$RuntimeIdentifier\CDI-Telopper.runtimeconfig.json"
+    $singleFrameworks = @(Get-PublishedRuntimeFrameworks $singleRuntimeConfig)
 
     $commit = Get-CommitId
     $builtAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     if ($PackageMode -eq 'Both') {
-        Add-DistributionFiles -Directory $folderOutput -SingleFile $false -Commit $commit -BuiltAtUtc $builtAtUtc
+        Add-DistributionFiles -Directory $folderOutput -SingleFile $false -Commit $commit -BuiltAtUtc $builtAtUtc -RuntimeFrameworks $folderFrameworks
     }
-    Add-DistributionFiles -Directory $singleOutput -SingleFile $true -Commit $commit -BuiltAtUtc $builtAtUtc
+    Add-DistributionFiles -Directory $singleOutput -SingleFile $true -Commit $commit -BuiltAtUtc $builtAtUtc -RuntimeFrameworks $singleFrameworks
 
     if (-not $SkipSmokeTest) {
         if ($PackageMode -eq 'Both') {

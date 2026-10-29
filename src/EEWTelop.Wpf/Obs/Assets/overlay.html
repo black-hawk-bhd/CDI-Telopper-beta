@@ -69,6 +69,8 @@
     #content.eew.vertical #blocks { height: 100%; min-height: 0; background: transparent;
       flex-direction: row; justify-content: flex-end; gap: 24px; }
     #content.eew.vertical #pageIndicator { position: absolute; left: 0; bottom: 0; margin: 0; }
+    #content.eew.vertical.left-aligned #blocks { justify-content: flex-start; }
+    #content.eew.vertical.left-aligned #pageIndicator { left: auto; right: 0; }
     .vertical-eew-card { width: 320px; height: 100%; flex: 0 0 320px; display: grid;
       grid-template-columns: minmax(0, 1fr) 76px; grid-template-rows: minmax(0, 1fr) 46px;
       gap: 12px; padding: 14px 12px 8px; background: var(--eew-background); color: var(--eew-foreground);

@@ -9,6 +9,7 @@ const http = require("node:http");
 const { spawn } = require("node:child_process");
 
 const root = path.resolve(__dirname, "..");
+const leftPreview = process.argv.includes("--left");
 const output = path.join(root, "artifacts", "validation", "eew-vertical");
 fs.mkdirSync(output, { recursive: true });
 const profile = fs.mkdtempSync(path.join(output, "chrome-profile-"));
@@ -51,8 +52,9 @@ function run(name, action) {
   catch (error) { results.push({ name, passed: false, error: error.message }); }
 }
 run('horizontal default unchanged', () => {
-  applySnapshot({ ...base, useVerticalEewWarningLayout: false });
+  applySnapshot({ ...base, useVerticalEewWarningLayout: false, alignVerticalEewWarningsLeft: true });
   assert(!content.classList.contains('vertical') && blocks.children.length === 3, 'Not horizontal');
+  assert(!content.classList.contains('left-aligned'), 'Horizontal alignment changed');
   const title = getComputedStyle(blocks.querySelector('.eew-header'));
   const primary = getComputedStyle(blocks.querySelector('.eew-areas .primary'));
   horizontalStyle = { background: getComputedStyle(content).backgroundColor, header: title.backgroundColor,
@@ -65,6 +67,7 @@ run('horizontal default unchanged', () => {
 run('single vertical warning', () => {
   applySnapshot(base);
   assert(checkFit().length === 1, 'Missing card');
+  assert(Math.abs(checkFit()[0].getBoundingClientRect().right - content.getBoundingClientRect().right) < 1, 'Default is not right aligned');
   assert(document.querySelectorAll('.vertical-eew-area').length === 4, 'Missing regions');
   assert(getComputedStyle(document.querySelector('.vertical-eew-areas')).writingMode === 'vertical-rl', 'Not vertical writing');
 });
@@ -92,6 +95,29 @@ run('two independent warnings', () => {
   assert(panels[0].textContent.includes('石川') && !panels[1].textContent.includes('石川'), 'Regions mixed');
   assert(panels[0].getBoundingClientRect().right < panels[1].getBoundingClientRect().left, 'Cards overlap');
 });
+run('single warning switches left and back to right', () => {
+  applySnapshot({ ...base, alignVerticalEewWarningsLeft: true });
+  assert(Math.abs(checkFit()[0].getBoundingClientRect().left - content.getBoundingClientRect().left) < 1, 'Single card not left aligned');
+  applySnapshot({ ...base, alignVerticalEewWarningsLeft: false });
+  assert(!content.classList.contains('left-aligned'), 'Left class not cleared');
+  assert(Math.abs(checkFit()[0].getBoundingClientRect().right - content.getBoundingClientRect().right) < 1, 'Right alignment not restored');
+});
+run('left alignment moves the group without changing its contents or inner layout', () => {
+  const state = { ...base, blocks: [...warning(first), ...warning(second)] };
+  applySnapshot(state);
+  const before = checkFit().map(panel => ({ text: panel.textContent, width: panel.clientWidth,
+    titleOffset: panel.querySelector('.vertical-eew-title').getBoundingClientRect().left - panel.getBoundingClientRect().left }));
+  applySnapshot({ ...state, alignVerticalEewWarningsLeft: true });
+  const panels = checkFit();
+  assert(Math.abs(panels[0].getBoundingClientRect().left - content.getBoundingClientRect().left) < 1, 'Group not left aligned');
+  assert(panels[0].getBoundingClientRect().right < panels[1].getBoundingClientRect().left, 'Left cards overlap');
+  panels.forEach((panel, index) => {
+    assert(panel.textContent === before[index].text && panel.clientWidth === before[index].width, 'Card changed');
+    const titleOffset = panel.querySelector('.vertical-eew-title').getBoundingClientRect().left - panel.getBoundingClientRect().left;
+    assert(Math.abs(titleOffset - before[index].titleOffset) < 1, 'Inner layout changed');
+    assert(getComputedStyle(panel).backgroundColor === horizontalStyle.background, 'Color changed');
+  });
+});
 run('cancellation replaces its card only', () => {
   const cancel = card('先ほどの、緊急地震速報を取り消します', [], true);
   applySnapshot({ ...base, blocks: [...warning(cancel), ...warning(first)] });
@@ -102,10 +128,23 @@ run('cancellation replaces its card only', () => {
   assert(getComputedStyle(panels[0]).backgroundColor === horizontalStyle.background, 'Cancellation body color differs');
   assert(getComputedStyle(panels[0].querySelector('.vertical-eew-title')).backgroundColor === 'rgb(85, 85, 85)', 'Cancellation heading not gray');
 });
+run('left cancellation and training label stay separate from the page number', () => {
+  const cancel = card('先ほどの、緊急地震速報を取り消します', [], true);
+  applySnapshot({ ...base, alignVerticalEewWarningsLeft: true, pageIndicator: '1 / 2',
+    rehearsalLabel: '訓練・試験電文 実際の地震ではありません', blocks: [...warning(cancel), ...warning(first)] });
+  const panels = checkFit();
+  assert(!banner.hidden && banner.textContent.includes('訓練'), 'Training banner hidden');
+  assert(panels[0].getBoundingClientRect().top > banner.getBoundingClientRect().bottom, 'Training banner overlaps');
+  assert(panels[0].classList.contains('cancelled') && panels[0].textContent.includes('取り消します'), 'Cancel lost');
+  assert(panels[1].textContent.includes('石川'), 'Other warning lost');
+  assert(!pageIndicator.hidden && pageIndicator.getBoundingClientRect().left > panels[1].getBoundingClientRect().right,
+    'Page number overlaps left cards');
+});
 run('forecast and legacy snapshots fall back to horizontal', () => {
   const forecast = warning(first).map(({ eewCard, ...block }) => block);
-  applySnapshot({ ...base, blocks: forecast });
+  applySnapshot({ ...base, alignVerticalEewWarningsLeft: true, blocks: forecast });
   assert(!content.classList.contains('vertical') && blocks.children.length === 3, 'Forecast lost');
+  assert(!content.classList.contains('left-aligned'), 'Forecast alignment changed');
 });
 run('training banner remains visible and separate', () => {
   applySnapshot({ ...base, rehearsalLabel: '訓練・試験電文 実際の地震ではありません' });
@@ -115,11 +154,13 @@ run('training banner remains visible and separate', () => {
 run('many regions and long names are not omitted', () => {
   const names = Array.from({ length: 70 }, (_, index) => '検証対象地域' + String(index + 1));
   const long = card('長い震源地名と空白 A｜B\\n列島近海で地震', names);
-  applySnapshot({ ...base, blocks: warning(long) });
-  checkFit();
-  const actual = [...document.querySelectorAll('.vertical-eew-area')].map(node => node.textContent);
-  assert(JSON.stringify(actual) === JSON.stringify(names), 'Regions omitted or changed');
-  assert(document.querySelector('.vertical-eew-message').textContent === long.message, 'Hypocenter changed');
+  for (const left of [false, true]) {
+    applySnapshot({ ...base, alignVerticalEewWarningsLeft: left, blocks: warning(long) });
+    checkFit();
+    const actual = [...document.querySelectorAll('.vertical-eew-area')].map(node => node.textContent);
+    assert(JSON.stringify(actual) === JSON.stringify(names), 'Regions omitted or changed');
+    assert(document.querySelector('.vertical-eew-message').textContent === long.message, 'Hypocenter changed');
+  }
 });
 run('markup remains literal text', () => {
   const literal = card('<img src=x onerror=alert(1)>で地震', ['<script>bad</' + 'script>']);
@@ -129,13 +170,13 @@ run('markup remains literal text', () => {
   assert(blocks.textContent.includes('<img'), 'Text changed');
 });
 run('non-EEW output and empty state unchanged', () => {
-  applySnapshot({ ...base, blocks: [{ styleToken: 'summary', primaryText: '地震情報' }] });
+  applySnapshot({ ...base, alignVerticalEewWarningsLeft: true, blocks: [{ styleToken: 'summary', primaryText: '地震情報' }] });
   assert(content.className === 'subtitle', 'Non-EEW layout changed');
   applySnapshot({ ...base, hasProgram: false });
   assert(content.hidden, 'Empty output remains visible');
 });
 // Leave a representative two-warning frame for the screenshot.
-applySnapshot({ ...base, blocks: [...warning(first), ...warning(second)] });
+applySnapshot({ ...base, alignVerticalEewWarningsLeft: ${leftPreview}, blocks: [...warning(first), ...warning(second)] });
 const result = document.createElement('pre'); result.id = 'probe-result'; result.hidden = true;
 result.textContent = JSON.stringify(results); document.body.appendChild(result);
 </script>`;
@@ -151,7 +192,7 @@ const server = http.createServer((request, response) => {
 });
 
 server.listen(0, "127.0.0.1", () => {
-  const screenshot = path.join(output, "concurrent-warnings.png");
+  const screenshot = path.join(output, leftPreview ? "concurrent-warnings-left.png" : "concurrent-warnings.png");
   const child = spawn(chrome, ["--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
     "--disable-background-networking", "--disable-sync", "--disable-extensions", "--hide-scrollbars",
     "--window-size=1920,1080", "--force-device-scale-factor=1", "--user-data-dir=" + profile,

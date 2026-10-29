@@ -7,9 +7,9 @@ Prefer small, reviewable changes with regression tests.
 
 ## Build discipline
 
-- Target .NET 8 / C# 12 as configured by the repository.
+- Target .NET 10 / C# 12 as configured by the repository.
 - `TreatWarningsAsErrors=true` is intentional. Do not disable analyzers or blanket-suppress warnings merely to obtain a green build.
-- Before finalizing changes, run the narrowest relevant test projects first, then the full solution tests when the environment supports `net8.0-windows`.
+- Before finalizing changes, run the narrowest relevant test projects first, then the full solution tests when the environment supports `net10.0-windows`.
 
 ## Earthquake intensity semantics
 

@@ -193,7 +193,8 @@ function applySnapshot(state) {
   const cards = items.filter(item => item.eewCard).map(item => item.eewCard);
   const vertical = isEew && state.useVerticalEewWarningLayout === true &&
     cards.length > 0 && cards.length === eewHeaderCount;
-  content.className = `${isEew ? "eew" : "subtitle"}${eewHeaderCount > 1 ? " concurrent" : ""}${vertical ? " vertical" : ""}${state.rehearsalLabel ? " has-banner" : ""}`;
+  const alignLeft = vertical && state.alignVerticalEewWarningsLeft === true;
+  content.className = `${isEew ? "eew" : "subtitle"}${eewHeaderCount > 1 ? " concurrent" : ""}${vertical ? " vertical" : ""}${alignLeft ? " left-aligned" : ""}${state.rehearsalLabel ? " has-banner" : ""}`;
   if (vertical) {
     for (const card of cards) blocks.appendChild(renderVerticalEewCard(card));
     fitVerticalEew();

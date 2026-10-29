@@ -294,12 +294,12 @@ public sealed class RoutedProviderEventSource : IEventSource,
     }
 
     private ProviderConnectionSnapshot AggregateConnection(
-        IReadOnlyCollection<ReceptionProvider> providers)
+        ReceptionProvider[] providers)
     {
         bool backupActive = _fallback?.GetRouting().GetDistinctProviders().Contains(ReceptionProvider.JmaXml) == true;
         if (_fallback is not null && !backupActive)
             providers = providers.Where(p => p != ReceptionProvider.JmaXml).ToArray();
-        if (providers.Count == 0)
+        if (providers.Length == 0)
         {
             return new ProviderConnectionSnapshot(
                 ProviderConnectionState.Stopped,

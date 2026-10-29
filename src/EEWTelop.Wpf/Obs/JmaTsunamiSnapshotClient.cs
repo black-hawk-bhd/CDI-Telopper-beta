@@ -14,10 +14,17 @@ public static class JmaTsunamiSnapshotClient
 
     public static async Task<TsunamiEvent> FetchAsync(CancellationToken cancellationToken)
     {
-        using var handler = new HttpClientHandler { AllowAutoRedirect = false, AutomaticDecompression = DecompressionMethods.All };
+        using var handler = CreateHandler();
         using var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
         return await FetchAsync(http, cancellationToken).ConfigureAwait(false);
     }
+
+    // Do not enable Brotli/All here: decoder execution precedes the size/JSON checks.
+    internal static HttpClientHandler CreateHandler() => new()
+    {
+        AllowAutoRedirect = false,
+        AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+    };
 
     internal static async Task<TsunamiEvent> FetchAsync(HttpClient http, CancellationToken cancellationToken)
     {
@@ -25,6 +32,11 @@ public static class JmaTsunamiSnapshotClient
         request.Headers.CacheControl = new CacheControlHeaderValue { NoCache = true, NoStore = true };
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
+        // Supported automatic encodings have already been removed by the handler.
+        // Reject unsolicited Brotli and remaining/layered encodings without reading them.
+        if (response.Content.Headers.ContentEncoding.Any(static value =>
+            !value.Equals("identity", StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidDataException("Unsupported snapshot content encoding.");
         if (response.StatusCode != HttpStatusCode.OK || response.Headers.Age > TimeSpan.FromSeconds(60) ||
             response.Content.Headers.ContentLength > MaximumBytes)
             throw new InvalidDataException("Invalid or stale snapshot response.");

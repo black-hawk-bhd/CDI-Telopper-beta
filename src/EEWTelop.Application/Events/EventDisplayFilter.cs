@@ -70,11 +70,11 @@ public static class EventDisplayFilter
     private static bool ShouldHideContinuationOnly(
         FilterSettings filter,
         WeatherWarningEvent weather,
-        IReadOnlyCollection<WeatherWarningItem> visibleItems) =>
+        WeatherWarningItem[] visibleItems) =>
         filter.HideWeatherContinuationOnly &&
         !weather.IsCancelled &&
         weather.InformationType == WeatherInformationType.WarningAndAdvisory &&
-        visibleItems.Count > 0 &&
+        visibleItems.Length > 0 &&
         visibleItems.All(static item =>
             item.IsActive &&
             item.Status.Trim().Contains("継続", StringComparison.Ordinal));

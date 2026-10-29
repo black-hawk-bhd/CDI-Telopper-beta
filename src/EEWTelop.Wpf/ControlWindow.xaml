@@ -580,7 +580,11 @@
                                         <CheckBox Content="ページ番号を表示" IsChecked="{Binding Settings.ShowPageIndicator}" />
                                         <CheckBox Content="緊急地震速報（警報）を縦型で表示"
                                                   IsChecked="{Binding Settings.UseVerticalEewWarningLayout}"
-                                                  ToolTip="初期値はOFF（従来の横型）です。ONでは画面右側に震源地・対象地域を縦書きで表示し、2件同時の警報は横に並べます。取消も縦型、予報は従来表示です。ブラウザプレビュー・OBSに共通で反映し、音声や本番・訓練の区分は変更しません。" />
+                                                  ToolTip="初期値はOFF（従来の横型）です。ONでは震源地・対象地域を縦書きで表示します。初期の配置は右側で、下の設定で左側へ切り替えられます。2件同時の警報は横に並べます。取消も縦型、予報は従来表示です。ブラウザプレビュー・OBSに共通で反映し、音声や本番・訓練の区分は変更しません。" />
+                                        <CheckBox Content="縦型EEWを左揃え（OFFは右揃え）"
+                                                  IsChecked="{Binding Settings.AlignVerticalEewWarningsLeft}"
+                                                  IsEnabled="{Binding Settings.UseVerticalEewWarningLayout}"
+                                                  ToolTip="初期値はOFF（右揃え）です。ONでは縦型の帯を画面左側へ配置します。2件の帯の並び順・帯の中の配置・色・文字は変えません。保存して反映すると表示中の警報にも適用します。横型には影響しません。" />
                                         <CheckBox Content="通常モード：上部の区分バッジを非表示"
                                                   IsChecked="{Binding Settings.HideNormalModeBanner}"
                                                   ToolTip="初期値はOFFです。元から区分表示のない情報では見た目は変わりません。再掲・訓練・リハーサルは別設定です。" />
@@ -610,7 +614,7 @@
                                         <Button Content="ページと文字を初期設定に戻す"
                                                 Command="{Binding ResetDisplaySettingsCommand}"
                                                 Margin="0,8,0,0"
-                                                ToolTip="ページ時間、EEW縦型表示、通常モードのバッジ非表示、自動消去時間、震度階級別ページ分割、津波予報表示、受信前の定型文編集を初期化します。" />
+                                                ToolTip="ページ時間、EEW縦型表示と左右配置、通常モードのバッジ非表示、自動消去時間、震度階級別ページ分割、津波予報表示、受信前の定型文編集を初期化します。" />
                                     </StackPanel>
                                 </GroupBox>
                             </StackPanel>

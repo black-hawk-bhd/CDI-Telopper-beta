@@ -1,0 +1,20 @@
+<Project>
+  <!-- Exercise the real distribution guard without downloading old runtime packs. -->
+  <PropertyGroup>
+    <TargetFrameworkIdentifier>.NETCoreApp</TargetFrameworkIdentifier>
+    <TargetFrameworkVersion>v10.0</TargetFrameworkVersion>
+    <RuntimeFrameworkVersion>$(RequestedRuntimeVersion)</RuntimeFrameworkVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <ResolvedRuntimePack Include="Microsoft.NETCore.App.Runtime.win-x64">
+      <NuGetPackageId>Microsoft.NETCore.App.Runtime.win-x64</NuGetPackageId>
+      <NuGetPackageVersion>$(CoreRuntimeVersion)</NuGetPackageVersion>
+    </ResolvedRuntimePack>
+    <ResolvedRuntimePack Include="Microsoft.WindowsDesktop.App.Runtime.win-x64">
+      <NuGetPackageId>Microsoft.WindowsDesktop.App.Runtime.win-x64</NuGetPackageId>
+      <NuGetPackageVersion>$(DesktopRuntimeVersion)</NuGetPackageVersion>
+    </ResolvedRuntimePack>
+  </ItemGroup>
+  <Import Project="../../Directory.Build.targets" />
+  <Target Name="ResolveFrameworkReferences" />
+</Project>

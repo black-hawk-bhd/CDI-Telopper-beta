@@ -32,7 +32,7 @@ public sealed partial class FileTestCaseLibrary
                 throw new InvalidDataException("ZIPの圧縮サイズは64MiB以下にしてください。");
             using var input = new PackageReadStream(file, cancellationToken);
             using var archive = new ZipArchive(input, ZipArchiveMode.Read, leaveOpen: true);
-            IReadOnlyList<ZipArchiveEntry> entries = archive.Entries;
+        var entries = archive.Entries;
             if (entries.Count > MaximumPackageEntries)
                 throw new InvalidDataException("ZIP内のファイル・フォルダーは合計1024件以下にしてください。");
             input.FinishMetadataRead();

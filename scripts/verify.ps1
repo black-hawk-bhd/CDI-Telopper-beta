@@ -4,20 +4,23 @@ param(
     [ValidateSet('true', 'false')]
     [string]$DmdataProviderEnabled = 'true',
     [ValidateSet('true', 'false')]
-    [string]$ExtendedFeaturesEnabled = 'true'
+    [string]$ExtendedFeaturesEnabled = 'true',
+    [string]$DotnetPath = ''
 )
 
 $ErrorActionPreference = 'Stop'
 
 $workspaceRoot = Split-Path -Parent $PSScriptRoot
-$localDotnet = Join-Path $workspaceRoot '.dotnet8\dotnet.exe'
-$dotnet = if (Test-Path $localDotnet) { $localDotnet } else { 'dotnet' }
+$localDotnet = Join-Path $workspaceRoot '.dotnet-sdk\dotnet.exe'
+$dotnet = if (-not [string]::IsNullOrWhiteSpace($DotnetPath)) {
+    (Get-Command $DotnetPath -ErrorAction Stop).Source
+} elseif (Test-Path $localDotnet) { $localDotnet } else { 'dotnet' }
 
-if (Test-Path $localDotnet) {
+if (-not [string]::IsNullOrWhiteSpace($DotnetPath) -or (Test-Path $localDotnet)) {
     # App-host based test executables do not inherit the SDK location from the
     # dotnet command path. Point them at the bundled runtime explicitly so the
     # full test suite works on machines without a system-wide .NET install.
-    $env:DOTNET_ROOT = Split-Path -Parent $localDotnet
+    $env:DOTNET_ROOT = Split-Path -Parent $dotnet
 }
 
 $env:DOTNET_CLI_HOME = Join-Path $workspaceRoot '.dotnet-cli'
@@ -45,6 +48,7 @@ try {
         '-p:NuGetAudit=false'
     )
     Invoke-Dotnet (@('restore', 'EEWTelop.sln', '--configfile', 'NuGet.Config') + $featureProperties)
+    & (Join-Path $PSScriptRoot 'verify-runtime-security.ps1') -DotnetPath $dotnet
     # The former interactive FlaUI suite is retained only in the local,
     # non-public archive and is not part of unattended verification.
     $automatedTestProjects = @(
@@ -58,7 +62,7 @@ try {
     )
     foreach ($testProject in $automatedTestProjects) {
         Invoke-Dotnet (@('build', $testProject, '-c', 'Release', '--no-restore') + $featureProperties)
-        Invoke-Dotnet (@('test', $testProject, '-c', 'Release', '--no-build', '--no-restore') + $featureProperties)
+        Invoke-Dotnet (@('test', '--project', $testProject, '-c', 'Release', '--no-build', '--no-restore') + $featureProperties)
     }
 }
 finally {

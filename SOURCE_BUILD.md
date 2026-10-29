@@ -1,11 +1,11 @@
-# CDI-Telopper 2.0.0-beta.62 unified source build
+# CDI-Telopper 2.0.0-beta.63 unified source build
 
 Formal name: **Comprehensive Disaster Information Telopper**
 
 ## Requirements
 
 - Windows 10 or Windows 11 (x64)
-- .NET 8 SDK 8.0.426 or a compatible newer SDK
+- .NET 10 SDK 10.0.403 or a compatible newer .NET 10 SDK
 - Internet access for the first NuGet restore
 - PowerShell 5.1 or later
 
@@ -24,11 +24,23 @@ The optional Chrome rendering regression test for the EEW vertical layout is
 `node scripts/verify-eew-vertical.cjs`. It uses an isolated profile and mock
 loopback page, without live reception or OBS. See [the layout guide](docs/eew-vertical-style.md).
 
-The project-local `.dotnet8` SDK takes precedence when present, so update it as
-well as any system SDK. Self-contained builds require .NET 8.0.32 or newer and
+The project-local `.dotnet-sdk` SDK takes precedence when present, so update it as
+well as any system SDK. Both scripts accept `-DotnetPath C:\path\to\dotnet.exe`
+to explicitly select a different installation. Self-contained builds require .NET 10.0.14 or newer and
 reject older runtime packs, including an explicit downgrade through build flags.
 Updating a system runtime does not update already-published self-contained apps;
 rebuild both distribution formats and verify their bundled runtime versions.
+The WPF application's default minimum runtime is also 10.0.14 for framework-dependent builds.
+The runtime security guard's seven regression cases run as part of `verify.ps1`.
+All 15 projects target `net10.0` or `net10.0-windows`; C# 12 is retained.
+`global.json` selects the native Microsoft.Testing.Platform runner for .NET 10.
+For a single project, use `dotnet test --project <test.csproj>` (and `--filter`
+for MSTest filtering). The former positional project syntax is no longer used.
+
+The JMA current-tsunami snapshot client only negotiates gzip/deflate, and rejects
+remaining unsupported content encodings before opening the body. Brotli decoding
+is disabled as defense in depth for CVE-2026-111497; the runtime update is still
+required. Existing response size limits, timeouts and initial-sync behavior remain.
 
 Test-case ZIP imports are limited to 64 MiB compressed, 1,024 entries (including
 directories), 2 MiB of metadata reads, 32 MiB per expanded file, 128 MiB total
@@ -54,12 +66,20 @@ stream instead of being retained as a complete batch before delivery.
 After verification succeeds, build the current unified beta release:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.62
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.63
 ```
 
 Self-contained folder and single-file packages are written under:
 
-- `artifacts\release\2.0.0-beta.62\win-x64`
+- `artifacts\release\2.0.0-beta.63\win-x64`
+
+Restore and publish both explicitly use `SelfContained=true`. Before packaging,
+the script checks the SDK-generated runtime configuration for both formats and
+records its core/desktop runtime versions in each package's `version.json`.
+An existing release directory is never overwritten; use `-OutputLabel` for local
+verification builds. These changes do not replace previously published releases.
+
+The .NET 10 migration and compatibility notes are in [docs/dotnet10-migration.md](docs/dotnet10-migration.md).
 
 The former stable/separated source-package helpers are not included in the
 public repository and are not part of the current unified release procedure.

@@ -5,16 +5,18 @@
 
 Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津波・気象・火山・南海トラフに関する防災情報を受信し、OBS向け字幕として出力するWindowsアプリです。
 
-現在の公開版は **2.0.0-beta.62** です（2026年10月27日）。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
+現在の公開版は **2.0.0-beta.63** です（2026年10月29日）。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
 本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
 
-- [2.0.0-beta.62をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.62)
-- [beta.62の詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.62.txt)
+- [2.0.0-beta.63をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.63)
+- [beta.63の詳細README・操作説明・仕様書](README_CDI-Telopper_2.0.0-beta.63.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
 - [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
 - [利用規約・免責事項](TERMS.md) / [プライバシーポリシー](PRIVACY.md)
 
 ## 主な機能
+
+beta.63: 全15プロジェクトを.NET 10へ移行し、両配布形式に10.0.14を同梱します。Brotliの既知脆弱性CVE-2026-111497へ対応し、津波初期取得ではBrotliを無効化、未対応圧縮は本文を読む前に拒否します。自己完結型の復元・発行条件と同梱版の検査も修正しました。縦型EEWの左揃えを選択でき、初期は従来の右揃えです。全1,096自動テスト・配布ガード7件・Chrome描画13項目が成功、ビルド警告0・エラー0。実受信・実OBS確認は未実施です。[変更内容](RELEASE_NOTES_2.0.0-beta.63.md) / [検証結果](VALIDATION_2.0.0-beta.63.md) / [.NET 10移行](docs/dotnet10-migration.md)。
 
 beta.62: 緊急地震速報（警報）の縦型スタイルを追加しました。「表示」→「ページと文字」で選択でき、初期OFFで従来の横型を維持します。既存テロップと同じ配色・太字ゴシック体で、独立した2件の警報と取消を表示します。ブラウザプレビュー・OBS共通です。また、北海道内の表示地名が複数ある場合は利尻・礼文・奥尻島を含め「北海道」1つに集約します。単独地名・他地方の集約ルール・元の地域情報は維持します。全1,077件の自動テストとChrome描画10項目が成功、ビルド警告0・エラー0。実受信・実OBS確認は未実施です。[表示手順](docs/eew-vertical-style.md) / [変更内容](RELEASE_NOTES_2.0.0-beta.62.md) / [検証結果](VALIDATION_2.0.0-beta.62.md)。
 
@@ -200,7 +202,7 @@ beta.57以降は、地震・EEW・津波・気象の音声をそれぞれ該当�
 - 利用する受信プロバイダーへ接続できるインターネット環境
 - AXISまたはDMDATA.JPを使う場合は、有効な契約と認証情報
 
-GitHub Releasesの配布物は.NET 8自己完結型です。通常利用ではVisual Studioや.NET SDKをインストールする必要はありません。
+GitHub Releasesの配布物は自己完結型です。通常利用ではVisual Studioや.NET SDKをインストールする必要はありません。
 
 ## インストールと初回起動
 
@@ -223,7 +225,7 @@ GitHub Releasesの配布物は.NET 8自己完結型です。通常利用ではVi
 
 ## ソースからの検証
 
-必要な環境はWindows 10/11 x64、.NET 8 SDK、PowerShellです。Visual Studioは必須ではありません。
+現在の開発ソースは.NET 10へ移行しています。必要な環境はWindows 10/11 x64、.NET 10 SDK 10.0.403以降、PowerShellです。Visual Studioは必須ではありません。公開済みの配布物の同梱版は各リリース説明を確認してください。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\verify.ps1

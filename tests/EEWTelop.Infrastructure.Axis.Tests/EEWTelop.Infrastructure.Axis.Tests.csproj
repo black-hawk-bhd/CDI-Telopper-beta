@@ -1,6 +1,6 @@
 <Project Sdk="MSTest.Sdk">
   <PropertyGroup>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <TestingExtensionsProfile>None</TestingExtensionsProfile>
   </PropertyGroup>
   <ItemGroup>

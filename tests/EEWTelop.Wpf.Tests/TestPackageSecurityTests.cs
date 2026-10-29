@@ -140,23 +140,31 @@ public sealed class TestPackageSecurityTests
     }
 
     [TestMethod]
-    public async Task MetadataBudgetRejectsDishonestFooterCountBeforeMaterializingDirectory()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task MetadataBudgetAndMalformedFooterAreRejectedBeforePublishing(bool dishonestCount)
     {
         string package = CreatePackage(archive =>
         {
             string prefix = new('x', 2100);
             for (int index = 0; index < 1024; index++) archive.CreateEntry($"{prefix}{index}/");
         });
-        byte[] bytes = await File.ReadAllBytesAsync(package);
-        Assert.AreEqual(0x06054b50U, BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(bytes.Length - 22)));
-        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(bytes.Length - 14), 1);
-        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(bytes.Length - 12), 1);
-        await File.WriteAllBytesAsync(package, bytes);
+        if (dishonestCount)
+        {
+            byte[] bytes = await File.ReadAllBytesAsync(package);
+            Assert.AreEqual(0x06054b50U, BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(bytes.Length - 22)));
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(bytes.Length - 14), 1);
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(bytes.Length - 12), 1);
+            await File.WriteAllBytesAsync(package, bytes);
+        }
 
         InvalidDataException error = await Assert.ThrowsExactlyAsync<InvalidDataException>(() =>
             CreateLibrary().ImportPackageAsync(package));
 
-        StringAssert.Contains(error.Message, "管理情報");
+        // .NET 10 rejects a dishonest count before the metadata budget is exhausted.
+        // A consistent directory must still exercise our own read budget.
+        if (!dishonestCount)
+            StringAssert.Contains(error.Message, "管理情報");
         AssertLibraryEmpty();
     }
 

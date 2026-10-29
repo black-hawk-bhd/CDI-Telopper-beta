@@ -37,6 +37,7 @@ Microsoft/
 !/docs/disaster-simulator.md
 !/docs/dmdata-oauth.md
 !/docs/eew-vertical-style.md
+!/docs/dotnet10-migration.md
 
 # External reference and raw test data belong in the local archive
 /JMA_Format/

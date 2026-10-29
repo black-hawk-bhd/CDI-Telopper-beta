@@ -67,6 +67,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private bool _separateIntensityPagesByScale;
     private bool _limitActiveWeatherAreaRowsToTwo;
     private bool _useVerticalEewWarningLayout;
+    private bool _alignVerticalEewWarningsLeft;
     private double _outputScale;
     private double _outputOffsetX;
     private double _outputOffsetY;
@@ -242,6 +243,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _separateIntensityPagesByScale = settings.Display.SeparateIntensityPagesByScale;
         _limitActiveWeatherAreaRowsToTwo = settings.Display.LimitActiveWeatherAreaRowsToTwo;
         _useVerticalEewWarningLayout = settings.Display.UseVerticalEewWarningLayout;
+        _alignVerticalEewWarningsLeft = settings.Display.AlignVerticalEewWarningsLeft;
         _outputScale = OutputTransformSettings.Default.Scale;
         _outputOffsetX = OutputTransformSettings.Default.OffsetX;
         _outputOffsetY = OutputTransformSettings.Default.OffsetY;
@@ -714,6 +716,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public bool SeparateIntensityPagesByScale { get => _separateIntensityPagesByScale; set => SetProperty(ref _separateIntensityPagesByScale, value); }
     public bool LimitActiveWeatherAreaRowsToTwo { get => _limitActiveWeatherAreaRowsToTwo; set => SetProperty(ref _limitActiveWeatherAreaRowsToTwo, value); }
     public bool UseVerticalEewWarningLayout { get => _useVerticalEewWarningLayout; set => SetProperty(ref _useVerticalEewWarningLayout, value); }
+    public bool AlignVerticalEewWarningsLeft { get => _alignVerticalEewWarningsLeft; set => SetProperty(ref _alignVerticalEewWarningsLeft, value); }
     public double OutputScale { get => _outputScale; set => SetProperty(ref _outputScale, OutputTransformSettings.Default.Scale); }
     public double OutputOffsetX { get => _outputOffsetX; set => SetProperty(ref _outputOffsetX, OutputTransformSettings.Default.OffsetX); }
     public double OutputOffsetY { get => _outputOffsetY; set => SetProperty(ref _outputOffsetY, OutputTransformSettings.Default.OffsetY); }
@@ -963,6 +966,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 SeparateIntensityPagesByScale = SeparateIntensityPagesByScale,
                 LimitActiveWeatherAreaRowsToTwo = LimitActiveWeatherAreaRowsToTwo,
                 UseVerticalEewWarningLayout = UseVerticalEewWarningLayout,
+                AlignVerticalEewWarningsLeft = AlignVerticalEewWarningsLeft,
                 SubtitlePhraseOverrides = new Dictionary<string, string>(
                     _subtitlePhraseOverrides,
                     StringComparer.Ordinal),
@@ -1429,6 +1433,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         SeparateIntensityPagesByScale = defaults.SeparateIntensityPagesByScale;
         LimitActiveWeatherAreaRowsToTwo = defaults.LimitActiveWeatherAreaRowsToTwo;
         UseVerticalEewWarningLayout = defaults.UseVerticalEewWarningLayout;
+        AlignVerticalEewWarningsLeft = defaults.AlignVerticalEewWarningsLeft;
         LetterSpacingEm = defaults.LetterSpacingEm;
         LineSpacing = defaults.LineSpacing;
         FontScale = defaults.FontScale;

@@ -35,6 +35,7 @@ public sealed record ObsViewSnapshot(
         OutputTransformSettings.Default;
 
     public bool UseVerticalEewWarningLayout { get; init; }
+    public bool AlignVerticalEewWarningsLeft { get; init; }
 }
 
 public sealed record ObsViewBlock(
@@ -247,6 +248,7 @@ public sealed partial class ObsSnapshotStore
             {
                 OutputTransform = settings.OutputTransform,
                 UseVerticalEewWarningLayout = settings.UseVerticalEewWarningLayout,
+                AlignVerticalEewWarningsLeft = settings.AlignVerticalEewWarningsLeft,
             };
             return _snapshot;
         }
@@ -390,6 +392,7 @@ public sealed partial class ObsSnapshotStore
                 LineSpacing = settings.LineSpacing,
                 OutputTransform = settings.OutputTransform,
                 UseVerticalEewWarningLayout = settings.UseVerticalEewWarningLayout,
+                AlignVerticalEewWarningsLeft = settings.AlignVerticalEewWarningsLeft,
             };
             return _snapshot;
         }
@@ -425,6 +428,7 @@ public sealed partial class ObsSnapshotStore
         {
             OutputTransform = settings.OutputTransform,
             UseVerticalEewWarningLayout = settings.UseVerticalEewWarningLayout,
+            AlignVerticalEewWarningsLeft = settings.AlignVerticalEewWarningsLeft,
         };
 
     private static ObsViewSnapshot CreateEmpty(
@@ -439,6 +443,7 @@ public sealed partial class ObsSnapshotStore
         {
             OutputTransform = existing.OutputTransform,
             UseVerticalEewWarningLayout = existing.UseVerticalEewWarningLayout,
+            AlignVerticalEewWarningsLeft = existing.AlignVerticalEewWarningsLeft,
         };
 
     private static ObsViewSnapshot CreateProgramSnapshot(
@@ -479,6 +484,7 @@ public sealed partial class ObsSnapshotStore
         {
             OutputTransform = settings.OutputTransform,
             UseVerticalEewWarningLayout = settings.UseVerticalEewWarningLayout,
+            AlignVerticalEewWarningsLeft = settings.AlignVerticalEewWarningsLeft,
         };
 
     private static ObsViewBlock CreateViewBlock(DisplayBlock source, DisplayProgram program, DisplaySettings settings)
