@@ -669,6 +669,11 @@ public sealed class JsonSettingsStore : ISettingsStore
         routing.Volcano != ReceptionProvider.ObsEarthquakeBridge &&
         routing.NankaiTrough != ReceptionProvider.ObsEarthquakeBridge &&
         routing.Eew != ReceptionProvider.JmaXml &&
+        routing.Quake is not (ReceptionProvider.Ydits or ReceptionProvider.YditsTest) &&
+        routing.Tsunami is not (ReceptionProvider.Ydits or ReceptionProvider.YditsTest) &&
+        routing.Weather is not (ReceptionProvider.Ydits or ReceptionProvider.YditsTest) &&
+        routing.Volcano is not (ReceptionProvider.Ydits or ReceptionProvider.YditsTest) &&
+        routing.NankaiTrough is not (ReceptionProvider.Ydits or ReceptionProvider.YditsTest) &&
         Enum.IsDefined(routing.Eew) &&
         Enum.IsDefined(routing.Quake) &&
         Enum.IsDefined(routing.Tsunami) &&

@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using EEWTelop.Application.Audio;
 using EEWTelop.Application.Configuration;
 using EEWTelop.Application.Coordination;
 using EEWTelop.Application.Display;
@@ -67,9 +68,13 @@ internal sealed partial class ObsJsonContext : JsonSerializerContext;
 public sealed partial class ObsSnapshotStore
 {
     internal static readonly TimeSpan AudioRetention = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan EewAudioQueueLifetime = TimeSpan.FromMinutes(10);
+    private const int MaximumPendingEewContinuations = 32;
     private readonly object _gate = new();
     private readonly SortedDictionary<long, ObsAudioPayload> _audioFiles = [];
     private readonly Dictionary<ObsViewChannel, ObsAudioCommand> _channelAudio = [];
+    private readonly Queue<PreparedAudio> _pendingEewContinuations = [];
+    private EewAudioIdentity? _activeEewWarning;
     private readonly Dictionary<ObsViewChannel, ObsProgramState> _programs = [];
     private readonly PageClock _pageClock = new();
     private long _sequence;
@@ -260,66 +265,117 @@ public sealed partial class ObsSnapshotStore
         DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(cue);
-        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
         ObsViewChannel channel = ObsAudioRouting.GetChannel(cue);
-        string fullPath = Path.GetFullPath(filePath);
-        if (!File.Exists(fullPath))
-        {
-            throw new FileNotFoundException("The OBS audio file does not exist.", fullPath);
-        }
+        PreparedAudio audio = PrepareAudio(cue, filePath);
 
         lock (_gate)
         {
-            RemoveExpiredAudio(now);
-            long audioSequence = ++_audioSequence;
-            _audioFiles[audioSequence] = new ObsAudioPayload(
-                fullPath,
-                GetAudioContentType(fullPath),
-                now + AudioRetention);
-            _channelAudio[channel] = new ObsAudioCommand(audioSequence, "play", cue, now);
-            _audioDiagnostics = new ObsAudioDiagnostics(
-                cue,
-                "Queued",
-                now,
-                audioSequence);
-            _snapshot = _snapshot with
-            {
-                Sequence = ++_sequence,
-                GeneratedAtUtc = now,
-                AudioSequence = audioSequence,
-                AudioAction = "play",
-                AudioCue = cue,
-                AudioIssuedAtUtc = now,
-            };
-            return _snapshot;
+            if (channel == ObsViewChannel.Eew) ClearEewAudioQueue();
+            return PublishAudioCore(channel, audio, now);
         }
+    }
+
+    // Even a silent continuation must leave the warning sound already in progress alone.
+    internal void StopAudioUnlessSameEewWarning(EewEvent warning, DateTimeOffset now)
+    {
+        lock (_gate)
+        {
+            if (!IsSameEewWarningInProgress(EewAudioIdentity.From(warning), now))
+                PublishAudioStopCore(now);
+        }
+    }
+
+    internal bool PublishEewWarningAudio(AudioCueId cue, EewEvent warning, string filePath, DateTimeOffset now)
+    {
+        PreparedAudio audio = PrepareAudio(cue.ToString(), filePath);
+        EewAudioIdentity identity = EewAudioIdentity.From(warning);
+        lock (_gate)
+        {
+            if (cue == AudioCueId.EewContinuation && IsSameEewWarningInProgress(identity, now))
+            {
+                // Keep the most recent reports if an unusually long playback fills the queue.
+                if (_pendingEewContinuations.Count == MaximumPendingEewContinuations)
+                    _pendingEewContinuations.Dequeue();
+                _pendingEewContinuations.Enqueue(audio);
+                return true;
+            }
+
+            ClearEewAudioQueue();
+            _activeEewWarning = identity;
+            PublishAudioCore(ObsViewChannel.Eew, audio, now);
+            return false;
+        }
+    }
+
+    private static PreparedAudio PrepareAudio(string cue, string filePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        string fullPath = Path.GetFullPath(filePath);
+        if (!File.Exists(fullPath))
+            throw new FileNotFoundException("The OBS audio file does not exist.", fullPath);
+        return new PreparedAudio(cue, fullPath, GetAudioContentType(fullPath));
+    }
+
+    private ObsViewSnapshot PublishAudioCore(ObsViewChannel channel, PreparedAudio audio, DateTimeOffset now)
+    {
+        RemoveExpiredAudio(now);
+        long audioSequence = ++_audioSequence;
+        _audioFiles[audioSequence] = new ObsAudioPayload(audio.Path, audio.ContentType, now + AudioRetention);
+        _channelAudio[channel] = new ObsAudioCommand(audioSequence, "play", audio.Cue, now);
+        _audioDiagnostics = new ObsAudioDiagnostics(audio.Cue, "Queued", now, audioSequence);
+        _snapshot = _snapshot with
+        {
+            Sequence = ++_sequence,
+            GeneratedAtUtc = now,
+            AudioSequence = audioSequence,
+            AudioAction = "play",
+            AudioCue = audio.Cue,
+            AudioIssuedAtUtc = now,
+        };
+        return _snapshot;
     }
 
     public ObsViewSnapshot PublishAudioStop(DateTimeOffset now)
     {
         lock (_gate)
         {
-            RemoveExpiredAudio(now);
-            _audioDiagnostics = _audioDiagnostics with
-            {
-                PlaybackResult = "Stopped",
-                ReportedAtUtc = now,
-            };
-            _snapshot = _snapshot with
-            {
-                Sequence = ++_sequence,
-                GeneratedAtUtc = now,
-                AudioSequence = ++_audioSequence,
-                AudioAction = "stop",
-                AudioCue = string.Empty,
-                AudioIssuedAtUtc = now,
-            };
-            foreach (ObsViewChannel channel in Enum.GetValues<ObsViewChannel>())
-            {
-                _channelAudio[channel] = new ObsAudioCommand(_snapshot.AudioSequence, "stop", string.Empty, now);
-            }
-            return _snapshot;
+            return PublishAudioStopCore(now);
         }
+    }
+
+    private ObsViewSnapshot PublishAudioStopCore(DateTimeOffset now)
+    {
+        ClearEewAudioQueue();
+        RemoveExpiredAudio(now);
+        _audioDiagnostics = _audioDiagnostics with { PlaybackResult = "Stopped", ReportedAtUtc = now };
+        _snapshot = _snapshot with
+        {
+            Sequence = ++_sequence,
+            GeneratedAtUtc = now,
+            AudioSequence = ++_audioSequence,
+            AudioAction = "stop",
+            AudioCue = string.Empty,
+            AudioIssuedAtUtc = now,
+        };
+        foreach (ObsViewChannel channel in Enum.GetValues<ObsViewChannel>())
+            _channelAudio[channel] = new ObsAudioCommand(_snapshot.AudioSequence, "stop", string.Empty, now);
+        return _snapshot;
+    }
+
+    private bool IsSameEewWarningInProgress(EewAudioIdentity identity, DateTimeOffset now) =>
+        _activeEewWarning == identity &&
+        _channelAudio.TryGetValue(ObsViewChannel.Eew, out var command) &&
+        now - command.IssuedAtUtc <= EewAudioQueueLifetime;
+
+    private void ClearEewAudioQueue()
+    {
+        _activeEewWarning = null;
+        _pendingEewContinuations.Clear();
+    }
+
+    internal void DiscardPendingEewContinuations()
+    {
+        lock (_gate) _pendingEewContinuations.Clear();
     }
 
     internal bool TryReadAudio(
@@ -358,6 +414,16 @@ public sealed partial class ObsSnapshotStore
             // Late reports from another category must not overwrite the current
             // EEW diagnostics used by the audio priority gate.
             if (sequence == _audioDiagnostics.Sequence) _audioDiagnostics = diagnostics;
+            if (_activeEewWarning is not null && result != "Started" &&
+                _channelAudio.TryGetValue(ObsViewChannel.Eew, out var eewCommand) && eewCommand.Sequence == sequence)
+            {
+                if (result is "Completed" or "Failed" or "SkippedStale" &&
+                    now - command.IssuedAtUtc <= EewAudioQueueLifetime &&
+                    _pendingEewContinuations.TryDequeue(out var next))
+                    PublishAudioCore(ObsViewChannel.Eew, next, now);
+                else
+                    ClearEewAudioQueue();
+            }
             return true;
         }
     }
@@ -534,6 +600,14 @@ public sealed partial class ObsSnapshotStore
             _ => throw new NotSupportedException(
                 "OBS audio supports WAV, MP3, and OGG files only."),
         };
+
+    private sealed record PreparedAudio(string Cue, string Path, string ContentType);
+
+    private readonly record struct EewAudioIdentity(string Provider, EventId Id, SourceMode Mode, bool IsTest)
+    {
+        public static EewAudioIdentity From(EewEvent warning) =>
+            new(warning.Provider, warning.Id, warning.SourceMode, warning.IsTest);
+    }
 
     private void RemoveExpiredAudio(DateTimeOffset now)
     {

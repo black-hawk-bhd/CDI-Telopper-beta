@@ -95,6 +95,8 @@ public sealed partial class Phase6ViewModelTests
         expectedProviders.Add(ReceptionProvider.Disabled);
         expectedProviders.Add(ReceptionProvider.Wolfx);
         if (BuildFeatures.DmdataProviderEnabled) expectedProviders.Add(ReceptionProvider.JmaXml);
+        expectedProviders.Add(ReceptionProvider.Ydits);
+        expectedProviders.Add(ReceptionProvider.YditsTest);
         Assert.IsFalse(editor.EewAndQuakeProviderOptions.Any(option => option.Value == ReceptionProvider.JmaXml));
         Assert.AreEqual(BuildFeatures.DmdataProviderEnabled,
             editor.EarthquakeProviderOptions.Any(option => option.Value == ReceptionProvider.JmaXml));

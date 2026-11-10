@@ -55,7 +55,10 @@ internal sealed class ExternalEarthquakeState
                     points = _quake.Points.Select(static p => new
                     {
                         name = p.DisplayName, prefecture = p.Prefecture, isArea = p.IsArea,
-                        intensity = Scale(p.Scale), stationCode = p.StationCode,
+                        // Keep the source address separately from the display name. For example,
+                        // P2PQuake's "球磨村渡" is a station name while the display name is
+                        // normalized to "熊本県球磨村" for subtitles.
+                        address = p.Address, intensity = Scale(p.Scale), stationCode = p.StationCode,
                         latitude = p.Latitude, longitude = p.Longitude,
                         municipalityCode = p.MunicipalityCode, municipalityName = p.MunicipalityName,
                         seismicAreaCode = p.SeismicAreaCode, seismicAreaName = p.SeismicAreaName,

@@ -72,6 +72,9 @@ public sealed record NormalizeResult(
     DisasterEvent? Event,
     IReadOnlyList<ValidationIssue> Issues)
 {
+    // Test providers may expose a review preview without submitting it to the display coordinator.
+    public bool PreviewOnly { get; init; }
+
     public bool IsSuccess => Status == NormalizeStatus.Success && Event is not null;
 
     public static NormalizeResult Success(

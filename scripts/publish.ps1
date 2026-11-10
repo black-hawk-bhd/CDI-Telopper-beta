@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '2.0.0-beta.64',
+    [string]$Version = '2.0.0-beta.65',
     [string]$RuntimeIdentifier = 'win-x64',
     [string]$OutputLabel = '',
     [ValidateSet('true', 'false')]
@@ -61,7 +61,7 @@ $msbuildProperties = @(
     # deployment graph that both --no-restore publish commands consume.
     '-p:SelfContained=true'
 )
-$enabledProviders = @('P2PQuake', 'Wolfx')
+$enabledProviders = @('P2PQuake', 'Wolfx', 'YDITS')
 if ($DmdataProviderEnabled -eq 'true') { $enabledProviders += 'DMDATA.JP' }
 if ($AxisProviderEnabled -eq 'true') { $enabledProviders += 'AXIS' }
 $dataEnvironmentVariable = if ($versionMajor -ge 2) {

@@ -88,7 +88,7 @@ CDI-Telopper が正規化した本番受信情報を、同じPCの外部ツー�
 
 - `earthquake`: `apiVersion`, `revision`, `hasInformation`, `earthquake`（未受信はnull）。内側の電文は `eventId`, `provider`, `issuedAt`, `receivedAt`, `serial`, `isCancelled`, `isExpired`, `informationType`, `sourceMode`, `earthquake`, `points`, `headline`, `comment`。
 - 電文中の `earthquake`: `originTime`, `maximumIntensity`, `hypocenter`（`name`, `latitude`, `longitude`, `depthKilometers`, `magnitude`）、`domesticTsunami`, `foreignTsunami`。
-- `points`: `name`, `prefecture`, `isArea`, `intensity`, `stationCode`, `municipalityCode`, `municipalityName`, `seismicAreaCode`, `seismicAreaName`。コード未取得は空文字。地域代表情報を観測点の位置だと解釈しない。
+- `points`: `name`, `address`, `prefecture`, `isArea`, `intensity`, `stationCode`, `municipalityCode`, `municipalityName`, `seismicAreaCode`, `seismicAreaName`。`name`はCDIの字幕用表示名、`address`は受信元の元地点名です。コード未取得は空文字。地域代表情報を観測点の位置だと解釈しない。
 - 長周期地震動情報では任意項目 `longPeriodIntensity` を付加する。`maximumClass` は1～4、`areas[]` は `prefecture`, `area`, `class`。対象外電文または情報なしではnull。
 - 震度は `0`～`4`, `5-`, `5+`, `6-`, `6+`, `7`, `5-?` の文字列。`5-?`は震度5弱以上と考えられるが詳細な震度が未入電の状態で、実測の `5-` と区別します。CDI字幕では「震度5弱以上 未入電」と表示します。不明はnull。深さはkm、マグニチュードは数値、不明はnull。震源位置の座標系は受信データの緯度・経度。
 - 観測点名末尾の全角 `＊` はCDI字幕の表示時だけ除去します。APIの `points[].name` とコードは元の正規化データを保持します。同じ市町村の実測震度と未入電は別の情報として扱ってください。

@@ -747,6 +747,10 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             selectionConfigurable.UpdateProviderSelection(updated.Provider);
         }
 
+        if (updated.Audio.Muted || !updated.Audio.EewEnabled || !updated.Audio.EewContinuationEnabled ||
+            updated.Audio.EewContinuationFilePath != _settings.Audio.EewContinuationFilePath)
+            _obsSnapshotStore.DiscardPendingEewContinuations();
+
         _settings = updated;
         _productionReplayCatalog.Prune(
             updated.Display.ProductionReplay,
@@ -797,6 +801,10 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
         IReadOnlyList<ReceptionProvider> activeProviders = current.Routing
             .GetDistinctProviders();
+        if (activeProviders.Contains(ReceptionProvider.Ydits) && current.Mode != updated.Mode)
+        {
+            return true;
+        }
         if (activeProviders.Contains(ReceptionProvider.P2pQuake) &&
             ProviderOptions.FromSettings(current) != ProviderOptions.FromSettings(updated))
         {
@@ -1274,6 +1282,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         }
 
         _receptionTask = null;
+        _obsSnapshotStore.DiscardPendingEewContinuations();
         UpdateDmdataOAuthUi();
     }
 
@@ -2219,18 +2228,27 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     private void OnEventProcessed(object? sender, EventIngestionResult result) =>
         _dispatcher.Invoke(() =>
         {
-            if (result.Status == EventIngestionStatus.Accepted && result.Event is not null)
-            {
-                // Keep releases and continuation baselines even when filters
-                // suppress display/audio or the operator is editing a draft.
-                _services.AudioPolicy?.Observe(result.Event);
-            }
             if (result.ReceptionSummary is not null)
             {
                 FireAndForgetLog(
                     AppLogLevel.Debug,
                     "ProviderMessageReceived",
                     result.ReceptionSummary.ToLogMessage());
+            }
+
+            if (result is { Status: EventIngestionStatus.Accepted, Event: { SourceMode: not SourceMode.Production } previewEvent,
+                Program: null, ReviewProgram: { } preview })
+            {
+                _obsSnapshotStore.AddMonitorTelegram(previewEvent, preview, _settings.Display, "テスト電文（確認のみ）");
+                ReceptionStatusText = "テスト電文を受信しました。ブラウザーモニターで確認できます。";
+                return;
+            }
+
+            if (result.Status == EventIngestionStatus.Accepted && result.Event is not null)
+            {
+                // Keep releases and continuation baselines even when filters
+                // suppress display/audio or the operator is editing a draft.
+                _services.AudioPolicy?.Observe(result.Event);
             }
 
             ReceptionStatusText = result.Status switch
@@ -2446,8 +2464,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     private async Task StopAudioAsync()
     {
         _eewAudioPriority.Reset();
-        await CancelPendingWeatherAudioAsync().ConfigureAwait(false);
         _obsSnapshotStore.PublishAudioStop(_services.Clock.UtcNow);
+        await CancelPendingWeatherAudioAsync().ConfigureAwait(false);
     }
 
     internal void PlayEventAudio(
@@ -2465,12 +2483,18 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             return;
         }
 
+        EewEvent? warning = disasterEvent is EewEvent { IsWarning: true, IsCancelled: false } eew
+            ? eew : null;
         long? eewGeneration = null;
         if (disasterEvent is EewEvent)
         {
             eewGeneration = _eewAudioPriority.BeginEew();
             _ = CancelPendingWeatherAudioAsync();
-            _obsSnapshotStore.PublishAudioStop(_services.Clock.UtcNow);
+            DateTimeOffset now = _services.Clock.UtcNow;
+            if (warning is not null)
+                _obsSnapshotStore.StopAudioUnlessSameEewWarning(warning, now);
+            else
+                _obsSnapshotStore.PublishAudioStop(now);
         }
 
         AudioDecision decision = _services.AudioPolicy.Evaluate(disasterEvent, settings);
@@ -2486,7 +2510,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         var pending = new PendingAudioPlayback(decision, traceId);
         if (eewGeneration is { } audibleEewGeneration)
         {
-            _ = PlayEventAudioAsync(pending, audibleEewGeneration);
+            _ = PlayEventAudioAsync(pending, audibleEewGeneration, warning);
             return;
         }
 
@@ -2626,7 +2650,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
     private async Task PlayEventAudioAsync(
         PendingAudioPlayback pending,
-        long? eewGeneration = null)
+        long? eewGeneration = null,
+        EewEvent? warning = null)
     {
         AudioDecision decision = pending.Decision;
         bool isEew = eewGeneration.HasValue;
@@ -2646,13 +2671,14 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             bool queued = await PublishObsAudioAsync(
                 decision.Cue!.Value,
                 decision.FilePath,
-                pending.TraceId).ConfigureAwait(false);
+                pending.TraceId,
+                warning).ConfigureAwait(false);
             if (queued)
             {
                 await WriteLogAsync(
                     AppLogLevel.Information,
                     "AudioQueued",
-                    $"OBSブラウザーソースへ設定音声を送信しました。実再生結果は後続ログに記録します。区分={decision.Cue.Value}")
+                    $"設定音声をOBSの再生処理に登録しました。実再生結果は後続ログに記録します。区分={decision.Cue.Value}")
                     .ConfigureAwait(false);
             }
         }
@@ -2689,7 +2715,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     private async Task<bool> PublishObsAudioAsync(
         AudioCueId cue,
         string filePath,
-        string traceId = "")
+        string traceId = "",
+        EewEvent? warning = null)
     {
         if (_obsServer?.IsRunning != true)
         {
@@ -2714,14 +2741,18 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
         try
         {
-            _obsSnapshotStore.PublishAudio(
-                cue.ToString(),
-                filePath,
-                now: _services.Clock.UtcNow);
+            DateTimeOffset now = _services.Clock.UtcNow;
+            bool deferred = false;
+            if (warning is not null && cue is (AudioCueId.EewInitial or AudioCueId.EewContinuation))
+                deferred = _obsSnapshotStore.PublishEewWarningAudio(cue, warning, filePath, now);
+            else
+                _obsSnapshotStore.PublishAudio(cue.ToString(), filePath, now);
             await WriteLogAsync(
                 AppLogLevel.Information,
-                "ObsAudioQueued",
-                $"OBSブラウザーソースへ音声再生を通知しました。区分={cue}")
+                deferred ? "ObsEewContinuationDeferred" : "ObsAudioQueued",
+                deferred
+                    ? "緊急地震速報の続報音声を、再生終了待ちに追加しました。"
+                    : $"OBSブラウザーソースへ音声再生を通知しました。区分={cue}")
                 .ConfigureAwait(false);
             return true;
         }
@@ -3250,6 +3281,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         ReceptionProvider.P2pQuake => "P2P",
         ReceptionProvider.Dmdata => "DMDATA.JP",
         ReceptionProvider.Axis => "AXIS",
+        ReceptionProvider.Ydits => "YDITS",
+        ReceptionProvider.YditsTest => "YDITSテスト",
         _ => provider.ToString(),
     };
 

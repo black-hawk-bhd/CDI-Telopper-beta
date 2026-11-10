@@ -390,12 +390,14 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 ReceptionProvider.Axis => BuildFeatures.AxisProviderEnabled,
                 ReceptionProvider.Wolfx => true,
                 ReceptionProvider.JmaXml => BuildFeatures.DmdataProviderEnabled,
+                ReceptionProvider.Ydits => true,
+                ReceptionProvider.YditsTest => true,
                 _ => false,
             })
             .ToArray();
 
     public IReadOnlyList<ReceptionProviderOption> EewAndQuakeProviderOptions { get; } =
-        CreateReceptionProviderOptions(includeP2p: true, includeWolfx: true);
+        CreateReceptionProviderOptions(includeP2p: true, includeWolfx: true, includeYdits: true);
 
     public IReadOnlyList<ReceptionProviderOption> EarthquakeProviderOptions { get; } =
         CreateReceptionProviderOptions(includeP2p: true, includeWolfx: true, includeJma: true);
@@ -519,6 +521,10 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public bool IsWolfxProvider => CurrentRouting.Uses(ReceptionProvider.Wolfx);
 
     public bool IsWolfxQuakeProvider => QuakeProvider == ReceptionProvider.Wolfx;
+
+    public bool IsYditsEewProvider => EewProvider == ReceptionProvider.Ydits;
+
+    public bool IsYditsTestProvider => EewProvider == ReceptionProvider.YditsTest;
 
     public bool IsCustomProvider => IsP2pProvider && ProviderMode == ProviderMode.Custom;
 
@@ -1653,6 +1659,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
         string propertyName)
     {
         ReceptionProvider normalized = NormalizeReceptionProvider(value);
+        if (normalized is (ReceptionProvider.Ydits or ReceptionProvider.YditsTest) && propertyName != nameof(EewProvider))
+            normalized = ReceptionProvider.Disabled;
         if (!SetProperty(ref field, normalized, propertyName))
         {
             return;
@@ -1684,13 +1692,16 @@ public sealed class SettingsEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(IsAxisProvider));
         OnPropertyChanged(nameof(IsWolfxProvider));
         OnPropertyChanged(nameof(IsWolfxQuakeProvider));
+        OnPropertyChanged(nameof(IsYditsEewProvider));
+        OnPropertyChanged(nameof(IsYditsTestProvider));
         OnPropertyChanged(nameof(IsCustomProvider));
     }
 
     private static List<ReceptionProviderOption> CreateReceptionProviderOptions(
         bool includeP2p,
         bool includeWolfx,
-        bool includeJma = false)
+        bool includeJma = false,
+        bool includeYdits = false)
     {
         var options = new List<ReceptionProviderOption>(4)
         {
@@ -1717,6 +1728,11 @@ public sealed class SettingsEditorViewModel : ObservableObject
         }
 
         if (includeJma && BuildFeatures.DmdataProviderEnabled) options.Add(new ReceptionProviderOption(ReceptionProvider.JmaXml, "気象庁XML（60秒巡回・遅延あり）"));
+        if (includeYdits)
+        {
+            options.Add(new ReceptionProviderOption(ReceptionProvider.Ydits, "YDITS（一般向け警報・ベータ）"));
+            options.Add(new ReceptionProviderOption(ReceptionProvider.YditsTest, "YDITS（テストモード）"));
+        }
         return options;
     }
 
@@ -1729,6 +1745,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
             ReceptionProvider.Axis when BuildFeatures.AxisProviderEnabled =>
                 ReceptionProvider.Axis,
             ReceptionProvider.Wolfx => ReceptionProvider.Wolfx,
+            ReceptionProvider.Ydits => ReceptionProvider.Ydits,
+            ReceptionProvider.YditsTest => ReceptionProvider.YditsTest,
             ReceptionProvider.ObsEarthquakeBridge => ReceptionProvider.Disabled,
             ReceptionProvider.JmaXml when BuildFeatures.DmdataProviderEnabled => ReceptionProvider.JmaXml,
             _ => ReceptionProvider.P2pQuake,

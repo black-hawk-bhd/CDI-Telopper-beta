@@ -88,6 +88,11 @@ public sealed class EventIngestionPipeline
         }
 
         DisasterEvent receivedEvent = normalized.Event;
+        if (normalized.PreviewOnly && receivedEvent.SourceMode == SourceMode.Production)
+        {
+            return CreateResult(raw, EventIngestionStatus.Ignored, null, null, null, normalized.Issues,
+                "確認専用電文に本番区分が設定されているため除外");
+        }
         if (IsLegacyAxisWeatherTelegram(receivedEvent))
         {
             return CreateResult(
@@ -115,6 +120,15 @@ public sealed class EventIngestionPipeline
                 null,
                 normalized.Issues,
                 version.RequiresReview ? "要確認：EEW電文の更新順序を確定できません" : null);
+        }
+
+        if (normalized.PreviewOnly)
+        {
+            return CreateResult(raw, EventIngestionStatus.Accepted, receivedEvent, null, null,
+                normalized.Issues, "テスト電文（確認のみ）") with
+            {
+                ReviewProgram = _pageComposer.Compose(receivedEvent, _settings),
+            };
         }
 
         DisasterEvent disasterEvent = receivedEvent is TsunamiEvent tsunami

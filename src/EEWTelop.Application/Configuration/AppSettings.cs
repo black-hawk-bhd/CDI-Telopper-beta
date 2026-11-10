@@ -203,6 +203,9 @@ public sealed record ProviderRoutingSettings(
             ReceptionProvider.JmaXml => new ProviderRoutingSettings(
                 ReceptionProvider.Disabled, ReceptionProvider.JmaXml, ReceptionProvider.JmaXml,
                 ReceptionProvider.JmaXml, ReceptionProvider.JmaXml, ReceptionProvider.JmaXml),
+            ReceptionProvider.Ydits or ReceptionProvider.YditsTest => new ProviderRoutingSettings(
+                provider, ReceptionProvider.Disabled, ReceptionProvider.Disabled,
+                ReceptionProvider.Disabled, ReceptionProvider.Disabled, ReceptionProvider.Disabled),
             ReceptionProvider.Dmdata => new ProviderRoutingSettings(
                 ReceptionProvider.Dmdata,
                 ReceptionProvider.Dmdata,
@@ -245,6 +248,10 @@ public sealed record ProviderRoutingSettings(
                 ? ReceptionProvider.Dmdata
                 : Uses(ReceptionProvider.Wolfx)
                     ? ReceptionProvider.Wolfx
+                    : Uses(ReceptionProvider.Ydits)
+                    ? ReceptionProvider.Ydits
+                    : Uses(ReceptionProvider.YditsTest)
+                    ? ReceptionProvider.YditsTest
                     : Uses(ReceptionProvider.P2pQuake)
                         ? ReceptionProvider.P2pQuake
                         : ReceptionProvider.Disabled;
@@ -666,6 +673,8 @@ public enum ReceptionProvider
     JmaXml = 5,
     // Retained only to read beta.46 settings; migrated to Disabled. Never connect.
     ObsEarthquakeBridge = 6,
+    Ydits = 7,
+    YditsTest = 8,
 }
 
 public enum DmdataAuthenticationMode

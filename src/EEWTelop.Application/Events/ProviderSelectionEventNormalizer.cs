@@ -110,6 +110,18 @@ public sealed class ProviderSelectionEventNormalizer :
             return true;
         }
 
+        if (string.Equals(provider, "ydits", StringComparison.OrdinalIgnoreCase))
+        {
+            receptionProvider = ReceptionProvider.Ydits;
+            return true;
+        }
+
+        if (string.Equals(provider, "ydits-test", StringComparison.OrdinalIgnoreCase))
+        {
+            receptionProvider = ReceptionProvider.YditsTest;
+            return true;
+        }
+
         receptionProvider = default;
         return false;
     }

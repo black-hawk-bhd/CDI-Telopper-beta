@@ -4,6 +4,7 @@ using EEWTelop.Application.Abstractions;
 using EEWTelop.Application.Events;
 using EEWTelop.Domain.Events;
 using EEWTelop.Infrastructure.Dmdata.Normalization;
+using EEWTelop.Infrastructure.P2P.Normalization;
 using EEWTelop.Wpf.Obs;
 using EEWTelop.Wpf.Testing;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -66,8 +67,44 @@ public sealed class SharedExternalApiContractTests
         using JsonDocument json = JsonDocument.Parse(JsonSerializer.Serialize(state.ReadQuake()));
         JsonElement published = json.RootElement.GetProperty("earthquake").GetProperty("points")[0];
         Assert.AreEqual("輪島市観測点＊", published.GetProperty("name").GetString());
+        Assert.AreEqual(point.Address, published.GetProperty("address").GetString());
         Assert.AreEqual("5-?", published.GetProperty("intensity").GetString());
         Assert.AreEqual(point.StationCode, published.GetProperty("stationCode").GetString());
+    }
+
+    [TestMethod]
+    public void P2pStationAddressesSurviveExternalApiProjection()
+    {
+        const string payload = """
+            {
+                "id": "fixture-kumamoto", "code": 551, "time": "2026/11/10 22:25:49.000",
+                "issue": {"source": "気象庁", "time": "2026/11/10 22:25:47", "type": "DetailScale", "correct": "None"},
+                "earthquake": {"time": "2026/11/10 22:23:00", "maxScale": 10, "domesticTsunami": "None"},
+                "points": [
+                    {"pref": "熊本県", "addr": "球磨村渡", "isArea": false, "scale": 10},
+                    {"pref": "熊本県", "addr": "水俣市牧ノ内", "isArea": false, "scale": 10},
+                    {"pref": "熊本県", "addr": "水俣市陣内", "isArea": false, "scale": 10},
+                    {"pref": "熊本県", "addr": "芦北町芦北", "isArea": false, "scale": 10}
+                ],
+                "comments": {"freeFormComment": ""}
+            }
+            """;
+        var normalizer = new P2pEventNormalizer(new EventSignatureBuilder());
+        NormalizeResult result = normalizer.Normalize(new RawProviderMessage("p2pquake", payload,
+            SourceMode.Production, DateTimeOffset.UtcNow));
+        Assert.IsTrue(result.IsSuccess);
+        var quake = Assert.IsInstanceOfType<QuakeEvent>(result.Event);
+        var state = new ExternalEarthquakeState();
+        state.Observe(new EventIngestionResult(EventIngestionStatus.Accepted, quake, null, null, []));
+        using JsonDocument json = JsonDocument.Parse(JsonSerializer.Serialize(state.ReadQuake()));
+        JsonElement points = json.RootElement.GetProperty("earthquake").GetProperty("points");
+        Assert.AreEqual(4, points.GetArrayLength());
+        Assert.AreEqual("熊本県水俣市", points[1].GetProperty("name").GetString());
+        Assert.AreEqual("熊本県水俣市", points[2].GetProperty("name").GetString());
+        Assert.AreEqual("球磨村渡", points[0].GetProperty("address").GetString());
+        Assert.AreEqual("水俣市牧ノ内", points[1].GetProperty("address").GetString());
+        Assert.AreEqual("水俣市陣内", points[2].GetProperty("address").GetString());
+        Assert.AreEqual("芦北町芦北", points[3].GetProperty("address").GetString());
     }
 
     [TestMethod]

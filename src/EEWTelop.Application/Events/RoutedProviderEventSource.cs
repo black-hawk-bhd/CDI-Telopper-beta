@@ -66,7 +66,7 @@ public sealed class RoutedProviderEventSource : IEventSource,
         {
             if (_settings.Mode != ProviderMode.Production) return (false, null);
             var provider = (_fallback?.GetRouting() ?? _settings.Routing).GetProvider(kind);
-            if (provider == ReceptionProvider.Disabled) return (false, null);
+            if (provider is ReceptionProvider.Disabled or ReceptionProvider.YditsTest) return (false, null);
             return (true, _sources.TryGetValue(provider, out var source) ? source.Connection.State : null);
         }
     }
@@ -215,7 +215,9 @@ public sealed class RoutedProviderEventSource : IEventSource,
         IReadOnlyDictionary<ReceptionProvider, IEventSource> sources,
         bool withFallback = false)
     {
-        ReceptionProvider[] selected = settings.Routing.GetDistinctProviders().ToArray();
+        ReceptionProvider[] selected = settings.Routing.GetDistinctProviders()
+            .Where(provider => provider != ReceptionProvider.Ydits || settings.Mode == ProviderMode.Production)
+            .ToArray();
         var routing = settings.Routing;
         if (withFallback && settings.JmaXmlAutoFallback && settings.Mode == ProviderMode.Production &&
             new[] { routing.Quake, routing.Tsunami, routing.Weather, routing.Volcano, routing.NankaiTrough }
@@ -350,6 +352,8 @@ public sealed class RoutedProviderEventSource : IEventSource,
         ReceptionProvider.Axis => "AXIS",
         ReceptionProvider.Wolfx => "Wolfx",
         ReceptionProvider.JmaXml => "気象庁XML",
+        ReceptionProvider.Ydits => "YDITS",
+        ReceptionProvider.YditsTest => "YDITSテスト",
         _ => provider.ToString(),
     };
 }

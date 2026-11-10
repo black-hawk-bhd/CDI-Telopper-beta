@@ -34,6 +34,7 @@ using EEWTelop.Infrastructure.P2P.Transport;
 using EEWTelop.Infrastructure.Wolfx.Configuration;
 using EEWTelop.Infrastructure.Wolfx.Normalization;
 using EEWTelop.Infrastructure.Wolfx.Transport;
+using EEWTelop.Infrastructure.Ydits;
 using EEWTelop.Infrastructure.Settings;
 using EEWTelop.Infrastructure.Operations;
 using EEWTelop.Infrastructure.Time;
@@ -73,10 +74,13 @@ public static class AppComposition
         ProviderOptions provider = ProviderOptions.FromSettings(settings.Provider);
         var signatureBuilder = new EventSignatureBuilder();
         var p2pNormalizer = new P2pEventNormalizer(signatureBuilder);
+        var yditsNormalizer = new YditsEventNormalizer(signatureBuilder);
         var liveNormalizers = new List<KeyValuePair<string, IEventNormalizer>>
         {
             new("p2pquake", p2pNormalizer),
             new(WolfxProviderOptions.ProviderName, new WolfxEventNormalizer(signatureBuilder)),
+            new(YditsEventNormalizer.ProviderName, yditsNormalizer),
+            new(YditsEventNormalizer.TestProviderName, yditsNormalizer),
         };
 #if QTELOPPER_DMDATA_PROVIDER
         // AXIS jmx-* and DMDATA.JP both carry JMA XML-derived telegrams.
@@ -146,9 +150,13 @@ public static class AppComposition
                 .AsTask().GetAwaiter().GetResult();
         }
         var p2pEventSource = new P2pEventSource(provider, clock, logWriter);
+        var yditsEventSource = new YditsEventSource(clock);
+        yditsEventSource.ConfigureProvider(settings.Provider);
         var eventSources = new Dictionary<ReceptionProvider, IEventSource>
         {
             [ReceptionProvider.P2pQuake] = p2pEventSource,
+            [ReceptionProvider.Ydits] = yditsEventSource,
+            [ReceptionProvider.YditsTest] = yditsEventSource,
             [ReceptionProvider.Wolfx] = new WolfxEventSource(
                 WolfxProviderOptions.FromSettings(settings.Provider),
                 clock,
@@ -268,6 +276,8 @@ public static class AppComposition
                 ReceptionProvider.Dmdata,
             ReceptionProvider.P2pQuake => ReceptionProvider.P2pQuake,
             ReceptionProvider.Wolfx => ReceptionProvider.Wolfx,
+            ReceptionProvider.Ydits => ReceptionProvider.Ydits,
+            ReceptionProvider.YditsTest => ReceptionProvider.YditsTest,
             ReceptionProvider.ObsEarthquakeBridge => ReceptionProvider.Disabled,
             ReceptionProvider.JmaXml when BuildFeatures.DmdataProviderEnabled => ReceptionProvider.JmaXml,
             _ => ReceptionProvider.P2pQuake,
