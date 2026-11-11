@@ -1,4 +1,4 @@
-# CDI-Telopper 2.0.0-beta.65 unified source build
+# CDI-Telopper 2.0.0-beta.66 unified source build
 
 Formal name: **Comprehensive Disaster Information Telopper**
 
@@ -66,12 +66,12 @@ stream instead of being retained as a complete batch before delivery.
 After verification succeeds, build the current unified beta release:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.65
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.66
 ```
 
 Self-contained folder and single-file packages are written under:
 
-- `artifacts\release\2.0.0-beta.65\win-x64`
+- `artifacts\release\2.0.0-beta.66\win-x64`
 
 Restore and publish both explicitly use `SelfContained=true`. Before packaging,
 the script checks the SDK-generated runtime configuration for both formats and

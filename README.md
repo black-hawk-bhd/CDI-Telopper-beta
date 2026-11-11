@@ -5,16 +5,18 @@
 
 Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津波・気象・火山・南海トラフに関する防災情報を受信し、OBS向け字幕として出力するWindowsアプリです。
 
-現在の公開版は **2.0.0-beta.65** です（2026年11月11日）。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
+現在の公開版は **2.0.0-beta.66** です（2026年11月11日）。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
 本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
 
-- [2.0.0-beta.65をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.65)
-- [beta.65の操作ガイド](README_CDI-Telopper_2.0.0-beta.65.txt) / [詳細マニュアル](README_CDI-Telopper_2.0.0-beta.64.txt)
+- [2.0.0-beta.66をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.66)
+- [beta.66の操作ガイド](README_CDI-Telopper_2.0.0-beta.66.txt) / [詳細マニュアル](README_CDI-Telopper_2.0.0-beta.64.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
 - [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
 - [利用規約・免責事項](TERMS.md) / [プライバシーポリシー](PRIVACY.md)
 
 ## 主な機能
+
+beta.66: 「出力」→「CDI External API v1」に、起動時の自動有効化、接続キーの暗号化保存・再発行、OBS Local Viewと共用する固定ポートの設定を追加しました。固定ポートと保存済みキーを使うと、再起動後も同じ接続URLを使えます。[設定手順](docs/external-api-v1.md#有効化と認証) / [変更内容](RELEASE_NOTES_2.0.0-beta.66.md)。
 
 beta.65: YDITSの一般向け緊急地震速報（警報）とテスト電文の受信に対応しました。EEW警報の続報音声は再生中の同じ警報が終わるまで待機し、取消音声は割り込みます。外部APIの地震観測点に、元の観測点名を保持する `address` を追加しました。[変更内容](RELEASE_NOTES_2.0.0-beta.65.md)。
 

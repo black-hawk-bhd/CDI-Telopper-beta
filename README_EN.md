@@ -24,13 +24,15 @@ beta.51 adds per-domain upstream health, a separately authenticated rehearsal AP
 
 beta.50 improves unreported-intensity normalization and labeling, removes trailing full-width station markers only from display text, and preserves observed and unreported entries at the same place. Simulator decoding and additive external API fields are improved while training/live separation remains enforced.
 
-The current public release is **2.0.0-beta.65** (November 11, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.66** (November 11, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.65](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.65)
-- [Japanese beta.65 guide](README_CDI-Telopper_2.0.0-beta.65.txt) / [Detailed Japanese manual](README_CDI-Telopper_2.0.0-beta.64.txt)
+- [Download 2.0.0-beta.66](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.66)
+- [Japanese beta.66 guide](README_CDI-Telopper_2.0.0-beta.66.txt) / [Detailed Japanese manual](README_CDI-Telopper_2.0.0-beta.64.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
+
+beta.66 adds optional External API startup activation, encrypted connection-key storage and rotation, and a fixed port shared with OBS Local View. A saved key and a fixed port let local clients reuse the same connection URL after a restart. See the [Japanese release notes](RELEASE_NOTES_2.0.0-beta.66.md).
 
 beta.65 adds YDITS public EEW warnings and a separate preview-only test mode. Follow-up audio for the same warning waits for the current playback to finish. Cancellation audio interrupts and clears pending follow-ups. The earthquake API now includes the source observation-point name in `points[].address`. See the [release notes](RELEASE_NOTES_2.0.0-beta.65.md).
 
