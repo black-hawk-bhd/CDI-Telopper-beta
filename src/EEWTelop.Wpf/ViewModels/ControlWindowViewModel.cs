@@ -179,6 +179,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             RequestManualDisconnect,
             () => IsConnectedOrConnecting || _dmdataOAuthReceptionActive);
         SaveSettingsCommand = new RelayCommand(() => _ = SaveSettingsFromCommandAsync(), () => !IsDmdataOAuthBusy && !IsResettingAllSettings);
+        ToggleExternalApiConnectionKeySavingCommand = new RelayCommand(() => ChangeExternalApiConnectionKey(reissue: false));
+        ReissueExternalApiConnectionKeyCommand = new RelayCommand(() => ChangeExternalApiConnectionKey(reissue: true));
         ResetAllSettingsCommand = new RelayCommand(() => _ = ResetAllSettingsAsync(), () => !IsDmdataOAuthBusy && !IsResettingAllSettings);
         ResetAudioSettingsCommand = new RelayCommand(() => Settings.ResetAudioSettings());
         ResetReceptionSettingsCommand = new RelayCommand(() => Settings.ResetReceptionSettings());
@@ -295,7 +297,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         ApplyDisplaySnapshot(services.DisplayCoordinator.Evaluate(resynchronizeFromUtc: true));
         _renderLoopTask = RunRenderLoopAsync(_renderLoopStop.Token);
         _axisTokenRefreshTask = RunAxisTokenRefreshLoopAsync(_axisTokenRefreshStop.Token);
-        _obsConfigurationTask = ConfigureObsServerAsync(settings.Obs);
+        _obsConfigurationTask = ConfigureObsServerAsync(settings.Obs, isApplicationStartup: true);
         FireAndForgetLog(AppLogLevel.Information, "ApplicationReady", "永続化・ファイルログ・診断ZIP・任意音声ファイル再生を初期化しました。接続は手動開始です。");
     }
 
@@ -604,6 +606,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             _obsServer.ExternalApiEnabled = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(ExternalApiUrlText));
+            OnPropertyChanged(nameof(CanReissueExternalApiConnectionKey));
         }
     }
 
@@ -725,7 +728,10 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         bool receptionConfigurationChanged = HasReceptionConfigurationChanged(
             _settings.Provider,
             updated.Provider);
-        bool obsChanged = updated.Obs != _settings.Obs;
+        bool obsChanged = (updated.Obs with
+        {
+            ExternalApiAutoEnableOnStartup = _settings.Obs.ExternalApiAutoEnableOnStartup,
+        }) != _settings.Obs;
         // A routed source can report Faulted when only one provider branch has
         // failed while the other branches and the aggregate reader are still
         // running. The UI state alone therefore cannot determine whether it is
@@ -3110,7 +3116,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         }
     }
 
-    private async Task ConfigureObsServerAsync(ObsSettings settings)
+    private async Task ConfigureObsServerAsync(ObsSettings settings, bool isApplicationStartup = false)
     {
         if (_obsServer is null)
         {
@@ -3137,20 +3143,21 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 return;
             }
 
-            if (correctRunningPort)
+            if (!correctRunningPort)
             {
-                await UpdateObsStatusAsync($"稼働中 127.0.0.1:{_obsServer.Port}")
-                    .ConfigureAwait(false);
-                ConfigureObsBrowserSourceSynchronizer(settings);
-                return;
+                if (_obsServer.IsRunning)
+                {
+                    await _obsServer.StopAsync().ConfigureAwait(false);
+                }
+
+                await _obsServer.StartAsync(settings.Port).ConfigureAwait(false);
             }
 
-            if (_obsServer.IsRunning)
+            if (isApplicationStartup && settings.ExternalApiAutoEnableOnStartup && _obsServer.IsRunning)
             {
-                await _obsServer.StopAsync().ConfigureAwait(false);
+                _obsServer.ExternalApiEnabled = true;
             }
 
-            await _obsServer.StartAsync(settings.Port).ConfigureAwait(false);
             await UpdateObsStatusAsync($"稼働中 127.0.0.1:{_obsServer.Port}")
                 .ConfigureAwait(false);
             ConfigureObsBrowserSourceSynchronizer(settings);
@@ -3179,7 +3186,9 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             OnPropertyChanged(nameof(EewObsUrlText));
             OnPropertyChanged(nameof(TsunamiObsUrlText));
             OnPropertyChanged(nameof(WeatherObsUrlText));
+            OnPropertyChanged(nameof(ExternalApiEnabled));
             OnPropertyChanged(nameof(ExternalApiUrlText));
+            OnPropertyChanged(nameof(CanReissueExternalApiConnectionKey));
             OnPropertyChanged(nameof(RehearsalApiUrlText));
             CopyObsUrlCommand.RaiseCanExecuteChanged();
             SyncObsBrowserSourcesCommand.RaiseCanExecuteChanged();

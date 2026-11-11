@@ -703,7 +703,7 @@
                                 <GroupBox Header="OBS Local View">
                                     <StackPanel>
                                         <CheckBox Content="有効" IsChecked="{Binding Settings.ObsEnabled}" />
-                                        <TextBlock Text="ポート（0は自動）" Foreground="{StaticResource MutedBrush}" />
+                                        <TextBlock Text="ポート（外部APIと共用・0は自動）" Foreground="{StaticResource MutedBrush}" />
                                         <TextBox Text="{Binding Settings.ObsPort}" />
                                         <TextBlock Text="OBS更新間隔（50〜1000ミリ秒）"
                                                    Foreground="{StaticResource MutedBrush}" />
@@ -723,11 +723,30 @@
                                     <StackPanel>
                                         <CheckBox Content="外部APIを有効化（今回の起動中のみ・即時反映）"
                                                   IsChecked="{Binding ExternalApiEnabled}" />
+                                        <CheckBox Content="起動時に外部APIを有効化"
+                                                  IsChecked="{Binding Settings.ExternalApiAutoEnableOnStartup}"
+                                                  ToolTip="初期値はOFFです。保存して反映した次回起動時に、OBS Local Viewが起動すると外部APIも有効になります。" />
+                                        <TextBlock Text="接続ポート（OBS Local Viewと共用・0は自動）"
+                                                   Foreground="{StaticResource MutedBrush}" />
+                                        <TextBox Text="{Binding Settings.ObsPort}"
+                                                 ToolTip="同じ接続URLを使い続ける場合は、未使用のポート番号を入力して保存して反映してください。" />
+                                        <TextBlock Text="{Binding ExternalApiConnectionKeyStatus}" TextWrapping="Wrap"
+                                                   Foreground="{StaticResource MutedBrush}" />
+                                        <UniformGrid Columns="2">
+                                            <Button Content="{Binding ExternalApiConnectionKeySavingAction}"
+                                                    IsEnabled="{Binding CanSaveExternalApiConnectionKey}"
+                                                    Command="{Binding ToggleExternalApiConnectionKeySavingCommand}"
+                                                    ToolTip="キーを暗号化して保存します。保存を解除すると保存済みキーが失効します。即時反映。" />
+                                            <Button Content="接続キーを再発行"
+                                                    IsEnabled="{Binding CanReissueExternalApiConnectionKey}"
+                                                    Command="{Binding ReissueExternalApiConnectionKeyCommand}"
+                                                    ToolTip="現在のキーを失効させ、新しいキーを発行します。連携先に新しい接続URLを登録してください。即時反映。" />
+                                        </UniformGrid>
                                         <Button Content="外部API 接続URLをコピー"
                                                 IsEnabled="{Binding ExternalApiEnabled}"
                                                 Command="{Binding CopyObsOutputUrlCommand}"
                                                 CommandParameter="{Binding ExternalApiUrlText}" />
-                                        <TextBlock Text="同一PC・読み取り専用。ON時に気象庁から津波の現況を取得（字幕・音声なし）。以後の更新には津波の本番受信を有効にしてください。初期取得失敗時は60秒後に再試行。OBS Local Viewが必要です。OFFで接続キーも失効します。"
+                                        <TextBlock Text="同一PC・読み取り専用。ON時に気象庁から津波の現況を取得（字幕・音声なし）。以後の更新には津波の本番受信を有効にしてください。初期取得失敗時は60秒後に再試行。OBS Local Viewが必要です。保存したキーは再度ONにすると使えます。"
                                                    TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
                                     </StackPanel>
                                 </GroupBox>

@@ -109,6 +109,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private int _obsPort;
     private bool _obsRuntimeRecovery;
     private int _obsSnapshotIntervalMilliseconds;
+    private bool _externalApiAutoEnableOnStartup;
     private bool _obsBrowserSourceSyncEnabled;
     private string _obsWebSocketUrl;
     private string _obsWebSocketPassword;
@@ -290,6 +291,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _obsPort = settings.Obs.Port;
         _obsRuntimeRecovery = settings.Obs.RuntimeRecovery;
         _obsSnapshotIntervalMilliseconds = settings.Obs.SnapshotIntervalMilliseconds;
+        _externalApiAutoEnableOnStartup = settings.Obs.ExternalApiAutoEnableOnStartup;
         _obsBrowserSourceSyncEnabled = settings.Obs.BrowserSourceSyncEnabled;
         _obsWebSocketUrl = settings.Obs.WebSocketUrl;
         _obsWebSocketPassword = ObsCredentialProtector.Unprotect(
@@ -782,6 +784,11 @@ public sealed class SettingsEditorViewModel : ObservableObject
         get => _obsSnapshotIntervalMilliseconds;
         set => SetProperty(ref _obsSnapshotIntervalMilliseconds, value);
     }
+    public bool ExternalApiAutoEnableOnStartup
+    {
+        get => _externalApiAutoEnableOnStartup;
+        set => SetProperty(ref _externalApiAutoEnableOnStartup, value);
+    }
     public bool ObsBrowserSourceSyncEnabled { get => _obsBrowserSourceSyncEnabled; set => SetProperty(ref _obsBrowserSourceSyncEnabled, value); }
     public string ObsWebSocketUrl { get => _obsWebSocketUrl; set => SetProperty(ref _obsWebSocketUrl, value); }
     public string ObsWebSocketPassword { get => _obsWebSocketPassword; set => SetProperty(ref _obsWebSocketPassword, value); }
@@ -1014,6 +1021,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
                     ObsSnapshotIntervalMilliseconds,
                     ObsSettings.MinimumSnapshotIntervalMilliseconds,
                     ObsSettings.MaximumSnapshotIntervalMilliseconds),
+                ExternalApiAutoEnableOnStartup = ExternalApiAutoEnableOnStartup,
                 BrowserSourceSyncEnabled = ObsBrowserSourceSyncEnabled,
                 WebSocketUrl = ObsWebSocketUrl.Trim(),
                 WebSocketProtectedPassword = ProtectObsPassword(

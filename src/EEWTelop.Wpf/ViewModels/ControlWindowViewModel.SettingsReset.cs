@@ -41,6 +41,12 @@ public sealed partial class ControlWindowViewModel
             });
             // Use the complete default document, including fields absent from the editor.
             await ApplySettingsAsync(defaults).ConfigureAwait(false);
+            _obsServer?.SetExternalApiConnectionKeySaved(false);
+            await _dispatcher.InvokeAsync(() =>
+            {
+                _externalApiConnectionKeyError = null;
+                RefreshExternalApiConnectionKeyControls();
+            }).ConfigureAwait(false);
             await WriteLogAsync(AppLogLevel.Information, "AllSettingsReset",
                 "すべての設定を初期状態に戻し、保存して反映しました。").ConfigureAwait(false);
             _dispatcher.Invoke(() => ReceptionStatusText = "すべての設定を初期状態に戻し、保存して反映しました");

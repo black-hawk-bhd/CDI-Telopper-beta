@@ -20,8 +20,12 @@ public sealed partial class ObsLocalViewServer
     private readonly ExternalApiState _externalState = new();
     private readonly ExternalEarthquakeState _externalEarthquakes = new();
     private readonly string _externalSession = Guid.NewGuid().ToString("N");
-    private string? _externalToken;
-    private string? _rehearsalToken;
+    private readonly object _externalCredentialGate = new();
+    private readonly ExternalApiConnectionKeyStore? _externalApiKeyStore;
+    private string? _savedExternalToken;
+    private bool _externalApiKeyLoadFailed;
+    private ApiCredential? _externalCredential;
+    private ApiCredential? _rehearsalCredential;
     private readonly ExternalRehearsalState _rehearsal = new();
     private readonly ExternalApiHealth _externalHealth = new();
     private int _externalSockets;
@@ -31,21 +35,20 @@ public sealed partial class ObsLocalViewServer
 
     public bool RehearsalApiEnabled
     {
-        get => Volatile.Read(ref _rehearsalToken) is not null;
+        get => ReadApiCredential(rehearsal: true) is not null;
         set
         {
             if (!value)
             {
-                Interlocked.Exchange(ref _rehearsalToken, null);
+                Interlocked.Exchange(ref _rehearsalCredential, null);
                 _rehearsal.End();
             }
-            else Interlocked.CompareExchange(ref _rehearsalToken,
-                Convert.ToHexString(RandomNumberGenerator.GetBytes(32)), null);
+            else Interlocked.CompareExchange(ref _rehearsalCredential,
+                new ApiCredential(GenerateApiToken()), null);
         }
     }
 
-    public string RehearsalApiUrl => IsRunning && RehearsalApiEnabled
-        ? $"http://127.0.0.1:{Port}/api/v1/rehearsal/status?token={Volatile.Read(ref _rehearsalToken)}" : string.Empty;
+    public string RehearsalApiUrl => BuildExternalApiUrl(rehearsal: true);
     public string? BeginApiRehearsal(string source) => RehearsalApiEnabled ? _rehearsal.Begin(source) : null;
     public void EndApiRehearsal(string? session = null) => _rehearsal.End(session);
     public void ReplaceApiRehearsalSnapshot(string session, IReadOnlyList<DisasterEvent> events)
@@ -63,19 +66,85 @@ public sealed partial class ObsLocalViewServer
 
     public bool ExternalApiEnabled
     {
-        get => Volatile.Read(ref _externalToken) is not null;
+        get => ReadApiCredential(rehearsal: false) is not null;
         set
         {
-            if (!value)
+            lock (_externalCredentialGate)
             {
-                Interlocked.Exchange(ref _externalToken, null);
-                CancelExternalInitialization();
+                if (!value)
+                {
+                    Volatile.Write(ref _externalCredential, null);
+                    CancelExternalInitialization();
+                }
+                else if (_externalCredential is null)
+                {
+                    Volatile.Write(ref _externalCredential, new ApiCredential(_savedExternalToken ?? GenerateApiToken()));
+                    StartExternalInitialization();
+                }
             }
-            else if (Interlocked.CompareExchange(ref _externalToken,
-                Convert.ToHexString(RandomNumberGenerator.GetBytes(32)), null) is null)
-                StartExternalInitialization();
         }
     }
+
+    public bool CanSaveExternalApiConnectionKey => _externalApiKeyStore is not null;
+    public bool IsExternalApiConnectionKeySaved => Volatile.Read(ref _savedExternalToken) is not null;
+    public bool ExternalApiConnectionKeyLoadFailed => Volatile.Read(ref _externalApiKeyLoadFailed);
+
+    public void SetExternalApiConnectionKeySaved(bool save)
+    {
+        if (_externalApiKeyStore is null) return;
+        lock (_externalCredentialGate)
+        {
+            if (save)
+            {
+                if (_savedExternalToken is not null) return;
+                string token = _externalCredential?.Token ?? GenerateApiToken();
+                _externalApiKeyStore.Save(token);
+                Volatile.Write(ref _savedExternalToken, token);
+            }
+            else
+            {
+                if (_savedExternalToken is null && !_externalApiKeyLoadFailed) return;
+                _externalApiKeyStore.Clear();
+                Volatile.Write(ref _savedExternalToken, null);
+                if (_externalCredential is not null)
+                {
+                    Volatile.Write(ref _externalCredential, new ApiCredential(GenerateApiToken()));
+                }
+            }
+
+            Volatile.Write(ref _externalApiKeyLoadFailed, false);
+        }
+    }
+
+    public void ReissueExternalApiConnectionKey()
+    {
+        lock (_externalCredentialGate)
+        {
+            if (_savedExternalToken is null && _externalCredential is null) return;
+            string token = GenerateApiToken();
+            if (_savedExternalToken is not null)
+            {
+                _externalApiKeyStore!.Save(token);
+                Volatile.Write(ref _savedExternalToken, token);
+            }
+
+            if (_externalCredential is not null)
+            {
+                Volatile.Write(ref _externalCredential, new ApiCredential(token));
+            }
+        }
+    }
+
+    private static string GenerateApiToken() => Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+
+    private sealed class ApiCredential(string token)
+    {
+        public string Token { get; } = token;
+    }
+
+    private ApiCredential? ReadApiCredential(bool rehearsal) => rehearsal
+        ? Volatile.Read(ref _rehearsalCredential)
+        : Volatile.Read(ref _externalCredential);
 
     private void StartExternalInitialization()
     {
@@ -137,9 +206,16 @@ public sealed partial class ObsLocalViewServer
         }
     }
 
-    public string ExternalApiUrl => IsRunning && ExternalApiEnabled
-        ? $"http://127.0.0.1:{Port}/api/v1/status?token={Volatile.Read(ref _externalToken)}"
-        : string.Empty;
+    public string ExternalApiUrl => BuildExternalApiUrl(rehearsal: false);
+
+    private string BuildExternalApiUrl(bool rehearsal)
+    {
+        ApiCredential? credential = ReadApiCredential(rehearsal);
+        string path = rehearsal ? "rehearsal/status" : "status";
+        return IsRunning && credential is not null
+            ? $"http://127.0.0.1:{Port}/api/v1/{path}?token={credential.Token}"
+            : string.Empty;
+    }
 
     private void OnExternalEventProcessed(object? sender, EventIngestionResult result)
     {
@@ -219,8 +295,8 @@ public sealed partial class ObsLocalViewServer
         CancellationToken cancellationToken)
     {
         bool rehearsal = uri.AbsolutePath.StartsWith("/api/v1/rehearsal/", StringComparison.Ordinal);
-        string? token = rehearsal ? Volatile.Read(ref _rehearsalToken) : Volatile.Read(ref _externalToken);
-        if (token is null)
+        ApiCredential? credential = ReadApiCredential(rehearsal);
+        if (credential is null)
         {
             await WriteResponseAsync(stream, 404, "application/json", "{\"error\":\"disabled\"}", cancellationToken).ConfigureAwait(false);
             return;
@@ -234,7 +310,7 @@ public sealed partial class ObsLocalViewServer
             (Uri.TryCreate(origin, UriKind.Absolute, out Uri? originUri) &&
              originUri.Scheme == "http" && originUri.IsLoopback);
         if (!originAllowed || !CryptographicOperations.FixedTimeEquals(
-            Encoding.UTF8.GetBytes(supplied), Encoding.UTF8.GetBytes(token)))
+            Encoding.UTF8.GetBytes(supplied), Encoding.UTF8.GetBytes(credential.Token)))
         {
             await WriteResponseAsync(stream, 403, "application/json", "{\"error\":\"forbidden\"}", cancellationToken).ConfigureAwait(false);
             return;
@@ -247,7 +323,7 @@ public sealed partial class ObsLocalViewServer
         string path = uri.AbsolutePath[(rehearsal ? "/api/v1/rehearsal/".Length : "/api/v1/".Length)..];
         if (path == "events")
         {
-            await StreamExternalEventsAsync(stream, request, token, rehearsal, cancellationToken).ConfigureAwait(false);
+            await StreamExternalEventsAsync(stream, request, credential, rehearsal, cancellationToken).ConfigureAwait(false);
             return;
         }
         JsonObject channel = ReadChannel(rehearsal);
@@ -265,7 +341,7 @@ public sealed partial class ObsLocalViewServer
     }
 
     private async Task StreamExternalEventsAsync(NetworkStream stream, HttpRequest request,
-        string token, bool rehearsal, CancellationToken cancellationToken)
+        ApiCredential credential, bool rehearsal, CancellationToken cancellationToken)
     {
         bool valid = request.Headers.TryGetValue("Upgrade", out string? upgrade) &&
             upgrade.Equals("websocket", StringComparison.OrdinalIgnoreCase) &&
@@ -302,7 +378,7 @@ public sealed partial class ObsLocalViewServer
                 int ticks = 0;
                 long sequence = 0;
                 while (!receiving.IsCompleted && !lifetime.IsCancellationRequested &&
-                    string.Equals(token, rehearsal ? Volatile.Read(ref _rehearsalToken) : Volatile.Read(ref _externalToken), StringComparison.Ordinal))
+                    ReferenceEquals(credential, ReadApiCredential(rehearsal)))
                 {
                     JsonObject snapshot = ReadChannel(rehearsal);
                     JsonObject comparable = snapshot.DeepClone().AsObject();

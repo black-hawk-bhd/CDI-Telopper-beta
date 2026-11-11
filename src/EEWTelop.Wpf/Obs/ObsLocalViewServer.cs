@@ -48,7 +48,8 @@ public sealed partial class ObsLocalViewServer : IObsLocalViewServer
         IAppLogWriter logWriter,
         int snapshotIntervalMilliseconds = ObsSettings.DefaultSnapshotIntervalMilliseconds,
         EEWTelop.Application.Events.EventReceptionService? receptionService = null,
-        Func<CancellationToken, Task<EEWTelop.Domain.Events.TsunamiEvent>>? initialTsunamiFetcher = null)
+        Func<CancellationToken, Task<EEWTelop.Domain.Events.TsunamiEvent>>? initialTsunamiFetcher = null,
+        string? externalApiKeyPath = null)
     {
         ArgumentNullException.ThrowIfNull(snapshotStore);
         ArgumentNullException.ThrowIfNull(clock);
@@ -58,6 +59,18 @@ public sealed partial class ObsLocalViewServer : IObsLocalViewServer
         _logWriter = logWriter;
         _receptionService = receptionService;
         _initialTsunamiFetcher = initialTsunamiFetcher;
+        if (!string.IsNullOrWhiteSpace(externalApiKeyPath))
+        {
+            _externalApiKeyStore = new ExternalApiConnectionKeyStore(externalApiKeyPath);
+            try
+            {
+                _savedExternalToken = _externalApiKeyStore.Load();
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or CryptographicException)
+            {
+                _externalApiKeyLoadFailed = true;
+            }
+        }
         if (receptionService is not null) receptionService.EventProcessed += OnExternalEventProcessed;
         UpdateSnapshotInterval(snapshotIntervalMilliseconds);
     }

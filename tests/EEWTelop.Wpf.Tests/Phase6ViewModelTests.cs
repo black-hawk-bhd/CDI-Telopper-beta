@@ -2686,6 +2686,14 @@ public sealed partial class Phase6ViewModelTests
             ? $"http://127.0.0.1:{Port}/weather/?token=TEST"
             : string.Empty;
 
+        public bool ExternalApiEnabled { get; set; }
+
+        public bool RehearsalApiEnabled { get; set; }
+
+        public string ExternalApiUrl => IsRunning && ExternalApiEnabled
+            ? $"http://127.0.0.1:{Port}/api/v1/status?token=TEST"
+            : string.Empty;
+
         public int StartCount { get; private set; }
 
         public int StopCount { get; private set; }

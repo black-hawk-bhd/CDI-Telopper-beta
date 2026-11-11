@@ -469,6 +469,8 @@ public sealed record ObsSettings(
     public int SnapshotIntervalMilliseconds { get; init; } =
         DefaultSnapshotIntervalMilliseconds;
 
+    public bool ExternalApiAutoEnableOnStartup { get; init; }
+
     public bool BrowserSourceSyncEnabled { get; init; }
 
     public string WebSocketUrl { get; init; } = "ws://127.0.0.1:4455";

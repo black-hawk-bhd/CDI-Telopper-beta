@@ -99,7 +99,9 @@ public partial class ControlWindow : Window, IAsyncDisposable
             services.LogWriter,
             services.InitialSettings.Obs.SnapshotIntervalMilliseconds,
             services.ReceptionService,
-            JmaTsunamiSnapshotClient.FetchAsync);
+            JmaTsunamiSnapshotClient.FetchAsync,
+            string.IsNullOrWhiteSpace(services.DataDirectory)
+                ? null : System.IO.Path.Combine(services.DataDirectory, "external-api-key.dpapi"));
         var obsBrowserSourceSynchronizer = new ObsBrowserSourceSynchronizer(services.LogWriter);
         _viewModel = new ControlWindowViewModel(
             services,

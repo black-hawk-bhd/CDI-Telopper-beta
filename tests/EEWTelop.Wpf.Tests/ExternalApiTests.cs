@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Sockets;
@@ -20,6 +21,99 @@ namespace EEWTelop.Wpf.Tests;
 public sealed class ExternalApiTests
 {
     private static readonly DateTimeOffset Now = new(2026, 9, 20, 0, 0, 0, TimeSpan.Zero);
+
+    [TestMethod]
+    public async Task SavedExternalApiConnectionKeyAndFixedPortSurviveRestartAndKeyCanBeRevoked()
+    {
+        string directory = Directory.CreateTempSubdirectory().FullName;
+        string path = Path.Combine(directory, "api-key.dpapi");
+        try
+        {
+            string originalUrl;
+            int port;
+            await using (var first = CreateServerWithKeyStore(path))
+            {
+                await first.StartAsync(0);
+                port = first.Port;
+                first.ExternalApiEnabled = true;
+                originalUrl = first.ExternalApiUrl;
+                Assert.IsFalse(File.Exists(path));
+                first.SetExternalApiConnectionKeySaved(true);
+                Assert.AreEqual(originalUrl, first.ExternalApiUrl);
+                byte[] key = Convert.FromHexString(new Uri(originalUrl).Query["?token=".Length..]);
+                Assert.AreEqual(-1, File.ReadAllBytes(path).AsSpan().IndexOf(key));
+            }
+
+            await using var restarted = CreateServerWithKeyStore(path);
+            await restarted.StartAsync(port);
+            Assert.IsTrue(restarted.IsExternalApiConnectionKeySaved);
+            Assert.IsFalse(restarted.ExternalApiEnabled);
+            restarted.ExternalApiEnabled = true;
+            Assert.AreEqual(originalUrl, restarted.ExternalApiUrl);
+
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            using var socket = new ClientWebSocket();
+            await socket.ConnectAsync(new UriBuilder(originalUrl)
+                { Scheme = "ws", Path = "/api/v1/events" }.Uri, timeout.Token);
+            byte[] buffer = new byte[32768];
+            await socket.ReceiveAsync(buffer.AsMemory(), timeout.Token);
+
+            using var http = new HttpClient();
+            restarted.ExternalApiEnabled = false;
+            using var disabled = await http.GetAsync(originalUrl, timeout.Token);
+            Assert.AreEqual(HttpStatusCode.NotFound, disabled.StatusCode);
+            restarted.ExternalApiEnabled = true;
+            Assert.AreEqual(originalUrl, restarted.ExternalApiUrl);
+            await Assert.ThrowsExactlyAsync<WebSocketException>(async () =>
+                await socket.ReceiveAsync(buffer.AsMemory(), timeout.Token));
+
+            restarted.ReissueExternalApiConnectionKey();
+            string reissued = restarted.ExternalApiUrl;
+            Assert.AreNotEqual(originalUrl, reissued);
+            using var revoked = await http.GetAsync(originalUrl, timeout.Token);
+            Assert.AreEqual(HttpStatusCode.Forbidden, revoked.StatusCode);
+            using var current = await http.GetAsync(reissued, timeout.Token);
+            Assert.AreEqual(HttpStatusCode.OK, current.StatusCode);
+            Assert.AreEqual(new Uri(reissued).Query["?token=".Length..], new ExternalApiConnectionKeyStore(path).Load());
+
+            restarted.SetExternalApiConnectionKeySaved(false);
+            Assert.IsFalse(File.Exists(path));
+            using var removed = await http.GetAsync(reissued, timeout.Token);
+            Assert.AreEqual(HttpStatusCode.Forbidden, removed.StatusCode);
+        }
+        finally
+        {
+            File.Delete(path);
+            Directory.Delete(directory);
+        }
+    }
+
+    [TestMethod]
+    public async Task UnreadableSavedExternalApiConnectionKeyCanBeReplaced()
+    {
+        string path = Path.GetTempFileName();
+        try
+        {
+            await using var server = CreateServerWithKeyStore(path);
+            Assert.IsTrue(server.ExternalApiConnectionKeyLoadFailed);
+            Assert.IsFalse(server.IsExternalApiConnectionKeySaved);
+
+            server.SetExternalApiConnectionKeySaved(true);
+
+            Assert.IsFalse(server.ExternalApiConnectionKeyLoadFailed);
+            Assert.IsTrue(server.IsExternalApiConnectionKeySaved);
+            Assert.IsFalse(server.ExternalApiEnabled);
+            Assert.IsNotNull(new ExternalApiConnectionKeyStore(path).Load());
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    private static ObsLocalViewServer CreateServerWithKeyStore(string path) =>
+        new(new ObsSnapshotStore(AppSettings.CreateDefault().Display, Now), new Clock(), new UiLogBuffer(),
+            externalApiKeyPath: path);
 
     [TestMethod]
     public void UnreceivedDoesNotMeanAllClearAndTrainingIsExcluded()

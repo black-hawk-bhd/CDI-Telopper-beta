@@ -42,6 +42,12 @@ public interface IObsLocalViewServer : IAsyncDisposable
 
     string ExternalApiUrl => string.Empty;
 
+    bool CanSaveExternalApiConnectionKey => false;
+    bool IsExternalApiConnectionKeySaved => false;
+    bool ExternalApiConnectionKeyLoadFailed => false;
+    void SetExternalApiConnectionKeySaved(bool save) { }
+    void ReissueExternalApiConnectionKey() { }
+
     bool RehearsalApiEnabled { get => false; set { } }
     string RehearsalApiUrl => string.Empty;
     string? BeginApiRehearsal(string source) => null;

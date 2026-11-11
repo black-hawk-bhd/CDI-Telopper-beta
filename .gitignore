@@ -56,6 +56,8 @@ Microsoft/
 settings.json
 dmdata-oauth.json
 dmdata-oauth.json.*.tmp
+external-api-key.dpapi
+external-api-key.dpapi.*.tmp
 state.json
 logs/
 cache/
