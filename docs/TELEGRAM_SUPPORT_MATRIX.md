@@ -12,6 +12,15 @@
 
 P2Pの入口は `P2pEventNormalizer` です。切断後のREST復旧対象とライブ受信対象は同一ではありません。復旧処理を変更する場合は、`P2pEventSource`、`P2pRestRecoveryClient`、`P2pHistoryMessageSource`を併せて確認します。
 
+## YDITS API
+
+| 取得先 | 内容 | 正規化先 | 表示先 |
+| --- | --- | --- | --- |
+| VXSE43（本番） | 一般向け緊急地震速報（警報） | `EewEvent` | 通常のEEW表示。対象地域の表示と、照合情報のない取消報の反映には非対応 |
+| VXSE43（テスト） | 提供元のテスト電文 | `EewEvent` | ブラウザープレビューの受信済み電文確認。OBSへの自動送出なし |
+
+取得と正規化は `src/EEWTelop.Infrastructure/Ydits` にあります。テスト取得は訓練扱いで、本番の外部APIを更新しません。[YDITS VXSE43の仕様](https://www.ydits.net/api/vxse43/)
+
 ## 気象庁防災情報XML系
 
 DMDATA.JP、NII履歴、ローカルXML、テストライブラリ、AXISの `jmx-*` 復元結果は、共通の `JmaXmlEventNormalizer` を通ります。

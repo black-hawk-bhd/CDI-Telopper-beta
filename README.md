@@ -9,10 +9,10 @@ Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津�
 本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
 
 - [2.0.0-beta.66をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.66)
-- [beta.66の操作ガイド](README_CDI-Telopper_2.0.0-beta.66.txt) / [詳細マニュアル](README_CDI-Telopper_2.0.0-beta.64.txt)
+- [操作マニュアル](docs/USER_GUIDE.md) / [beta.66の変更点と操作](README_CDI-Telopper_2.0.0-beta.66.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
 - [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
-- [利用規約・免責事項](TERMS.md) / [プライバシーポリシー](PRIVACY.md)
+- [MIT License](LICENSE) / [利用規約・免責事項](TERMS.md) / [プライバシーポリシー](PRIVACY.md)
 
 ## 主な機能
 
@@ -75,7 +75,7 @@ beta.48: 内蔵地図機能を完全に廃止しました。地図ボタン・�
 beta.43: 気象字幕は情報種別のみをバッジにし、都道府県・状態を隣、市町村一覧を下に表示します。津波観測情報の案内と警報・注意報の発表状況を別ページにしました。
 
 beta.42: 旧電文VPWW53・VPWW54・VPOA50を気象庁XMLで除外し、AXISでもVPOA50を除外。気象字幕を共通見出し＋地域一覧・状態別ページに変更し、電文確認画面に種別フィルターを追加しました。
-beta.41では気象庁XMLの受信電文が解析前に除外される不具合を修正しました。受信元に「気象庁XML」を選択できます。設定の受信元で手動選択し「保存して反映」を押してください。EEW以外の既存対応情報を、公式の高頻度フィードから60秒以上の間隔で取得します。認証は不要です。接続前の電文は新着として表示しません。掲載遅延・停止があり、長時間の受信停止中の電文をすべて補完する機能ではありません。AXIS・P2P障害の自動判定・自動切替は行いません。[気象庁の利用上の注意](https://xml.kishou.go.jp/xmlpull.html)も確認してください。
+beta.41では気象庁XMLの受信電文が解析前に除外される不具合を修正しました。現行版の手動選択と自動切替の条件は「受信プロバイダー」を参照してください。[気象庁XMLの設定](#気象庁xmlpull型直接取得)
 
 beta.40では気象字幕を上段見出し＋全幅本文へ刷新しました。地名・括弧内を保護し、地域一覧は表示幅で分割します。指定河川洪水予報（VXKO50～89）に対応しました。河川見出し、観測所別の浸水想定地区、レベル4・5の主文を表示し、一文を優先し、長文のみ分割します。警報から注意報への切替と解除・取消を区別します。
 
@@ -205,7 +205,7 @@ beta.57以降はOBSへ次の4つのブラウザーソースを登録します。
 - CDI-Telopper 津波字幕
 - CDI-Telopper 気象情報
 
-beta.57以降は、地震・EEW・津波・気象の音声をそれぞれ該当ソースへ出力します。各ブラウザーソースで「OBSを介して音声を制御する」を有効にしてください。OBS WebSocket自動同期では、4ソースの音声制御を有効にし、旧「CDI-Telopper 地震字幕・全ての音声」を「CDI-Telopper 地震字幕」へ改名してURLを更新します。旧ソースと新ソースを重複登録しないでください。配布版beta.56は従来の地震ソースへの全音声集約です。
+beta.57以降は、地震・EEW・津波・気象の音声をそれぞれ該当ソースへ出力します。各ブラウザーソースで「OBSを介して音声を制御する」を有効にしてください。OBS WebSocket自動同期では、4ソースの音声制御を有効にし、旧「CDI-Telopper 地震字幕・全ての音声」を「CDI-Telopper 地震字幕」へ改名してURLを更新します。旧ソースと新ソースを重複登録しないでください。
 
 試聴も該当種別のソースで再生します。その種別のソースが未接続なら送信せず、ログに記録します。ブラウザープレビューは引き続き無音です。音声停止は全ソースに適用され、EEW受信時は他種別の音声を停止する優先制御を維持します。各ソースのモニターは自動同期で「モニターオフ」に設定します。
 
@@ -252,10 +252,10 @@ powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 配布物を作成する場合は次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.59
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.66
 ```
 
-フォルダ版、単一EXE版、`version.json`、`SHA256SUMS.txt`が`artifacts\release\2.0.0-beta.59\win-x64`へ生成されます。詳しくは[SOURCE_BUILD.md](SOURCE_BUILD.md)を参照してください。
+フォルダー版、単一EXE版、`version.json`、`SHA256SUMS.txt`は `artifacts\release\2.0.0-beta.66\win-x64` に生成されます。[ソースビルドの詳細](SOURCE_BUILD.md)
 
 ## 開発者向け資料
 
@@ -310,8 +310,6 @@ EEWの初報・続報・取消の設定、OBS試聴、音声の同時受信ま�
 
 ## ライセンスと出典
 
-- 本体ライセンス：[LICENSE](LICENSE)
-- データ出典と履歴取得：[docs/data-sources.md](docs/data-sources.md)
-- 音声ライブラリと音源の扱い：[docs/assets-license.md](docs/assets-license.md)
+本体のソースコードはMIT Licenseです。外部API連携機能と取得データには利用規約第4節を、第三者のコンポーネント・データ・音源には各提供元の条件を確認してください。[MIT License本文](LICENSE) / [外部APIの利用条件](TERMS.md#4-外部api連携機能の利用条件) / [データ出典](docs/data-sources.md) / [第三者ライセンスと音源](docs/assets-license.md)
 
 利用者が指定する音声ファイルはリポジトリや配布物へ同梱しません。

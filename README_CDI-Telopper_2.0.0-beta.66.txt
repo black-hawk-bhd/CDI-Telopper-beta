@@ -17,7 +17,8 @@ APIを有効にして「外部API 接続URLをコピー」を押し、連携先�
 キーを再発行した場合やポートを変更した場合は、新しいURLを連携先に登録してください。
 詳細は同梱の EXTERNAL_API_V1.md を参照してください。
 
-【詳細マニュアル・利用規約】
-https://github.com/black-hawk-bhd/CDI-Telopper-beta/blob/v2.0.0-beta.64/README_CDI-Telopper_2.0.0-beta.64.txt
+【操作マニュアル・利用規約】
+日本語 https://github.com/black-hawk-bhd/CDI-Telopper-beta/blob/main/docs/USER_GUIDE.md
+English https://github.com/black-hawk-bhd/CDI-Telopper-beta/blob/main/docs/USER_GUIDE_EN.md
 利用規約と免責事項は同梱の TERMS.md を参照してください。
 本ソフトウェアだけを防災判断の根拠にせず、気象庁などの公式情報も確認してください。

@@ -5,8 +5,8 @@
 An unauthenticated provider that retrieves XML directly from JMA's public feeds. CDI-Telopper is not an official JMA application.
 
 - Supports the application's existing earthquake, tsunami, weather (including designated-river floods), volcano and Nankai Trough categories. **EEW is excluded.**
-- Select “気象庁XML（60秒巡回・遅延あり）” per category and save. There is no automatic failover.
-- Waits 60 seconds after each polling cycle. Weather uses `extra.xml`; earthquake, tsunami, volcano and Nankai Trough share `eqvol.xml`. Each required feed is checked once per cycle, regardless of how many categories select it. New telegram bodies require separate requests.
+- Select “気象庁XML（60秒巡回・遅延あり）” per category and save. In production, eligible non-EEW categories can also temporarily switch to JMA XML if their selected DMDATA.JP, P2PQuake or AXIS source is faulted or reconnecting for at least 30 seconds and automatic fallback is enabled. Successful reconnection returns reception to the selected source.
+- Polling starts are at least 60 seconds apart. Weather uses `extra.xml`. Earthquake, tsunami, volcano and Nankai Trough share `eqvol.xml`. Each required feed is checked once per cycle, regardless of how many categories select it. New telegram bodies require separate requests.
 - Excludes `VPWW53`, `VPWW54` and `VPOA50`. Downloaded URLs are deduplicated within the retained history; failed downloads are retried on a later cycle.
 - Publication can be delayed or interrupted. Pre-connection telegrams are not presented as new alerts, and long outages are not fully backfilled. “Connected” indicates successful polling, not a guarantee of new messages or captions.
 
@@ -49,6 +49,22 @@ complete result containing only part of the requested history. Timeout messages
 identify whether the daily index or an individual telegram failed. Retrieval
 remains separate from live state, captions and audio.
 
+- Database: 気象庁防災情報XMLデータベース
+- Provider: 国立情報学研究所 (National Institute of Informatics)
+- NII license notice: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) applies to the site's JMA XML-related content that is not combined with other services. Attribute the database by name. [Weather Risk Watch license notice](https://agora.ex.nii.ac.jp/cps/weather/typhoon/202503.html.ja)
+
+CDI-Telopper retrieves earthquake and tsunami telegrams from this database on request. The Japan Meteorological Agency issues the original disaster telegrams.
+
+## Other reception providers
+
+Consult the provider's conditions before using, recording or redistributing data.
+
+- [DMDATA.JP terms](https://dmdata.jp/terms/)
+- [P2PQuake API documentation](https://www.p2pquake.net/develop/json_api_v2/)
+- [AXIS subscriber documentation](https://axis.prioris.jp/docs/stream/subscriber/)
+- [Wolfx Open API documentation](https://wolfx.jp/docs/open-api/)
+- [YDITS API and usage notes](https://www.ydits.net/api/) / [YDITS VXSE43](https://www.ydits.net/api/vxse43/)
+
 ## Place-name ruby in telegram review
 
 The telegram review window uses bundled prefecture and municipality readings
@@ -73,21 +89,3 @@ Names with different readings are resolved against a preceding prefecture in
 the same page; unresolved/unknown names remain undecorated. This is a municipal
 dictionary, not comprehensive coverage of forecast regions, offshore locations,
 foreign places, volcano names or historical municipality names.
-
-
-CDI-Telopper can manually retrieve past earthquake and tsunami telegrams for its
-history rehearsal feature from the following database:
-
-- Database: 気象庁防災情報XMLデータベース
-- Provider: 国立情報学研究所（National Institute of Informatics）
-- URL: https://agora.ex.nii.ac.jp/cps/weather/report/
-- License: Creative Commons Attribution 4.0 International (CC BY 4.0)
-- License URL: https://creativecommons.org/licenses/by/4.0/
-
-CDI-Telopper does not use this database for live disaster reception. Retrieval is
-started only by an operator, is limited to earthquake and tsunami telegrams,
-uses a one-second minimum interval between network requests, and caches fetched
-XML telegrams locally to avoid repeated downloads.
-
-The original disaster telegrams are produced by the Japan Meteorological
-Agency. Operators should confirm important information against official sources.

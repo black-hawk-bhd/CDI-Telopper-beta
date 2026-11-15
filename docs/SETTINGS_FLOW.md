@@ -75,6 +75,8 @@ ControlWindowViewModel.SaveSettingsAsync
 
 保存済みの平文内容が変わっていない場合は既存のDPAPI暗号文を再利用します。DPAPIは同じ平文でも暗号化のたびに異なる値を生成するため、毎回再暗号化すると設定変更や再接続を誤検出する原因になります。
 
+外部APIの接続キーは、利用者が保存を選んだ場合に `ExternalApiConnectionKeyStore` がDPAPI（CurrentUser）で `external-api-key.dpapi` へ書き込みます。設定JSON・プロファイル・診断ZIPからは独立した保存先です。「起動時に外部APIを有効化」とOBS Local Viewとの共用ポートは `ObsSettings` に保存します。外部APIの起動設定はアプリの起動時に読み込みます。
+
 ## 関連テスト
 
 - `tests/EEWTelop.Wpf.Tests/Phase6ViewModelTests.cs`

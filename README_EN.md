@@ -27,7 +27,7 @@ beta.50 improves unreported-intensity normalization and labeling, removes traili
 The current public release is **2.0.0-beta.66** (November 11, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
 - [Download 2.0.0-beta.66](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.66)
-- [Japanese beta.66 guide](README_CDI-Telopper_2.0.0-beta.66.txt) / [Detailed Japanese manual](README_CDI-Telopper_2.0.0-beta.64.txt)
+- [English user guide](docs/USER_GUIDE_EN.md) / [Japanese beta.66 release guide](README_CDI-Telopper_2.0.0-beta.66.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
@@ -76,7 +76,7 @@ beta.47: automatic JMA XML PULL fallback for supported non-EEW information after
 
 beta.46 adds the read-only [CDI External API v1](docs/external-api-v1.md) for earthquake, EEW, and tsunami information. It is local-only, disabled by default, and protected by a separate token. Initial synchronization does not replay captions or audio. See the external API terms below.
 
-Beta.40 redesigns weather captions with a heading above a full-width body. Sentences and districts are kept together where possible; long text is split with place names and parentheses protected. The fixed two-line layout is removed. Designated-river forecasts retain river and district context without automatic summarization.
+Weather captions use a heading and a full-width body. For weather warnings and advisories, a display setting controls two-line pagination for the list of areas. Designated-river flood forecasts keep their river and district context and split long passages at suitable boundaries. [Weather layout guide in Japanese](docs/weather-heading-layout.md)
 
 Beta.38 adds place-name furigana only to the telegram review window and fixes endlessly repeating OBS captions. The count includes the first pass: 2 means two complete page cycles, followed by removal. Legacy rotation/resume delays are no longer used.
 
@@ -87,7 +87,7 @@ Beta.38 adds place-name furigana only to the telegram review window and fixes en
 Beta.37 removes the three generic earthquake pages from large-scale eruption reports received as VXSE53 XML through AXIS and other XML sources. Captions begin with the eruption narrative and retain the full tide observations and tsunami arrival estimates. Antivirus exclusion instructions have also been removed from the distribution documentation.
 
 - Receives and generates captions for EEW, earthquake, tsunami, weather, volcano, and Nankai Trough information
-- Selects P2PQuake, DMDATA.JP, AXIS, Wolfx, JMA XML (non-EEW), or “Do not receive” separately for each supported information category
+- Selects P2PQuake, DMDATA.JP, AXIS, Wolfx, JMA XML (non-EEW), YDITS (public EEW warnings), or “Do not receive” separately for each supported information category
 - Does not connect to a provider API when none of the selected categories require it
 - Handles updates, cancellations, lifted warnings and advisories, duplicates, and superseded reports for the same event
 - Shows the affected area and warning or advisory type when a warning is cleared
@@ -102,7 +102,7 @@ Beta.37 removes the three generic earthquake pages from large-scale eruption rep
 
 | Category | Main supported data |
 | --- | --- |
-| EEW | P2P EEW, VXSE43, VXSE45 containing a warning, AXIS `eew`, Wolfx JMA EEW |
+| EEW | P2P EEW, VXSE43 (including YDITS), VXSE45 containing a warning, AXIS `eew`, Wolfx JMA EEW |
 | Earthquake | VXSE51, VXSE52, VXSE53, VXSE62, VYSE60, P2P and Wolfx JMA earthquake information |
 | Tsunami | VTSE41, VTSE51, VTSE52, P2P tsunami information |
 | Weather | VPWW55–61, VPWS50, VPBS50/51, VPHW50/51, VXKO50–89 (provider-dependent) |
@@ -163,6 +163,12 @@ Wolfx provides public WebSocket endpoints that require no authentication. It can
 
 https://wolfx.jp/docs/open-api/
 
+### YDITS
+
+In **受信** (Reception) → **受信元** (Sources) → **EEW**, select **YDITS（一般向け警報・ベータ）** for public EEW warnings (VXSE43). No credentials are required. Production mode polls at intervals of at least one second and tries the provider's alternate servers on connection failure. CDI-Telopper can display the epicenter name and maximum estimated intensity. It cannot display YDITS warning areas or apply cancellations without enough information to match the event.
+
+**YDITS（テストモード）** fetches the official test telegram and shows it as training in the browser preview's individual review list. It does not automatically send OBS captions or audio or update the production External API. The provider describes its service as beta and cautions that delivery can be delayed or interrupted. [YDITS VXSE43 documentation](https://www.ydits.net/api/vxse43/)
+
 DMDATA.JP and AXIS credentials are encrypted using Windows DPAPI CurrentUser. The application is designed not to include plaintext credentials in source files, release packages, logs, or diagnostic ZIP files.
 
 ## OBS output
@@ -176,7 +182,7 @@ Create the following four browser sources in OBS. Each source is designed for a 
 - CDI-Telopper 津波字幕 (tsunami captions)
 - CDI-Telopper 気象情報 (weather information)
 
-In beta.57 onward, enable “Control audio via OBS” for all four sources. Each category plays audio through its own source; the browser preview stays silent. OBS WebSocket synchronization enables audio control for all four, sets monitoring off, creates missing sources, updates session URLs and renames the legacy “CDI-Telopper 地震字幕・全ての音声” source to “CDI-Telopper 地震字幕”. Do not register both legacy and new sources. The downloadable beta.56 still sends all audio through its earthquake source.
+In beta.57 onward, enable “Control audio via OBS” for all four sources. Each category plays audio through its own source and the browser preview stays silent. OBS WebSocket synchronization enables audio control for all four, sets monitoring off, creates missing sources, updates session URLs and renames the legacy “CDI-Telopper 地震字幕・全ての音声” source to “CDI-Telopper 地震字幕”. Do not register both legacy and new sources.
 
 Legacy OBS map output and the always-on desktop overlay have been removed. The built-in experimental map has also been removed. Use the silent browser preview and the live/past telegram review window for on-PC confirmation.
 
@@ -221,10 +227,10 @@ The script restores dependencies, builds every project in the Release configurat
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.58
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.66
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.58\win-x64`. See [SOURCE_BUILD.md](SOURCE_BUILD.md) for details.
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.66\win-x64`. [Source build details](SOURCE_BUILD.md)
 
 ## External API integration: terms and disclaimer
 
@@ -241,8 +247,6 @@ This feature is provided as is, without any warranty of operation, compatibility
 
 ## License and attribution
 
-- Application license: [LICENSE](LICENSE)
-- Data sources and history retrieval: [docs/data-sources.md](docs/data-sources.md)
-- Audio libraries and user-provided audio: [docs/assets-license.md](docs/assets-license.md)
+The application source code is published under the MIT License. Section 4 of the terms covers the External API integration and data obtained through it. Third-party components, data and audio remain subject to their respective providers' conditions. [MIT License](LICENSE) / [Terms and disclaimer](TERMS_EN.md) / [Privacy Policy](PRIVACY_EN.md) / [Data sources](docs/data-sources.md) / [Third-party notices and audio](docs/assets-license.md)
 
 User-selected audio files are not included in the repository or release packages.

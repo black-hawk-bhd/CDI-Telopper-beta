@@ -1,14 +1,17 @@
 # CDI-Telopper 利用規約・免責事項
 
 制定日：2026年10月2日
+改定日：2026年11月15日
+
+[English](https://github.com/black-hawk-bhd/CDI-Telopper-beta/blob/main/TERMS_EN.md) | 日本語
 
 本書は、black-hawk-bhdが公開するCDI-Telopperの利用上の注意、受信データおよび外部API連携機能の利用条件を説明します。
 
 ## 1. ソフトウェアと受信データの区別
 
-CDI-Telopper本体のソースコードには[MIT License](LICENSE)が適用されます。本書はMIT Licenseが許諾するソースコードの利用・改変・再配布の権利を変更するものではありません。
+CDI-Telopper本体のソースコードはMIT Licenseで公開しています。複製や実質的な部分を再配布する際は、著作権表示と許諾文を添付してください。商用利用を含むソースコードの利用・改変・再配布にはMIT Licenseが適用されます。[MIT License本文](LICENSE)
 
-受信データ、第三者のAPI、音源等はMIT Licenseの対象ではありません。利用者は、それぞれの提供元の利用規約、契約、著作権、二次利用・再配信条件を確認し、遵守してください。本書は、提供元が禁止する利用を許可するものではありません。
+受信データ、第三者のAPI、ライブラリ、素材や利用者が登録する音源には、それぞれの提供元の条件が適用されます。利用規約、契約、著作権、二次利用・再配信条件を確認し、遵守してください。[データ出典](docs/data-sources.md) / [第三者コンポーネントと音源](https://github.com/black-hawk-bhd/CDI-Telopper-beta/blob/main/docs/assets-license.md)
 
 ## 2. 防災情報の利用上の注意
 
@@ -24,7 +27,7 @@ CDI-Telopperは開発中のベータ版であり、気象庁の公式ソフト�
 
 受信には、選択した提供元の有効な認証情報・契約・権限が必要な場合があります。OAuthによる許可は受信契約の代わりにはなりません。認証情報を第三者と共有したり、接続数・レート制限を回避したりしないでください。
 
-DMDATA.JPのOAuth認証は利用者が同サービスの画面で行い、CDI-Telopperは許可された範囲でトークンを使用します。不要な認可はCDIの「認可を解除」またはDMDATA.JPの管理画面から取り消してください。OAuth対応は本書制定時点で開発中・未配布です。
+DMDATA.JPのOAuth認証はbeta.55以降で利用できます。利用者はDMDATA.JPの画面で認可し、CDI-Telopperは許可された範囲でトークンを使用します。不要な認可はCDIの「認可を解除」またはDMDATA.JPの管理画面から取り消してください。[OAuth設定ガイド](docs/dmdata-oauth.md)
 
 各サービスの条件は提供元の公式サイトで確認してください。参考：[DMDATA.JP利用規約](https://dmdata.jp/terms/)、[気象庁XML公開の利用上の注意](https://xml.kishou.go.jp/xmlpull.html)、[データ出典](docs/data-sources.md)。
 

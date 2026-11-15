@@ -23,6 +23,8 @@ Microsoft/
 /docs/*
 !/docs/assets-license.md
 !/docs/data-sources.md
+!/docs/USER_GUIDE.md
+!/docs/USER_GUIDE_EN.md
 !/docs/DEVELOPER_GUIDE.md
 !/docs/ARCHITECTURE.md
 !/docs/FEATURE_FILE_MAP.md
