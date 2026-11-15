@@ -13,10 +13,10 @@
     <Product>CDI-Telopper</Product>
     <Description>Comprehensive Disaster Information Telopper</Description>
     <ApplicationIcon>Assets\CDI-Telopper.ico</ApplicationIcon>
-    <Version Condition="'$(Version)' == ''">2.0.0-beta.66</Version>
+    <Version Condition="'$(Version)' == ''">2.0.0-beta.67</Version>
     <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">2.0.0.0</AssemblyVersion>
     <FileVersion Condition="'$(FileVersion)' == ''">2.0.0.0</FileVersion>
-    <InformationalVersion Condition="'$(InformationalVersion)' == ''">2.0.0-beta.66</InformationalVersion>
+    <InformationalVersion Condition="'$(InformationalVersion)' == ''">2.0.0-beta.67</InformationalVersion>
     <AxisProviderEnabled Condition="'$(AxisProviderEnabled)' == ''">true</AxisProviderEnabled>
     <DefineConstants Condition="'$(AxisProviderEnabled)' == 'true'">$(DefineConstants);QTELOPPER_AXIS_PROVIDER</DefineConstants>
     <DmdataProviderEnabled Condition="'$(DmdataProviderEnabled)' == ''">true</DmdataProviderEnabled>
@@ -46,6 +46,7 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Assets\place-readings.tsv" />
+    <EmbeddedResource Include="Assets\jma-place-readings.tsv" />
     <EmbeddedResource Include="Obs\Assets\overlay.html" />
     <EmbeddedResource Include="Obs\Assets\overlay.js" />
     <EmbeddedResource Include="Obs\Assets\monitor.html" />

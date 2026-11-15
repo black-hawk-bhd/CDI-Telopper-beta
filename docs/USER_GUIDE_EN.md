@@ -2,7 +2,7 @@
 
 [日本語](USER_GUIDE.md) | English
 
-This guide covers **2.0.0-beta.66** for Windows x64. Menu names appear as they do in the Japanese interface. [Download](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.66) / [Release notes in Japanese](../RELEASE_NOTES_2.0.0-beta.66.md)
+This guide covers **2.0.0-beta.67** for Windows x64. Menu names appear as they do in the Japanese interface. [Download](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.67) / [Release notes in Japanese](../RELEASE_NOTES_2.0.0-beta.67.md)
 
 ## Install or update
 
@@ -38,6 +38,7 @@ Open **受信・過去電文を確認** (Review received and past messages). Und
 ## Troubleshoot and reset
 
 - For reception problems, check the configured source, credentials and **ログ** (Log). If a received message produces no caption, review its display result and the active filters.
+- In **受信・過去電文確認** (Received and past telegrams), select an earthquake and expand **震度観測点（電文）** to see the reported station names and intensities. Review pages show furigana for seismic regions and tsunami forecast areas when a reading can be identified.
 - For External API connection problems, check that OBS Local View and the External API are running and that the port and key match the client. If the port is in use by another application, select a free port.
 - **バージョン情報** (About) → **設定の初期化** (Reset settings) restores the defaults after confirmation and clears the saved External API key. Use **認可を解除** (Revoke authorization) in Reception settings to revoke DMDATA.JP OAuth access.
 - Include the app version and steps to reproduce when reporting an issue. Check diagnostic files for personal information, credentials and connection URLs before sharing. [GitHub Issues](https://github.com/black-hawk-bhd/CDI-Telopper-beta/issues)

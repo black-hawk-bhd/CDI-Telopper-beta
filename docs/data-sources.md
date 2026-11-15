@@ -67,25 +67,45 @@ Consult the provider's conditions before using, recording or redistributing data
 
 ## Place-name ruby in telegram review
 
-The telegram review window uses bundled prefecture and municipality readings
-derived from Japan Post's UTF-8 KEN_ALL postcode dataset (retrieved 2026-09-07).
-Source: https://www.post.japanpost.jp/service/search/zipcode/download/utf-zip.html
-Format and terms: https://www.post.japanpost.jp/service/search/zipcode/download/utf-readme.html
-Japan Post states that it does not assert copyright over the postcode data.
+The received and past telegram review window looks up place readings offline.
+Open **震度観測点（電文）** (Seismic observation stations) on an earthquake
+telegram to see the station names reported in it, their readings and
+intensities. Readings for seismic regions and tsunami forecast areas appear
+in the page text. Where a telegram supplies a code, the code-table type, code
+and name must match. When the code is absent, a name and any available
+prefecture context must identify a single reading.
+
+### Japan Meteorological Agency
+
+CDI-Telopper extracts codes, names and readings from JMA's earthquake and
+volcano workbook in the individual code tables updated 2026-11-10. Sheet 24
+supplies seismic regions (`AreaForecastLocalE`) and seismic observation
+stations (`PointSeismicIntensity`). Sheet 31 supplies tsunami forecast areas
+(`AreaTsunami`). For sheet 24, CDI-Telopper derives the prefecture code from
+the parent municipality code. The derived TSV is sorted and deduplicated.
+[JMA XML technical materials](https://xml.kishou.go.jp/tec_material.html)
+
+CDI-Telopper processed the Japan Meteorological Agency's *Individual code
+tables* under the Public Data
+License 1.0. [JMA site terms](https://www.jma.go.jp/jma/kishou/info/coment.html) /
+[Public Data License 1.0](https://www.digital.go.jp/resources/open_data/public_data_license_v1.0)
+
+To regenerate `jma-place-readings.tsv`, download the individual code-table ZIP
+and run `pwsh -File scripts/update-jma-place-readings.ps1 -ZipPath <path-to-JMA-code-tables.zip>`.
+Source ZIP SHA-256 `54e287e84c0f15a2ad2227dee8cb6040fdb697b0f5bd40a5affdf18ba69931e2`.
+
+### Japan Post
+
+Prefecture and municipality readings come from Japan Post's UTF-8 KEN_ALL
+postcode dataset (retrieved 2026-09-07). Japan Post states that it does not
+assert copyright over the postcode data. [Download](https://www.post.japanpost.jp/service/search/zipcode/download/utf-zip.html) /
+[Format and terms](https://www.post.japanpost.jp/service/search/zipcode/download/utf-readme.html)
 
 Only prefecture/municipality columns are retained; katakana is converted to
 hiragana and county-free municipality aliases are added. Designated-city aliases
 use the shared reading prefix of their wards when it ends in the city suffix.
-No street addresses,
-postcodes or network lookup are used at runtime. To regenerate the bundled TSV,
-download/extract the official UTF-8 CSV and run
+To regenerate `place-readings.tsv`, download and extract the official UTF-8
+CSV and run
 `scripts/update-place-readings.ps1 -CsvPath <path-to-utf_ken_all.csv>`.
 
-Source ZIP SHA-256: `7d42728c4c9023e30668b1ef144fd5ffd831a417011c82d3e85ca3c35db43b15`.
-
-Ruby decorates page text only in the received/past telegram review window.
-Original page text, OBS, replay, speech and archived telegrams are unchanged.
-Names with different readings are resolved against a preceding prefecture in
-the same page; unresolved/unknown names remain undecorated. This is a municipal
-dictionary, not comprehensive coverage of forecast regions, offshore locations,
-foreign places, volcano names or historical municipality names.
+Source ZIP SHA-256 `7d42728c4c9023e30668b1ef144fd5ffd831a417011c82d3e85ca3c35db43b15`.

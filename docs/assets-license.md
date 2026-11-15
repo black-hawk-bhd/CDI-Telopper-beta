@@ -4,7 +4,7 @@
 | --- | --- |
 | CDI-Telopper source code | [MIT License](../LICENSE) |
 | .NET 10 and Windows Desktop Runtime in self-contained packages | See `licenses/DOTNET-LICENSE.txt` and `licenses/DOTNET-THIRD-PARTY-NOTICES.txt` in the package. |
-| Japan Post place-name data and external weather/disaster data | See [data sources and attribution](data-sources.md) for the applicable source notices. |
+| JMA and Japan Post place-name data and external weather/disaster data | See [data sources and attribution](data-sources.md) for the applicable source notices. |
 | User-supplied WAV, MP3 and OGG files | The operator is responsible for obtaining any permissions needed for playback, recording and streaming. |
 
 CDI-Telopper serves the selected local audio to OBS browser sources for playback. It stores the selected file paths in local settings. The release ZIPs and diagnostic ZIPs omit the audio files themselves.

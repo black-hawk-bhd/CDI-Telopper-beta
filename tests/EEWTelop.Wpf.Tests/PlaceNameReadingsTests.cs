@@ -80,6 +80,36 @@ public sealed class PlaceNameReadingsTests
     }
 
     [TestMethod]
+    public void JmaCodesAreScopedToTheTableAndMustAgreeWithThePlaceName()
+    {
+        var seismicArea = new ReviewPlace("石狩地方北部", "100") { CodeTable = JmaPlaceCodeTable.AreaForecastLocalE };
+        var tsunamiArea = new ReviewPlace("北海道太平洋沿岸東部", "100") { CodeTable = JmaPlaceCodeTable.AreaTsunami };
+        const string text = "石狩地方北部　北海道太平洋沿岸東部";
+        var segments = PlaceNameReadings.Split(text, [seismicArea, tsunamiArea]);
+
+        Assert.AreEqual(text, string.Concat(segments.Select(segment => segment.Text)));
+        Assert.AreEqual("いしかりちほうほくぶ", segments[0].Reading);
+        Assert.AreEqual("ほっかいどうたいへいようえんがんとうぶ", segments[^1].Reading);
+        Assert.IsNull(PlaceNameReadings.Split(seismicArea.Name, [seismicArea with { AreaCode = "101" }]).Single().Reading);
+        Assert.IsNull(PlaceNameReadings.Split(seismicArea.Name,
+            [seismicArea with { CodeTable = JmaPlaceCodeTable.AreaTsunami }]).Single().Reading);
+    }
+
+    [TestMethod]
+    public void NameOnlyJmaReadingRequiresCompatibleRegionWhenAvailable()
+    {
+        var station = new ReviewPlace("球磨村渡", string.Empty)
+        {
+            CodeTable = JmaPlaceCodeTable.PointSeismicIntensity,
+            Prefecture = "熊本県",
+        };
+
+        Assert.AreEqual("くまむらわたり", PlaceNameReadings.Split("熊本県球磨村渡", [station])[^1].Reading);
+        Assert.IsNull(PlaceNameReadings.Split(station.Name, [station with { Prefecture = "兵庫県" }]).Single().Reading);
+        Assert.IsTrue(PlaceNameReadings.Split("新球磨村渡", [station]).All(segment => segment.Reading is null));
+    }
+
+    [TestMethod]
     public void ReviewControlWrapsRubyAndClearsItWhenSelectionChanges()
     {
         Exception? error = null;

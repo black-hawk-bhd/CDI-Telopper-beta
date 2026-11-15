@@ -5,16 +5,18 @@
 
 Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津波・気象・火山・南海トラフに関する防災情報を受信し、OBS向け字幕として出力するWindowsアプリです。
 
-現在の公開版は **2.0.0-beta.66** です（2026年11月11日）。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
+現在の公開版は **2.0.0-beta.67** です（2026年11月16日）。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
 本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
 
-- [2.0.0-beta.66をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.66)
-- [操作マニュアル](docs/USER_GUIDE.md) / [beta.66の変更点と操作](README_CDI-Telopper_2.0.0-beta.66.txt)
+- [2.0.0-beta.67をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.67)
+- [操作マニュアル](docs/USER_GUIDE.md) / [beta.67の変更点と操作](README_CDI-Telopper_2.0.0-beta.67.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
 - [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
 - [MIT License](LICENSE) / [利用規約・免責事項](TERMS.md) / [プライバシーポリシー](PRIVACY.md)
 
 ## 主な機能
+
+beta.67では、電文確認画面のルビに気象庁の震度観測点・地震の細分区域・津波予報区の読みを追加しました。「震度観測点（電文）」から、受信した地点名とルビを確認できます。[変更内容](RELEASE_NOTES_2.0.0-beta.67.md)
 
 beta.66: 「出力」→「CDI External API v1」に、起動時の自動有効化、接続キーの暗号化保存・再発行、OBS Local Viewと共用する固定ポートの設定を追加しました。固定ポートと保存済みキーを使うと、再起動後も同じ接続URLを使えます。[設定手順](docs/external-api-v1.md#有効化と認証) / [変更内容](RELEASE_NOTES_2.0.0-beta.66.md)。
 
@@ -83,7 +85,7 @@ beta.38では、電文確認画面だけに地名のフリガナ（ルビ）を�
 
 ### フリガナ機能の注意事項
 
-**フリガナは読み上げの補助であり、読みの正確性・網羅性を保証するものではありません。配信で読み上げる前に、自治体などの公式情報で正式な読みを確認してください。** 日本郵便の都道府県・市区町村データを用いるため、予報区・海域・海外地名・旧地名などは未対応の場合があります。同名地名の文脈や表記によっては誤った一致・読みが生じる可能性があります。読みを特定できない地名は原則としてルビを付けません。OBS字幕・再掲・音声には反映しません。
+**フリガナは読み上げの補助であり、読みの正確性・網羅性を保証するものではありません。配信で読み上げる前に、自治体などの公式情報で正式な読みを確認してください。** 電文確認画面では、気象庁の個別コード表と日本郵便の都道府県・市区町村の読みを使います。読みを特定できた地名にルビを表示します。[辞書の出典と対象範囲](docs/data-sources.md#place-name-ruby-in-telegram-review)
 
 beta.37では、AXISなどのXMLで届く大規模噴火の遠地情報について、不要な地震用定型3ページを省略し、噴火本文から表示するよう修正しました。潮位観測・津波到達予想は全文を保持します。配布文書からウイルス対策の除外設定に関する案内も削除しました。
 
@@ -252,10 +254,10 @@ powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 配布物を作成する場合は次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.66
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.67
 ```
 
-フォルダー版、単一EXE版、`version.json`、`SHA256SUMS.txt`は `artifacts\release\2.0.0-beta.66\win-x64` に生成されます。[ソースビルドの詳細](SOURCE_BUILD.md)
+フォルダー版、単一EXE版、`version.json`、`SHA256SUMS.txt`は `artifacts\release\2.0.0-beta.67\win-x64` に生成されます。[ソースビルドの詳細](SOURCE_BUILD.md)
 
 ## 開発者向け資料
 

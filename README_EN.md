@@ -24,13 +24,15 @@ beta.51 adds per-domain upstream health, a separately authenticated rehearsal AP
 
 beta.50 improves unreported-intensity normalization and labeling, removes trailing full-width station markers only from display text, and preserves observed and unreported entries at the same place. Simulator decoding and additive external API fields are improved while training/live separation remains enforced.
 
-The current public release is **2.0.0-beta.66** (November 11, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.67** (November 16, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.66](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.66)
-- [English user guide](docs/USER_GUIDE_EN.md) / [Japanese beta.66 release guide](README_CDI-Telopper_2.0.0-beta.66.txt)
+- [Download 2.0.0-beta.67](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.67)
+- [English user guide](docs/USER_GUIDE_EN.md) / [Japanese beta.67 release guide](README_CDI-Telopper_2.0.0-beta.67.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
+
+beta.67 adds JMA readings for seismic observation stations, seismic regions and tsunami forecast areas. Open **震度観測点（電文）** in the review window to see the source station names and their readings. [Japanese release notes](RELEASE_NOTES_2.0.0-beta.67.md)
 
 beta.66 adds optional External API startup activation, encrypted connection-key storage and rotation, and a fixed port shared with OBS Local View. A saved key and a fixed port let local clients reuse the same connection URL after a restart. See the [Japanese release notes](RELEASE_NOTES_2.0.0-beta.66.md).
 
@@ -82,7 +84,7 @@ Beta.38 adds place-name furigana only to the telegram review window and fixes en
 
 ### Furigana caution
 
-**Furigana is a reading aid, not a guarantee of accuracy or completeness. Verify official pronunciations with municipal or other authoritative sources before reading names on air.** The bundled Japan Post dataset covers prefectures and municipalities; forecast regions, offshore areas, foreign places and historical names may be unsupported. Context and spelling can cause incorrect matches or readings. Unresolved names normally remain without ruby. OBS captions, replay output and audio are unchanged.
+**Furigana is a reading aid, not a guarantee of accuracy or completeness. Verify official pronunciations with municipal or other authoritative sources before reading names on air.** The telegram review window uses JMA code tables and Japan Post readings for prefectures and municipalities. It displays furigana when it can identify a reading. [Dictionary coverage and attribution](docs/data-sources.md#place-name-ruby-in-telegram-review)
 
 Beta.37 removes the three generic earthquake pages from large-scale eruption reports received as VXSE53 XML through AXIS and other XML sources. Captions begin with the eruption narrative and retain the full tide observations and tsunami arrival estimates. Antivirus exclusion instructions have also been removed from the distribution documentation.
 
@@ -227,10 +229,10 @@ The script restores dependencies, builds every project in the Release configurat
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.66
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.67
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.66\win-x64`. [Source build details](SOURCE_BUILD.md)
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.67\win-x64`. [Source build details](SOURCE_BUILD.md)
 
 ## External API integration: terms and disclaimer
 
