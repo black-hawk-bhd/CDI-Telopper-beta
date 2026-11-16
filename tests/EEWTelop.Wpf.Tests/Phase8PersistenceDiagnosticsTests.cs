@@ -600,6 +600,38 @@ public sealed class Phase8PersistenceDiagnosticsTests
     }
 
     [TestMethod]
+    [DataRow(ReceptionProvider.P2pQuake, ReceptionProvider.Disabled)]
+    [DataRow(ReceptionProvider.JmaXml, ReceptionProvider.JmaXml)]
+    public async Task LoadingExistingSettingsClearsOnlyUnsupportedP2pRoutes(
+        ReceptionProvider storedWeatherProvider, ReceptionProvider expectedWeatherProvider)
+    {
+        string path = Path.Combine(_directory, "legacy-p2p-routes.json");
+        var store = new JsonSettingsStore(path, new UiLogBuffer());
+        AppSettings defaults = AppSettings.CreateDefault();
+        var routing = defaults.Provider.Routing with
+        {
+            Weather = storedWeatherProvider,
+            Volcano = ReceptionProvider.P2pQuake,
+            NankaiTrough = ReceptionProvider.P2pQuake,
+        };
+        AppSettings stored = defaults with
+        {
+            Provider = defaults.Provider with { Routing = routing, ReceptionProvider = routing.GetCompatibilityProvider() },
+        };
+        await File.WriteAllTextAsync(path, System.Text.Json.JsonSerializer.Serialize(stored, CamelCaseJson));
+
+        AppSettings actual = await store.LoadAsync();
+
+        Assert.AreEqual(routing with
+        {
+            Weather = expectedWeatherProvider,
+            Volcano = ReceptionProvider.Disabled,
+            NankaiTrough = ReceptionProvider.Disabled,
+        }, actual.Provider.Routing);
+        Assert.AreEqual(actual.Provider.Routing.GetCompatibilityProvider(), actual.Provider.ReceptionProvider);
+    }
+
+    [TestMethod]
     public void SchemaTwentyFiveMigrationPreservesLegacyForecastContract()
     {
         AppSettings defaults = AppSettings.CreateDefault();

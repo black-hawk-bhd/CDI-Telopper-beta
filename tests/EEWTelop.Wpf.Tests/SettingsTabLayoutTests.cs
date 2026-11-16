@@ -9,6 +9,7 @@ public sealed class SettingsTabLayoutTests
     private static readonly XNamespace Presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
     private static readonly XNamespace Xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
     private static readonly string[] SplitTabHeaders = ["受信", "フィルター", "表示", "出力"];
+    private static readonly string[] TelegramReplayModes = ["本番情報の再掲", "過去情報として紹介"];
 
     [TestMethod]
     public void ReceptionFiltersDisplayAndOutputHaveSeparateScrollableTabs()
@@ -26,7 +27,7 @@ public sealed class SettingsTabLayoutTests
 
         Dictionary<string, string[]> groups = new()
         {
-            ["受信"] = ["受信元", "DMDATA.JP 契約情報", "互換・安全"],
+            ["受信"] = ["受信元", "DMDATA.JP 契約情報", "互換設定"],
             ["フィルター"] = ["表示フィルター"],
             ["表示"] = ["ページと文字", "本番情報の繰り返し表示"],
             ["出力"] = ["キャンバス", "OBS Local View", "CDI External API v1", "訓練・リハーサル専用API", "OBS WebSocket 自動登録"],
@@ -60,7 +61,6 @@ public sealed class SettingsTabLayoutTests
             ("受信", "SelectedValue", "{Binding Settings.EewProvider}"),
             ("受信", "SelectedValue", "{Binding Settings.DmdataAuthenticationMode}"),
             ("受信", "IsChecked", "{Binding Settings.JmaXmlAutoFallback}"),
-            ("受信", "IsChecked", "{Binding Settings.ConfirmTestInProduction}"),
             ("受信", "Command", "{Binding DmdataContracts.RefreshCommand}"),
             ("受信", "Command", "{Binding ResetReceptionSettingsCommand}"),
             ("受信", "Command", "{Binding ResetCompatibilityAndSafetySettingsCommand}"),
@@ -129,14 +129,27 @@ public sealed class SettingsTabLayoutTests
         }
     }
 
-    private static XDocument LoadControlWindow()
+    [TestMethod]
+    public void LiveTestConfirmationAndTrainingReplayControlsAreRemoved()
+    {
+        Assert.IsFalse(LoadControlWindow().Descendants(Presentation + "CheckBox").Any(item =>
+            (string?)item.Attribute("Content") == "本番中のテストを確認"));
+        string[] replayModes = LoadWindow("TelegramReviewWindow.xaml").Descendants(Presentation + "RadioButton")
+            .Where(item => (string?)item.Attribute("GroupName") == "TelegramReplayMode")
+            .Select(item => (string)item.Attribute("Content")!).ToArray();
+        CollectionAssert.AreEqual(TelegramReplayModes, replayModes);
+    }
+
+    private static XDocument LoadControlWindow() => LoadWindow("ControlWindow.xaml");
+
+    private static XDocument LoadWindow(string fileName)
     {
         for (DirectoryInfo? directory = new(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
-            string path = Path.Combine(directory.FullName, "src", "EEWTelop.Wpf", "ControlWindow.xaml");
+            string path = Path.Combine(directory.FullName, "src", "EEWTelop.Wpf", fileName);
             if (File.Exists(path)) return XDocument.Load(path);
         }
-        throw new FileNotFoundException("ControlWindow.xaml was not found.");
+        throw new FileNotFoundException($"{fileName} was not found.");
     }
 
     [TestMethod]

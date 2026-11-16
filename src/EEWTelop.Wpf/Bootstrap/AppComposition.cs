@@ -283,7 +283,7 @@ public static class AppComposition
             _ => ReceptionProvider.P2pQuake,
         };
 
-        ProviderRoutingSettings routing = provider.Routing with
+        ProviderRoutingSettings routing = (provider.Routing with
         {
             Eew = Normalize(provider.Routing.Eew),
             Quake = Normalize(provider.Routing.Quake),
@@ -291,7 +291,7 @@ public static class AppComposition
             Weather = Normalize(provider.Routing.Weather),
             Volcano = Normalize(provider.Routing.Volcano),
             NankaiTrough = Normalize(provider.Routing.NankaiTrough),
-        };
+        }).WithoutUnsupportedP2pRoutes();
         return provider with
         {
             Routing = routing,

@@ -5,16 +5,18 @@
 
 Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津波・気象・火山・南海トラフに関する防災情報を受信し、OBS向け字幕として出力するWindowsアプリです。
 
-現在の公開版は **2.0.0-beta.67** です（2026年11月16日）。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
+現在の公開版は **2.0.0-beta.68** です（2026年11月16日）。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
 本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
 
-- [2.0.0-beta.67をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.67)
-- [操作マニュアル](docs/USER_GUIDE.md) / [beta.67の変更点と操作](README_CDI-Telopper_2.0.0-beta.67.txt)
+- [2.0.0-beta.68をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.68)
+- [操作マニュアル](docs/USER_GUIDE.md) / [beta.68の変更点と操作](README_CDI-Telopper_2.0.0-beta.68.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
 - [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
 - [MIT License](LICENSE) / [利用規約・免責事項](TERMS.md) / [プライバシーポリシー](PRIVACY.md)
 
 ## 主な機能
+
+beta.68では、起動時の受信API自動接続と、画面・タスクトレイでの受信元別の状態表示を追加しました。本番受信中はテストを停止・無効化し、受信・過去電文の確認画面からの再掲と過去情報としての紹介を利用できます。[変更内容](RELEASE_NOTES_2.0.0-beta.68.md)
 
 beta.67では、電文確認画面のルビに気象庁の震度観測点・地震の細分区域・津波予報区の読みを追加しました。「震度観測点（電文）」から、受信した地点名とルビを確認できます。[変更内容](RELEASE_NOTES_2.0.0-beta.67.md)
 
@@ -95,7 +97,7 @@ beta.37では、AXISなどのXMLで届く大規模噴火の遠地情報につい
 - 同一イベントの続報、取消、解除、重複、古い更新報を考慮した表示制御
 - 注意報・警報解除時に対象地域と解除種別を表示
 - 本番受信電文と過去電文を確認できる独立ウインドウ（種別フィルター・該当件数付き。配信側の設定は変更しません）
-- 選択電文を「本番情報の再掲」「過去情報として紹介」「動作訓練」の3方式で再表示
+- 選択電文を「本番情報の再掲」または「過去情報として紹介」で再表示
 - OBS Local ViewとOBS WebSocket 5.xによるブラウザーソース自動登録・URL更新
 - OBSの該当種別ソースへの通知音声出力（beta.57以降）
 - AXISトークンの期限確認と、期限前の自動更新
@@ -122,7 +124,7 @@ VPOA50の解析機能は過去電文等のために残していますが、気�
 
 EEW音声はすべての地震・津波・気象音声より優先されます。EEW受信時は待機中の気象音を破棄し、再生中の対象音をEEW音で割り込みます。EEW音の再生が完了するまでに届いた地震・津波・気象音声は再生しません。
 
-受信・過去電文確認から再表示する際は、用途を3方式から選べます。「本番情報の再掲」の識別バッジは電文の発表日時のみを表示し、「過去情報」「動作訓練」では用途と発表日時を表示します。履歴元から取得した過去電文は「本番情報の再掲」を選べず、本番で受信した電文だけが本番再掲の対象です。
+受信・過去電文の確認画面からの再表示は、本番受信中も利用できます。「本番情報の再掲」の識別バッジは電文の発表日時を、「過去情報として紹介」では用途と発表日時を表示します。本番で受信した電文だけが本番再掲の対象です。
 
 同画面の［取得元と再掲・訓練の表示設定］から、気象庁XMLの公式長期フィード（数日分・毎時更新、EEW対象外）を手動取得できます。対象種別・件数、または公式の個別XML URLを指定し、一覧で選んで再表示します。取得だけでは字幕・音声は送出しません。さらに古い電文はNIIの日付検索・個別URL、保存済みXMLを利用してください。
 
@@ -254,10 +256,10 @@ powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 配布物を作成する場合は次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.67
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.68
 ```
 
-フォルダー版、単一EXE版、`version.json`、`SHA256SUMS.txt`は `artifacts\release\2.0.0-beta.67\win-x64` に生成されます。[ソースビルドの詳細](SOURCE_BUILD.md)
+フォルダー版、単一EXE版、`version.json`、`SHA256SUMS.txt`は `artifacts\release\2.0.0-beta.68\win-x64` に生成されます。[ソースビルドの詳細](SOURCE_BUILD.md)
 
 ## 開発者向け資料
 

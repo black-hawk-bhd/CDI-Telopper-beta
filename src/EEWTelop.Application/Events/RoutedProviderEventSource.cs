@@ -15,6 +15,7 @@ public sealed class RoutedProviderEventSource : IEventSource,
 {
     private readonly object _gate = new();
     private readonly IReadOnlyDictionary<ReceptionProvider, IEventSource> _sources;
+    private readonly Dictionary<ReceptionProvider, ProviderBranchConnectionSnapshot> _providerConnections;
     private ReceptionProvider[] _selectedProviders;
     private ProviderConnectionSnapshot _connection;
     private int _readerActive;
@@ -39,6 +40,9 @@ public sealed class RoutedProviderEventSource : IEventSource,
         _settings = settings;
         _fallback = sources.ContainsKey(ReceptionProvider.JmaXml) ? fallback : null;
         _selectedProviders = ResolveProviders(settings, sources, _fallback is not null);
+        _providerConnections = sources.ToDictionary(
+            entry => entry.Key,
+            entry => new ProviderBranchConnectionSnapshot(GetProviderName(entry.Key), entry.Value.Connection));
         foreach (IEventSource source in sources.Values.Distinct())
         {
             source.ConnectionChanged += OnSourceConnectionChanged;
@@ -75,10 +79,13 @@ public sealed class RoutedProviderEventSource : IEventSource,
     {
         lock (_gate)
         {
+            bool usesJmaXml = (_fallback?.GetRouting() ?? _settings.Routing).Uses(ReceptionProvider.JmaXml);
             return _selectedProviders
-                .Select(provider => new ProviderBranchConnectionSnapshot(
-                    GetProviderName(provider),
-                    _sources[provider].Connection))
+                .Select(provider => _providerConnections[provider] with
+                {
+                    Connection = _sources[provider].Connection,
+                    IsStandby = provider == ReceptionProvider.JmaXml && !usesJmaXml,
+                })
                 .ToArray();
         }
     }
@@ -107,6 +114,13 @@ public sealed class RoutedProviderEventSource : IEventSource,
         {
             _selectedProviders = selected;
             _settings = settings;
+            foreach (ReceptionProvider provider in selected)
+            {
+                _providerConnections[provider] = _providerConnections[provider] with
+                {
+                    Connection = _sources[provider].Connection,
+                };
+            }
             snapshot = AggregateConnection(selected);
             _connection = snapshot;
         }
@@ -280,10 +294,14 @@ public sealed class RoutedProviderEventSource : IEventSource,
         ProviderConnectionSnapshot aggregate;
         lock (_gate)
         {
+            bool selected = false;
             foreach (var provider in _selectedProviders.Where(provider => ReferenceEquals(_sources[provider], sender)))
+            {
+                selected = true;
+                _providerConnections[provider] = _providerConnections[provider].WithConnection(snapshot);
                 _fallback?.Observe(provider, snapshot.State);
-            if (!_selectedProviders.Any(provider =>
-                ReferenceEquals(_sources[provider], sender)))
+            }
+            if (!selected)
             {
                 return;
             }

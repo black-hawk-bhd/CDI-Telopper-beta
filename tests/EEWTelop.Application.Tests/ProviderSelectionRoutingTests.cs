@@ -118,6 +118,35 @@ public sealed class ProviderSelectionRoutingTests
     }
 
     [TestMethod]
+    public async Task RoutedReconnectCountsRemainIndependentWhenAggregateIsFaulted()
+    {
+        var p2p = new FakeSource("p2pquake");
+        var axis = new FakeSource("axis");
+        ProviderSettings settings = AppSettings.CreateDefault().Provider with { Routing = ProviderRoutingSettings.AxisHybrid };
+        await using var source = new RoutedProviderEventSource(settings, new Dictionary<ReceptionProvider, IEventSource>
+        {
+            [ReceptionProvider.P2pQuake] = p2p,
+            [ReceptionProvider.Axis] = axis,
+        });
+
+        axis.SetConnectionState(ProviderConnectionState.Faulted);
+        p2p.SetConnectionState(ProviderConnectionState.Reconnecting);
+        p2p.SetConnectionState(ProviderConnectionState.Reconnecting, TimeSpan.FromSeconds(5));
+        Assert.AreEqual(ProviderConnectionState.Faulted, source.Connection.State);
+        Assert.AreEqual(1, source.GetProviderConnections().Single(provider => provider.Name == "P2P").ReconnectCount);
+        Assert.AreEqual(0, source.GetProviderConnections().Single(provider => provider.Name == "AXIS").ReconnectCount);
+
+        p2p.SetConnectionState(ProviderConnectionState.Connected);
+        p2p.SetConnectionState(ProviderConnectionState.Reconnecting);
+        axis.SetConnectionState(ProviderConnectionState.Reconnecting);
+        Assert.AreEqual(2, source.GetProviderConnections().Single(provider => provider.Name == "P2P").ReconnectCount);
+        Assert.AreEqual(1, source.GetProviderConnections().Single(provider => provider.Name == "AXIS").ReconnectCount);
+
+        source.ConfigureProvider(settings with { Routing = ProviderRoutingSettings.Default });
+        Assert.AreEqual(2, source.GetProviderConnections().Single().ReconnectCount);
+    }
+
+    [TestMethod]
     public async Task AllDisabledRoutingDoesNotStartAnyProviderApi()
     {
         var p2p = new FakeSource("p2pquake");
@@ -257,14 +286,16 @@ public sealed class ProviderSelectionRoutingTests
     {
         public int ReadCount { get; private set; }
 
-        public ProviderConnectionSnapshot Connection { get; } = new(
+        public ProviderConnectionSnapshot Connection { get; private set; } = new(
             ProviderConnectionState.Stopped,
             Now);
 
-        public event EventHandler<ProviderConnectionSnapshot>? ConnectionChanged
+        public event EventHandler<ProviderConnectionSnapshot>? ConnectionChanged;
+
+        public void SetConnectionState(ProviderConnectionState state, TimeSpan? retryDelay = null)
         {
-            add { }
-            remove { }
+            Connection = Connection with { State = state, RetryDelay = retryDelay };
+            ConnectionChanged?.Invoke(this, Connection);
         }
 
         public async IAsyncEnumerable<RawProviderMessage> ReadAllAsync(

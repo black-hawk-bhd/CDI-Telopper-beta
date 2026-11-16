@@ -17,7 +17,6 @@ public sealed class FoundationTests
         Assert.AreEqual(1920, settings.Display.Width);
         Assert.AreEqual(1080, settings.Display.Height);
         Assert.AreEqual(BackgroundMode.Transparent, settings.Display.BackgroundMode);
-        Assert.IsTrue(settings.Safety.ConfirmTestInProduction);
         Assert.IsFalse(settings.Safety.RestoreRehearsalState);
         Assert.IsTrue(settings.Filter.Eew);
         Assert.IsFalse(settings.Filter.HideQuakeBelowIntensity3);

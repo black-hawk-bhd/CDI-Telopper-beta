@@ -41,7 +41,7 @@ public sealed partial class ControlWindowViewModel
     public Task ConnectSimulatorAsync(string address, string token)
     {
         if (_simulatorStop is not null) return _simulatorTask;
-        if (IsConnectedOrConnecting || _receptionTask is { IsCompleted: false })
+        if (!CanUseTests || IsConnectedOrConnecting || IsReceptionRunning)
         {
             SimulatorStatus = "本番との混在防止のため、接続欄でAPI受信を切断してから開始してください。";
             return Task.CompletedTask;

@@ -157,6 +157,17 @@ public sealed partial class ObsSnapshotStore
         }
     }
 
+    public void ClearTestPrograms()
+    {
+        lock (_gate)
+        {
+            foreach (var channel in _programs
+                         .Where(entry => entry.Value.Program.SourceMode is SourceMode.Sandbox or SourceMode.ManualTest)
+                         .Select(entry => entry.Key).ToArray())
+                _programs.Remove(channel);
+        }
+    }
+
     public void ClearProgram(EventKind kind, DateTimeOffset now, string? expectedProgramId = null)
     {
         lock (_gate)

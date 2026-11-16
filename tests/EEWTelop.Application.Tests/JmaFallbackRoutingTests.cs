@@ -117,8 +117,10 @@ public sealed class JmaFallbackRoutingTests
         };
         await using var router = new RoutedProviderEventSource(settings, sources, fallback);
         fallback.Observe(ReceptionProvider.Axis, ProviderConnectionState.Faulted);
+        Assert.IsTrue(router.GetProviderConnections().Single(provider => provider.Name == "気象庁XML").IsStandby);
         Assert.AreEqual(ProviderConnectionState.Faulted, router.GetDataConnection(EEWTelop.Domain.Events.EventKind.Quake).State);
         clock.Advance(31);
+        Assert.IsFalse(router.GetProviderConnections().Single(provider => provider.Name == "気象庁XML").IsStandby);
         Assert.AreEqual(ProviderConnectionState.Connected, router.GetDataConnection(EEWTelop.Domain.Events.EventKind.Quake).State);
         Assert.AreEqual(ProviderConnectionState.Faulted, router.GetDataConnection(EEWTelop.Domain.Events.EventKind.Eew).State);
         Assert.IsFalse(router.GetDataConnection(EEWTelop.Domain.Events.EventKind.Tsunami).Configured);

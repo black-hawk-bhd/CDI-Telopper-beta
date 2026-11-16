@@ -145,7 +145,11 @@ public sealed partial class ControlWindowViewModel
         DeleteAllLibraryCasesCommand = new RelayCommand(
             () => _ = DeleteAllLibraryCasesAsync(),
             () => _services.TestCaseLibrary?.List().Count > 0);
-        RunLibraryCaseCommand = new RelayCommand(() => _ = RunLibraryCaseAsync(SelectedLibraryCase!), () => SelectedLibraryCase is not null);
+        RunLibraryCaseCommand = new RelayCommand(() =>
+        {
+            if (CanUseTests && SelectedLibraryCase is { } item)
+                _ = RunLibraryCaseAsync(item);
+        }, () => CanUseTests && SelectedLibraryCase is not null);
         DuplicateLibraryCaseCommand = new RelayCommand(() => _ = DuplicateLibraryCaseAsync(), () => SelectedLibraryCase is not null);
 
         RefreshTestLibrary();
@@ -358,6 +362,7 @@ public sealed partial class ControlWindowViewModel
             }
             _dispatcher.Invoke(() =>
             {
+                if (!CanUseTests) return;
                 item.ResultText = verdict;
                 if (visible?.Event is { } disasterEvent && visible.Program is { } program)
                 {

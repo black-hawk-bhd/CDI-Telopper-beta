@@ -6,6 +6,7 @@ using System.Windows.Threading;
 using EEWTelop.Application.Logging;
 using EEWTelop.Application.Operations;
 using EEWTelop.Wpf.Bootstrap;
+using EEWTelop.Wpf.ViewModels;
 using Forms = System.Windows.Forms;
 
 namespace EEWTelop.Wpf;
@@ -20,6 +21,7 @@ public partial class App : System.Windows.Application
     private ControlWindow? _controlWindow;
     private Forms.NotifyIcon? _trayIcon;
     private Forms.ContextMenuStrip? _trayMenu;
+    private Forms.ToolStripMenuItem? _trayProviderStatusMenu;
     private Icon? _trayImage;
     private readonly object _cleanupGate = new();
     private Task? _cleanupTask;
@@ -64,7 +66,7 @@ public partial class App : System.Windows.Application
             AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
             _controlWindow = new ControlWindow(_services);
             MainWindow = _controlWindow;
-            InitializeTrayIcon();
+            InitializeTrayIcon(_controlWindow.ViewModel);
             _controlWindow.Closing += OnControlWindowClosing;
             _controlWindow.Show();
             _singleInstanceCoordinator.StartListening(() =>
@@ -74,6 +76,7 @@ public partial class App : System.Windows.Application
                     _ = Dispatcher.BeginInvoke((Action)RestoreControlWindow);
                 }
             });
+            _controlWindow.ViewModel.StartReceptionOnStartup();
         }
         catch (Exception exception) when (exception is not StackOverflowException)
         {
@@ -98,6 +101,7 @@ public partial class App : System.Windows.Application
         if (_controlWindow is not null)
         {
             _controlWindow.Closing -= OnControlWindowClosing;
+            _controlWindow.ViewModel.PropertyChanged -= OnTrayReceptionStatusChanged;
         }
 
         _trayIcon?.Dispose();
@@ -105,6 +109,7 @@ public partial class App : System.Windows.Application
         _trayImage?.Dispose();
         _trayIcon = null;
         _trayMenu = null;
+        _trayProviderStatusMenu = null;
         _trayImage = null;
         _singleInstanceCoordinator?.Dispose();
         _singleInstanceCoordinator = null;
@@ -120,7 +125,7 @@ public partial class App : System.Windows.Application
         base.OnSessionEnding(e);
     }
 
-    private void InitializeTrayIcon()
+    private void InitializeTrayIcon(ControlWindowViewModel viewModel)
     {
         string? processPath = Environment.ProcessPath;
         _trayImage = !string.IsNullOrWhiteSpace(processPath) && File.Exists(processPath)
@@ -134,16 +139,54 @@ public partial class App : System.Windows.Application
             "受信・過去電文を確認",
             null,
             (_, _) => OpenTelegramReviewWindow());
+        _trayProviderStatusMenu = new Forms.ToolStripMenuItem("API別の状態と再接続回数");
+        _trayMenu.Items.Add(_trayProviderStatusMenu);
         _trayMenu.Items.Add(new Forms.ToolStripSeparator());
         _trayMenu.Items.Add("終了", null, (_, _) => _ = ExitApplicationAsync());
         _trayIcon = new Forms.NotifyIcon
         {
             Icon = _trayImage,
-            Text = "CDI-Telopper",
+            Text = viewModel.TrayReceptionText,
             ContextMenuStrip = _trayMenu,
             Visible = true,
         };
         _trayIcon.DoubleClick += (_, _) => RestoreControlWindow();
+        viewModel.PropertyChanged += OnTrayReceptionStatusChanged;
+        UpdateTrayReceptionStatus(viewModel);
+    }
+
+    private void OnTrayReceptionStatusChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ControlWindowViewModel.TrayReceptionText) &&
+            sender is ControlWindowViewModel viewModel)
+        {
+            UpdateTrayReceptionStatus(viewModel);
+        }
+    }
+
+    private void UpdateTrayReceptionStatus(ControlWindowViewModel viewModel)
+    {
+        if (_trayIcon is not { Visible: true } trayIcon || _trayProviderStatusMenu is not { } menu)
+        {
+            return;
+        }
+
+        trayIcon.Text = viewModel.TrayReceptionText;
+        menu.Available = viewModel.HasMultipleProviderConnections;
+        var items = menu.DropDownItems;
+        foreach (var item in items.Cast<Forms.ToolStripItem>().ToArray())
+        {
+            items.Remove(item);
+            item.Dispose();
+        }
+
+        if (menu.Available)
+        {
+            foreach (var provider in viewModel.ProviderConnectionRows)
+            {
+                items.Add(new Forms.ToolStripLabel(provider.TrayDetailText));
+            }
+        }
     }
 
     private void OnControlWindowClosing(object? sender, CancelEventArgs e)

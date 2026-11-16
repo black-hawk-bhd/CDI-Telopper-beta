@@ -12,6 +12,7 @@ using EEWTelop.Infrastructure.Axis.Security;
 using EEWTelop.Wpf.Mvvm;
 using EEWTelop.Wpf.Obs;
 using System.Collections.ObjectModel;
+using System.Runtime.CompilerServices;
 
 namespace EEWTelop.Wpf.ViewModels;
 
@@ -25,6 +26,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private ReceptionProvider _volcanoProvider;
     private ReceptionProvider _nankaiTroughProvider;
     private ProviderMode _providerMode;
+    private bool _autoConnectOnStartup;
     private bool _jmaXmlAutoFallback;
     private string _webSocketUrl;
     private string _restBaseUrl;
@@ -158,7 +160,6 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private bool _hideReplayInformationBadges;
     private bool _appendReplayIssuedAtPage;
     private bool _enrichQuakeById;
-    private bool _confirmTestInProduction;
     private readonly int _uiLogMaxEntries;
     private bool _saveRawProviderMessages;
     private int _rawMessageRetentionDays;
@@ -170,6 +171,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(settings);
         _receptionProvider = NormalizeReceptionProvider(
             settings.Provider.ReceptionProvider);
+        _autoConnectOnStartup = settings.Provider.AutoConnectOnStartup;
         _jmaXmlAutoFallback = settings.Provider.JmaXmlAutoFallback;
         ProviderRoutingSettings initialRouting = settings.Provider.Routing;
         if (settings.Provider.ReceptionProvider != initialRouting.GetCompatibilityProvider())
@@ -177,13 +179,12 @@ public sealed class SettingsEditorViewModel : ObservableObject
             initialRouting = ProviderRoutingSettings.FromLegacy(
                 settings.Provider.ReceptionProvider);
         }
-        _eewProvider = NormalizeReceptionProvider(initialRouting.Eew);
-        _quakeProvider = NormalizeReceptionProvider(initialRouting.Quake);
-        _tsunamiProvider = NormalizeReceptionProvider(initialRouting.Tsunami);
-        _weatherProvider = NormalizeReceptionProvider(initialRouting.Weather);
-        _volcanoProvider = NormalizeReceptionProvider(initialRouting.Volcano);
-        _nankaiTroughProvider = NormalizeReceptionProvider(
-            initialRouting.NankaiTrough);
+        _eewProvider = NormalizeRouteProvider(initialRouting.Eew, EewAndQuakeProviderOptions);
+        _quakeProvider = NormalizeRouteProvider(initialRouting.Quake, EarthquakeProviderOptions);
+        _tsunamiProvider = NormalizeRouteProvider(initialRouting.Tsunami, TsunamiProviderOptions);
+        _weatherProvider = NormalizeRouteProvider(initialRouting.Weather, CommercialProviderOptions);
+        _volcanoProvider = NormalizeRouteProvider(initialRouting.Volcano, CommercialProviderOptions);
+        _nankaiTroughProvider = NormalizeRouteProvider(initialRouting.NankaiTrough, CommercialProviderOptions);
         _providerMode = settings.Provider.Mode == ProviderMode.Sandbox
             ? ProviderMode.Sandbox
             : ProviderMode.Production;
@@ -372,7 +373,6 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _hideReplayInformationBadges = settings.History.HideInformationBadges;
         _appendReplayIssuedAtPage = settings.History.AppendIssuedAtPage;
         _enrichQuakeById = settings.Compatibility.EnrichQuakeById;
-        _confirmTestInProduction = settings.Safety.ConfirmTestInProduction;
         _uiLogMaxEntries = settings.Log.UiMaxEntries;
         _saveRawProviderMessages = settings.Log.SaveRawProviderMessages;
         _rawMessageRetentionDays = settings.Log.RawMessageRetentionDays;
@@ -544,40 +544,43 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public ReceptionProvider EewProvider
     {
         get => _eewProvider;
-        set => SetRouteProvider(ref _eewProvider, value, nameof(EewProvider));
+        set => SetRouteProvider(ref _eewProvider, value, EewAndQuakeProviderOptions);
     }
 
     public ReceptionProvider QuakeProvider
     {
         get => _quakeProvider;
-        set => SetRouteProvider(ref _quakeProvider, value, nameof(QuakeProvider));
+        set => SetRouteProvider(ref _quakeProvider, value, EarthquakeProviderOptions);
     }
 
     public ReceptionProvider TsunamiProvider
     {
         get => _tsunamiProvider;
-        set => SetRouteProvider(ref _tsunamiProvider, value, nameof(TsunamiProvider));
+        set => SetRouteProvider(ref _tsunamiProvider, value, TsunamiProviderOptions);
     }
 
     public ReceptionProvider WeatherProvider
     {
         get => _weatherProvider;
-        set => SetRouteProvider(ref _weatherProvider, value, nameof(WeatherProvider));
+        set => SetRouteProvider(ref _weatherProvider, value, CommercialProviderOptions);
     }
 
     public ReceptionProvider VolcanoProvider
     {
         get => _volcanoProvider;
-        set => SetRouteProvider(ref _volcanoProvider, value, nameof(VolcanoProvider));
+        set => SetRouteProvider(ref _volcanoProvider, value, CommercialProviderOptions);
     }
 
     public ReceptionProvider NankaiTroughProvider
     {
         get => _nankaiTroughProvider;
-        set => SetRouteProvider(
-            ref _nankaiTroughProvider,
-            value,
-            nameof(NankaiTroughProvider));
+        set => SetRouteProvider(ref _nankaiTroughProvider, value, CommercialProviderOptions);
+    }
+
+    public bool AutoConnectOnStartup
+    {
+        get => _autoConnectOnStartup;
+        set => SetProperty(ref _autoConnectOnStartup, value);
     }
 
     public bool JmaXmlAutoFallback
@@ -604,10 +607,6 @@ public sealed class SettingsEditorViewModel : ObservableObject
                     : ProviderOptions.Sandbox;
                 WebSocketUrl = preset.WebSocketUri.AbsoluteUri;
                 RestBaseUrl = preset.RestBaseUri.AbsoluteUri.TrimEnd('/');
-                if (normalized == ProviderMode.Production)
-                {
-                    ConfirmTestInProduction = true;
-                }
             }
         }
     }
@@ -866,7 +865,6 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public string LocalHistoryXmlFilePath { get => _localHistoryXmlFilePath; set => SetProperty(ref _localHistoryXmlFilePath, value); }
     public bool HistoryRepeat { get => _historyRepeat; set => SetProperty(ref _historyRepeat, value); }
     public bool EnrichQuakeById { get => _enrichQuakeById; set => SetProperty(ref _enrichQuakeById, value); }
-    public bool ConfirmTestInProduction { get => _confirmTestInProduction; set => SetProperty(ref _confirmTestInProduction, value); }
 
     public AppSettings ToSettings(AppSettings baseline)
     {
@@ -895,6 +893,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 RestBaseUrl = provider.RestBaseUri.AbsoluteUri.TrimEnd('/'),
                 ReceptionProvider = routing.GetCompatibilityProvider(),
                 Routing = routing,
+                AutoConnectOnStartup = AutoConnectOnStartup,
                 JmaXmlAutoFallback = JmaXmlAutoFallback,
                 DmdataApiBaseUrl = DmdataApiBaseUrl.Trim(),
                 DmdataCredentialEnvironmentVariable = string.Empty,
@@ -1125,11 +1124,6 @@ public sealed class SettingsEditorViewModel : ObservableObject
                     RawMessageMaximumTotalMegabytes,
                     32,
                     4096),
-            },
-            Safety = baseline.Safety with
-            {
-                ConfirmTestInProduction =
-                    ProviderMode == ProviderMode.Production || ConfirmTestInProduction,
             },
         };
     }
@@ -1373,6 +1367,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         ProviderSettings defaults = AppSettings.CreateDefault().Provider;
         ApplyRouting(defaults.Routing);
         ProviderMode = defaults.Mode;
+        AutoConnectOnStartup = defaults.AutoConnectOnStartup;
         WebSocketUrl = defaults.WebSocketUrl;
         RestBaseUrl = defaults.RestBaseUrl;
         DmdataApiBaseUrl = defaults.DmdataApiBaseUrl;
@@ -1432,7 +1427,6 @@ public sealed class SettingsEditorViewModel : ObservableObject
     {
         AppSettings defaults = AppSettings.CreateDefault();
         EnrichQuakeById = defaults.Compatibility.EnrichQuakeById;
-        ConfirmTestInProduction = defaults.Safety.ConfirmTestInProduction;
     }
 
     public void ResetDisplaySettings()
@@ -1664,11 +1658,10 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private void SetRouteProvider(
         ref ReceptionProvider field,
         ReceptionProvider value,
-        string propertyName)
+        IReadOnlyList<ReceptionProviderOption> options,
+        [CallerMemberName] string propertyName = "")
     {
-        ReceptionProvider normalized = NormalizeReceptionProvider(value);
-        if (normalized is (ReceptionProvider.Ydits or ReceptionProvider.YditsTest) && propertyName != nameof(EewProvider))
-            normalized = ReceptionProvider.Disabled;
+        ReceptionProvider normalized = NormalizeRouteProvider(value, options);
         if (!SetProperty(ref field, normalized, propertyName))
         {
             return;
@@ -1676,6 +1669,13 @@ public sealed class SettingsEditorViewModel : ObservableObject
 
         _receptionProvider = CurrentRouting.GetCompatibilityProvider();
         RaiseProviderSelectionProperties();
+    }
+
+    private static ReceptionProvider NormalizeRouteProvider(
+        ReceptionProvider provider, IReadOnlyList<ReceptionProviderOption> options)
+    {
+        ReceptionProvider available = NormalizeReceptionProvider(provider);
+        return options.Any(option => option.Value == available) ? available : ReceptionProvider.Disabled;
     }
 
     private void ApplyRouting(ProviderRoutingSettings routing)

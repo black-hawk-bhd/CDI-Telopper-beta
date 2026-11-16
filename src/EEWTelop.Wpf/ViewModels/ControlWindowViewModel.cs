@@ -36,7 +36,6 @@ internal enum TelegramReplayMode
 {
     ProductionReplay,
     PastInformation,
-    Training,
 }
 
 public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDisposable
@@ -68,10 +67,13 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     private readonly bool _isE2ETestMode;
     private readonly string _applicationVersionText = BuildApplicationVersionText();
     private IDisplayCoordinator _activeCoordinator;
+    private IDisplayCoordinator? _testPreviewCoordinator;
+    private readonly Dictionary<EventKind, string> _testOutputPrograms = [];
+    private bool _canUseTests = true;
     private AppSettings _settings;
     private TestScenario? _selectedScenario;
     private ReceivedTelegramViewModel? _selectedReceivedTelegram;
-    private TelegramReplayMode _telegramReplayMode = TelegramReplayMode.Training;
+    private TelegramReplayMode _telegramReplayMode = TelegramReplayMode.PastInformation;
     private bool _isTelegramHistoryLoading;
     private string _telegramReviewStatusText = "本番受信待ち。過去電文は［過去電文を取得］から読み込めます。";
     private AppLogLevel _minimumLogLevel;
@@ -79,6 +81,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     private string _lastReceivedText = "—";
     private string _retryDelayText = "—";
     private int _reconnectCount;
+    private IReadOnlyList<ProviderConnectionRow> _providerConnectionRows = [];
     private int _obsClientCount;
     private string _obsStatusText = "停止中";
     private string _obsBrowserSyncStatusText = "無効";
@@ -199,16 +202,16 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             Settings.ResetLogSettings();
             MinimumLogLevel = AppLogLevel.Debug;
         });
-        RunTestCommand = new RelayCommand(RunSelectedTest, () => SelectedScenario is not null);
+        RunTestCommand = new RelayCommand(RunSelectedTest, () => CanUseTests && SelectedScenario is not null);
         StartHistoryRehearsalCommand = new RelayCommand(
             StartHistoryRehearsal,
-            () => _services.HistoryRehearsalLoader is not null && !IsHistoryRehearsalRunning);
+            () => CanUseTests && _services.HistoryRehearsalLoader is not null && !IsHistoryRehearsalRunning);
         StopHistoryRehearsalCommand = new RelayCommand(
             () => CancelHistoryRehearsal("停止処理中…"),
             () => IsHistoryRehearsalRunning);
         PlaySelectedHistoryCommand = new RelayCommand(
             StartSelectedHistoryRehearsal,
-            () => SelectedHistoryItem is not null && !IsHistoryRehearsalRunning);
+            () => CanUseTests && SelectedHistoryItem is not null && !IsHistoryRehearsalRunning);
         EditSubtitleCommand = new RelayCommand(
             RequestSubtitleEdit,
             () => _lastCoordinatorSnapshot?.CurrentProgram is not null);
@@ -271,8 +274,12 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             {
                 _ = TestAudioAsync(cue);
             }
-        }, _ => !IsProductionConnectionActive);
+        }, _ => CanUseTests);
         StopAudioCommand = new RelayCommand(() => _ = StopAudioAsync());
+        ResetApiRehearsalCommand = new RelayCommand(() =>
+        {
+            if (CanUseTests) _obsServer?.BeginApiRehearsal("unknownTraining");
+        }, () => CanUseTests);
 
         foreach (AppLogEntry entry in services.UiLogs.GetSnapshot())
         {
@@ -298,7 +305,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         _renderLoopTask = RunRenderLoopAsync(_renderLoopStop.Token);
         _axisTokenRefreshTask = RunAxisTokenRefreshLoopAsync(_axisTokenRefreshStop.Token);
         _obsConfigurationTask = ConfigureObsServerAsync(settings.Obs, isApplicationStartup: true);
-        FireAndForgetLog(AppLogLevel.Information, "ApplicationReady", "永続化・ファイルログ・診断ZIP・任意音声ファイル再生を初期化しました。接続は手動開始です。");
+        FireAndForgetLog(AppLogLevel.Information, "ApplicationReady", "永続化・ファイルログ・診断ZIP・任意音声ファイル再生を初期化しました。");
     }
 
     public event EventHandler? ShowBrowserMonitorRequested;
@@ -352,12 +359,9 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             if (SetProperty(ref _selectedReceivedTelegram, value))
             {
                 OnPropertyChanged(nameof(CanUseProductionReplayMode));
-                SetTelegramReplayMode(value?.Event.SourceMode switch
-                {
-                    SourceMode.Production => TelegramReplayMode.ProductionReplay,
-                    SourceMode.HistoryRehearsal => TelegramReplayMode.PastInformation,
-                    _ => TelegramReplayMode.Training,
-                });
+                SetTelegramReplayMode(CanUseProductionReplayMode
+                    ? TelegramReplayMode.ProductionReplay
+                    : TelegramReplayMode.PastInformation);
                 RedisplayReceivedTelegramCommand.RaiseCanExecuteChanged();
             }
         }
@@ -386,18 +390,6 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             if (value)
             {
                 SetTelegramReplayMode(TelegramReplayMode.PastInformation);
-            }
-        }
-    }
-
-    public bool IsTrainingReplayMode
-    {
-        get => _telegramReplayMode == TelegramReplayMode.Training;
-        set
-        {
-            if (value)
-            {
-                SetTelegramReplayMode(TelegramReplayMode.Training);
             }
         }
     }
@@ -517,15 +509,20 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             if (SetProperty(ref _connectionState, value))
             {
                 OnPropertyChanged(nameof(ConnectionStateText));
+                if (!HasMultipleProviderConnections)
+                {
+                    OnPropertyChanged(nameof(TrayReceptionText));
+                }
                 OnPropertyChanged(nameof(IsConnectedOrConnecting));
                 ConnectCommand.RaiseCanExecuteChanged();
                 DisconnectCommand.RaiseCanExecuteChanged();
-                TestAudioCommand.RaiseCanExecuteChanged();
             }
         }
     }
 
-    public string ConnectionStateText => ConnectionState switch
+    public string ConnectionStateText => FormatConnectionState(ConnectionState);
+
+    private static string FormatConnectionState(ProviderConnectionState state) => state switch
     {
         ProviderConnectionState.Stopped => "切断中（手動）",
         ProviderConnectionState.Connecting => "接続中…",
@@ -533,17 +530,39 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         ProviderConnectionState.Stale => "接続済み",
         ProviderConnectionState.Reconnecting => "再接続待機中",
         ProviderConnectionState.Faulted => "要確認",
-        _ => ConnectionState.ToString(),
+        _ => state.ToString(),
     };
+
+    internal string TrayReceptionText => FormatTrayReceptionText(ConnectionStateText, ProviderConnectionRows);
+
+    internal static string FormatTrayReceptionText(string connectionStateText, IReadOnlyList<ProviderConnectionRow> providers)
+    {
+        if (providers.Count < 2)
+        {
+            return $"CDI-Telopper｜受信状態 {connectionStateText}";
+        }
+
+        const int notifyIconTextLimit = 127;
+        string text = $"CDI-Telopper｜{string.Join(" / ", providers.Select(provider => provider.TrayDetailText))}";
+        return text.Length <= notifyIconTextLimit
+            ? text
+            : "CDI-Telopper｜API別の受信状態・再接続回数は右クリック";
+    }
 
     public bool IsConnectedOrConnecting => ConnectionState is not ProviderConnectionState.Stopped and
         not ProviderConnectionState.Faulted;
+
+    public bool CanUseTests => _canUseTests;
 
     public string LastReceivedText { get => _lastReceivedText; private set => SetProperty(ref _lastReceivedText, value); }
 
     public string RetryDelayText { get => _retryDelayText; private set => SetProperty(ref _retryDelayText, value); }
 
     public int ReconnectCount { get => _reconnectCount; private set => SetProperty(ref _reconnectCount, value); }
+
+    public IReadOnlyList<ProviderConnectionRow> ProviderConnectionRows => _providerConnectionRows;
+
+    public bool HasMultipleProviderConnections => ProviderConnectionRows.Count > 1;
 
     public int ObsClientCount { get => _obsClientCount; private set => SetProperty(ref _obsClientCount, value); }
 
@@ -628,7 +647,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     }
     public string RehearsalApiUrlText => _obsServer?.RehearsalApiUrl ?? string.Empty;
     public RelayCommand EndApiRehearsalCommand => new(() => _obsServer?.EndApiRehearsal());
-    public RelayCommand ResetApiRehearsalCommand => new(() => _obsServer?.BeginApiRehearsal("unknownTraining"));
+    public RelayCommand ResetApiRehearsalCommand { get; }
 
     public bool IsHistoryRehearsalRunning
     {
@@ -789,7 +808,11 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             receptionConfigurationChanged
                 ? "設定を保存し、受信先を次の接続へ反映しました。"
                 : "表示・出力・音・履歴・安全設定を保存し、表示設定を即時反映しました。").ConfigureAwait(false);
-        _dispatcher.Invoke(() => OnPropertyChanged(nameof(ApiModeText)));
+        _dispatcher.Invoke(() =>
+        {
+            UpdateTestAvailability();
+            OnPropertyChanged(nameof(ApiModeText));
+        });
         if (restartReception)
         {
             _dispatcher.Invoke(StartConnection);
@@ -1010,6 +1033,17 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         _dmdataOAuthStop.Dispose();
     }
 
+    internal void StartReceptionOnStartup()
+    {
+        if (_disposed || !_settings.Provider.AutoConnectOnStartup || !ConnectCommand.CanExecute(null))
+        {
+            return;
+        }
+
+        FireAndForgetLog(AppLogLevel.Information, "ReceptionAutoConnectOnStartup", "起動時の自動接続を試行します。");
+        StartConnection();
+    }
+
     private void StartConnection()
     {
         if (IsDmdataOAuthBusy) return;
@@ -1040,6 +1074,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 ? "Sandbox接続中・表示対象の受信待ち"
                 : "表示対象の受信待ち";
             _dmdataOAuthReceptionActive = true;
+            UpdateTestAvailability();
             _receptionTask = RunReceptionAsync();
             UpdateDmdataOAuthUi();
         }
@@ -1274,7 +1309,11 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         finally
         {
             _dmdataOAuthReceptionActive = false;
-            if (!_disposed) UpdateDmdataOAuthUi();
+            if (!_disposed)
+            {
+                _dispatcher.Invoke(UpdateTestAvailability);
+                UpdateDmdataOAuthUi();
+            }
         }
     }
 
@@ -1313,18 +1352,10 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
     private void RunSelectedTest()
     {
-        if (_simulatorStop is not null) return;
+        if (!CanUseTests || _simulatorStop is not null) return;
         TestScenario? scenario = SelectedScenario;
         if (scenario is null)
         {
-            return;
-        }
-
-        bool productionConnected = _settings.Provider.Mode == ProviderMode.Production &&
-            ConnectionState is ProviderConnectionState.Connected or ProviderConnectionState.Stale;
-        if (productionConnected && !_confirmationService.ConfirmProductionTest())
-        {
-            FireAndForgetLog(AppLogLevel.Warning, "TestCancelled", "本番接続中のテストを取り消しました。");
             return;
         }
 
@@ -1379,6 +1410,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         ConcurrentEewProgramComposer concurrentEewComposer,
         PriorityCoordinator previewCoordinator)
     {
+        if (!CanUseTests) return;
+
         DisasterEvent disasterEvent = step.Event;
         if (scenario.Id != "disaster-simulator" && _manualApiSession is not null)
             _obsServer?.ObserveApiRehearsal(disasterEvent, _manualApiSession);
@@ -1407,6 +1440,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             _settings.Display,
             _services.Clock.UtcNow);
         _previewCoordinator = previewCoordinator;
+        _testPreviewCoordinator = previewCoordinator;
+        _testOutputPrograms[program.Kind] = program.ProgramId;
         Volatile.Write(ref _activeCoordinator, previewCoordinator);
         ApplyDisplaySnapshot(snapshot);
         PlayEventAudio(disasterEvent, Settings.ToSettings(_settings).Audio);
@@ -1519,11 +1554,6 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 item.Event.IssuedAt,
                 _services.Clock.UtcNow);
             DisplayRehearsal(item.Event, item.Program, label);
-            if (_telegramReplayMode == TelegramReplayMode.Training)
-            {
-                _obsServer?.BeginApiRehearsal("manualReplay");
-                _obsServer?.ObserveApiRehearsal(item.Event, manualReplay: true);
-            }
             TelegramReviewStatusText = $"{GetTelegramReplayModeText(_telegramReplayMode)}として再表示しました。";
         }
     }
@@ -1538,7 +1568,6 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         _telegramReplayMode = mode;
         OnPropertyChanged(nameof(IsProductionReplayMode));
         OnPropertyChanged(nameof(IsPastInformationReplayMode));
-        OnPropertyChanged(nameof(IsTrainingReplayMode));
     }
 
     private static string BuildTelegramReplayLabel(
@@ -1556,12 +1585,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             : $"{GetTelegramReplayModeText(mode)}｜{issuedAtText}";
     }
 
-    private static string GetTelegramReplayModeText(TelegramReplayMode mode) => mode switch
-    {
-        TelegramReplayMode.ProductionReplay => "本番情報・再掲",
-        TelegramReplayMode.PastInformation => "過去情報",
-        _ => "訓練",
-    };
+    private static string GetTelegramReplayModeText(TelegramReplayMode mode) =>
+        mode == TelegramReplayMode.ProductionReplay ? "本番情報・再掲" : "過去情報";
 
     private void AddTelegramForReview(
         DisasterEvent disasterEvent,
@@ -1610,6 +1635,11 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         CoordinatorSnapshot snapshot = coordinator.Apply(program);
         _obsSnapshotStore.PublishProgram(disasterEvent, program, _settings.Display, nowUtc);
         _previewCoordinator = coordinator;
+        if (!isReplay)
+        {
+            _testPreviewCoordinator = coordinator;
+            _testOutputPrograms[program.Kind] = program.ProgramId;
+        }
         Volatile.Write(ref _activeCoordinator, coordinator);
         ApplyDisplaySnapshot(snapshot);
         ShowBrowserMonitorRequested?.Invoke(this, EventArgs.Empty);
@@ -1876,9 +1906,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             return;
         }
 
-        bool productionConnected = _settings.Provider.Mode == ProviderMode.Production &&
-            ConnectionState is ProviderConnectionState.Connected or ProviderConnectionState.Stale;
-        if (productionConnected)
+        if (!CanUseTests)
         {
             HistoryRehearsalStatusText = "本番接続中は開始できません";
             FireAndForgetLog(
@@ -1906,9 +1934,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             return;
         }
 
-        bool productionConnected = _settings.Provider.Mode == ProviderMode.Production &&
-            ConnectionState is ProviderConnectionState.Connected or ProviderConnectionState.Stale;
-        if (productionConnected)
+        if (!CanUseTests)
         {
             HistoryRehearsalStatusText = "本番接続中は開始できません";
             return;
@@ -2112,6 +2138,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 int itemNumber = index + 1;
                 await _dispatcher.InvokeAsync(() =>
                 {
+                    cancellation.Token.ThrowIfCancellationRequested();
                     SelectedHistoryItem = item;
                     _historyOutputPrograms[program.Kind] = program.ProgramId;
                     if (_historyApiSession is not null) _obsServer?.ObserveApiRehearsal(disasterEvent, _historyApiSession);
@@ -2123,6 +2150,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                         requested.Display,
                         _services.Clock.UtcNow);
                     ApplyDisplaySnapshot(snapshot);
+                    PlayEventAudio(disasterEvent, requested.Audio);
                     HistoryRehearsalStatusText = requested.History.Repeat
                         ? $"繰り返し再生中 {itemNumber} / {items.Length}"
                         : $"再生中 {itemNumber} / {items.Length}";
@@ -2137,7 +2165,6 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                     "HistoryRehearsalItem",
                     $"履歴再生 {itemNumber}/{items.Length}: code={disasterEvent.ProviderCode} type={GetHistoryItemType(disasterEvent)} id={disasterEvent.Id.Value} pages={program.Pages.Count} hold={itemDuration.TotalSeconds:0.0}s")
                     .ConfigureAwait(false);
-                PlayEventAudio(disasterEvent, requested.Audio);
                 await Task.Delay(itemDuration, cancellation.Token).ConfigureAwait(false);
             }
         }
@@ -2217,6 +2244,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         _lastConnectionSnapshot = snapshot;
         ProviderConnectionState previous = ConnectionState;
         ConnectionState = snapshot.State;
+        UpdateTestAvailability();
         OnPropertyChanged(nameof(CanManageDmdataOAuth));
         LastReceivedText = snapshot.LastReceivedAt?.ToLocalTime().ToString(
             "HH:mm:ss",
@@ -2228,6 +2256,30 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             previous != ProviderConnectionState.Reconnecting)
         {
             ReconnectCount++;
+        }
+
+        ProviderConnectionRow[] rows = _services.ReceptionService.GetProviderConnections()
+            .Where(provider => !provider.IsStandby)
+            .Select(provider => new ProviderConnectionRow(
+                provider.Name,
+                provider.Connection.State == ProviderConnectionState.Stopped
+                    ? "切断中"
+                    : FormatConnectionState(provider.Connection.State),
+                provider.ReconnectCount))
+            .ToArray();
+        if (!_providerConnectionRows.SequenceEqual(rows))
+        {
+            bool hadMultipleProviders = HasMultipleProviderConnections;
+            _providerConnectionRows = rows;
+            OnPropertyChanged(nameof(ProviderConnectionRows));
+            if (hadMultipleProviders != HasMultipleProviderConnections)
+            {
+                OnPropertyChanged(nameof(HasMultipleProviderConnections));
+            }
+            if (hadMultipleProviders || HasMultipleProviderConnections)
+            {
+                OnPropertyChanged(nameof(TrayReceptionText));
+            }
         }
     }
 
@@ -2409,7 +2461,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         // ICommand normally prevents the button from executing, but keep this
         // guard here as well so a programmatic invocation or a connection-state
         // race can never enqueue test audio during live reception.
-        if (IsProductionConnectionActive)
+        if (!CanUseTests)
         {
             await WriteLogAsync(
                 AppLogLevel.Warning,
@@ -2463,9 +2515,61 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         }
     }
 
-    private bool IsProductionConnectionActive =>
-        IsConnectedOrConnecting &&
-        _settings.Provider.Mode == ProviderMode.Production;
+    private void UpdateTestAvailability()
+    {
+        ProviderSettings provider = _settings.Provider;
+        // The aggregate can report Faulted while one provider is still receiving.
+        bool productionActive = (_dmdataOAuthReceptionActive || IsConnectedOrConnecting) &&
+            provider.Routing.GetDistinctProviders().Any(source => source switch
+            {
+                ReceptionProvider.YditsTest => false,
+                ReceptionProvider.P2pQuake or ReceptionProvider.Ydits => provider.Mode == ProviderMode.Production,
+                _ => true,
+            });
+        _services.IngestionPipeline.BlockTestMessages = productionActive;
+        if (_canUseTests == !productionActive) return;
+
+        _canUseTests = !productionActive;
+        if (productionActive) StopTestsForProduction();
+
+        OnPropertyChanged(nameof(CanUseTests));
+        RunTestCommand.RaiseCanExecuteChanged();
+        StartHistoryRehearsalCommand.RaiseCanExecuteChanged();
+        PlaySelectedHistoryCommand.RaiseCanExecuteChanged();
+        RunLibraryCaseCommand.RaiseCanExecuteChanged();
+        TestAudioCommand.RaiseCanExecuteChanged();
+        ResetApiRehearsalCommand.RaiseCanExecuteChanged();
+    }
+
+    private void StopTestsForProduction()
+    {
+        CancelTestScenario();
+        CancelHistoryRehearsal("本番接続のため停止しました");
+        _obsServer?.EndApiRehearsal();
+        _manualApiSession = null;
+
+        DateTimeOffset now = _services.Clock.UtcNow;
+        foreach ((EventKind kind, string programId) in _testOutputPrograms)
+            _obsSnapshotStore.ClearProgram(kind, now, programId);
+        _testOutputPrograms.Clear();
+        ClearHistoryOutputPrograms();
+        _obsSnapshotStore.ClearTestPrograms();
+
+        IDisplayCoordinator live = _services.DisplayCoordinator;
+        if (live is PriorityCoordinator coordinator)
+            coordinator.ClearTestPrograms();
+        IDisplayCoordinator active = Volatile.Read(ref _activeCoordinator);
+        if (ReferenceEquals(active, _testPreviewCoordinator) ||
+            ReferenceEquals(active, Volatile.Read(ref _historyCoordinator)))
+        {
+            Volatile.Write(ref _activeCoordinator, live);
+            active = live;
+        }
+
+        _testPreviewCoordinator = null;
+        ApplyDisplaySnapshot(active.Evaluate(resynchronizeFromUtc: true));
+        _ = StopAudioAsync();
+    }
 
     private async Task StopAudioAsync()
     {
@@ -2513,7 +2617,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             return;
         }
 
-        var pending = new PendingAudioPlayback(decision, traceId);
+        var pending = new PendingAudioPlayback(decision, traceId, disasterEvent.SourceMode != SourceMode.Production);
         if (eewGeneration is { } audibleEewGeneration)
         {
             _ = PlayEventAudioAsync(pending, audibleEewGeneration, warning);
@@ -2591,7 +2695,17 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
             if (pending is not null)
             {
-                await PlayEventAudioAsync(pending).ConfigureAwait(false);
+                if (pending.IsTest)
+                {
+                    await _dispatcher.InvokeAsync(() =>
+                    {
+                        if (CanUseTests) _ = PlayEventAudioAsync(pending);
+                    }).ConfigureAwait(false);
+                }
+                else
+                {
+                    await PlayEventAudioAsync(pending).ConfigureAwait(false);
+                }
             }
         }
         catch (OperationCanceledException)
@@ -2779,7 +2893,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         ReferenceEquals(coordinator, Volatile.Read(ref _historyCoordinator)) ||
         ReferenceEquals(coordinator, Volatile.Read(ref _productionReplayCoordinator));
 
-    private sealed record PendingAudioPlayback(AudioDecision Decision, string TraceId);
+    private sealed record PendingAudioPlayback(AudioDecision Decision, string TraceId, bool IsTest);
 
     private static string GetEventKindText(EventKind kind) => kind switch
     {
@@ -3296,6 +3410,14 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     };
 
 }
+
+public sealed record ProviderConnectionRow(string Name, string StateText, int ReconnectCount)
+{
+    public string SummaryText => $"{Name}  {StateText}";
+
+    internal string TrayDetailText => $"{SummaryText}（再接続 {ReconnectCount}回）";
+}
+
 internal sealed record PreDisplaySubtitleDraft(
     DisasterEvent Event,
     DisplayProgram Program);

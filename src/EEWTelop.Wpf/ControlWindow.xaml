@@ -27,6 +27,16 @@
             <Setter Property="FontFamily" Value="Yu Gothic UI, Meiryo" />
             <Setter Property="Foreground" Value="White" />
         </Style>
+        <Style TargetType="Expander">
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style x:Key="SingleProviderStatus" TargetType="StackPanel">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasMultipleProviderConnections}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <Style TargetType="Button">
             <Setter Property="Padding" Value="16,8" />
             <Setter Property="Margin" Value="0,0,8,8" />
@@ -160,7 +170,23 @@
                     </StackPanel>
                 </StackPanel>
                 <StackPanel Grid.Column="1" HorizontalAlignment="Right">
-                    <TextBlock Text="{Binding ConnectionStateText}" FontSize="18" FontWeight="Bold" HorizontalAlignment="Right" />
+                    <StackPanel Style="{StaticResource SingleProviderStatus}">
+                        <TextBlock Text="{Binding ConnectionStateText}" FontSize="18" FontWeight="Bold" HorizontalAlignment="Right" />
+                    </StackPanel>
+                    <ItemsControl x:Name="ProviderStatusSummary" ItemsSource="{Binding ProviderConnectionRows}"
+                                  Visibility="{Binding HasMultipleProviderConnections, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                  HorizontalAlignment="Right" MaxWidth="434">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel HorizontalAlignment="Right" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding SummaryText}" FontSize="14" FontWeight="SemiBold" Margin="12,0,0,3" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                     <TextBlock Text="{Binding LastReceivedText, StringFormat=最終受信 {0}}" Foreground="#FFFFE6D8" HorizontalAlignment="Right" />
                     <Button Content="受信・過去電文を確認"
                             Command="{Binding ShowTelegramReviewCommand}"
@@ -178,81 +204,116 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Column="0">
-                <Border Background="{StaticResource PanelBrush}" CornerRadius="10" Padding="16" Margin="0,0,0,14">
-                    <StackPanel>
-                        <TextBlock Text="接続" FontSize="18" FontWeight="Bold" Margin="0,0,0,12" />
-                        <UniformGrid Columns="2">
-                            <Button Content="接続" Style="{StaticResource PrimaryButton}" Command="{Binding ConnectCommand}" />
-                            <Button Content="切断" Command="{Binding DisconnectCommand}" />
-                        </UniformGrid>
-                        <TextBlock Text="状態" Foreground="{StaticResource MutedBrush}" />
-                        <TextBlock Text="{Binding ConnectionStateText}" FontWeight="SemiBold" Margin="0,2,0,9" />
-                        <TextBlock Text="再接続回数" Foreground="{StaticResource MutedBrush}" />
-                        <TextBlock Text="{Binding ReconnectCount}" Margin="0,2,0,9" />
-                        <TextBlock Text="次回再接続" Foreground="{StaticResource MutedBrush}" />
-                        <TextBlock Text="{Binding RetryDelayText}" Margin="0,2,0,9" />
-                        <TextBlock Text="APIモード" Foreground="{StaticResource MutedBrush}" />
-                        <TextBlock Text="{Binding ApiModeText}" />
-                        <TextBlock Text="受信結果" Foreground="{StaticResource MutedBrush}" Margin="0,9,0,0" />
-                        <TextBlock Text="{Binding ReceptionStatusText}" TextWrapping="Wrap" />
-                    </StackPanel>
-                </Border>
+            <ScrollViewer x:Name="ControlSidebar" Grid.Column="0"
+                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <Border Background="{StaticResource PanelBrush}" CornerRadius="10" Padding="16" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="接続" FontSize="18" FontWeight="Bold" Margin="0,0,0,12" />
+                            <UniformGrid Columns="2">
+                                <Button Content="接続" Style="{StaticResource PrimaryButton}" Command="{Binding ConnectCommand}" />
+                                <Button Content="切断" Command="{Binding DisconnectCommand}" />
+                            </UniformGrid>
+                            <StackPanel Style="{StaticResource SingleProviderStatus}">
+                                <TextBlock Text="状態" Foreground="{StaticResource MutedBrush}" />
+                                <TextBlock Text="{Binding ConnectionStateText}" FontWeight="SemiBold" Margin="0,2,0,9" />
+                                <TextBlock Text="再接続回数" Foreground="{StaticResource MutedBrush}" />
+                                <TextBlock Text="{Binding ReconnectCount}" Margin="0,2,0,9" />
+                            </StackPanel>
+                            <StackPanel x:Name="ProviderStatusTable" Grid.IsSharedSizeScope="True" Margin="0,0,0,8"
+                                        Visibility="{Binding HasMultipleProviderConnections, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="ProviderState" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="ProviderReconnectCount" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="受信元" Foreground="{StaticResource MutedBrush}" />
+                                    <TextBlock Grid.Column="1" Text="状態" Foreground="{StaticResource MutedBrush}" Margin="6,0" />
+                                    <TextBlock Grid.Column="2" Text="再接続回数" Foreground="{StaticResource MutedBrush}" />
+                                </Grid>
+                                <ItemsControl ItemsSource="{Binding ProviderConnectionRows}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,3,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" SharedSizeGroup="ProviderState" />
+                                                    <ColumnDefinition Width="Auto" SharedSizeGroup="ProviderReconnectCount" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                <TextBlock Grid.Column="1" Text="{Binding StateText}" Margin="6,0" />
+                                                <TextBlock Grid.Column="2" Text="{Binding ReconnectCount}" HorizontalAlignment="Right" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                            <TextBlock Text="次回再接続" Foreground="{StaticResource MutedBrush}" />
+                            <TextBlock Text="{Binding RetryDelayText}" Margin="0,2,0,9" />
+                            <TextBlock Text="APIモード" Foreground="{StaticResource MutedBrush}" />
+                            <TextBlock x:Name="ApiModeSummary" Text="{Binding ApiModeText}" TextWrapping="Wrap" />
+                            <TextBlock Text="受信結果" Foreground="{StaticResource MutedBrush}" Margin="0,9,0,0" />
+                            <TextBlock Text="{Binding ReceptionStatusText}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
 
-                <Border Background="{StaticResource PanelBrush}" CornerRadius="10" Padding="12" Margin="0,0,0,14">
-                    <StackPanel>
-                        <TextBlock Text="出力" FontSize="18" FontWeight="Bold" Margin="0,0,0,12" />
-                        <Button Content="ブラウザープレビューを開く（無音）" Style="{StaticResource PrimaryButton}" Click="OnOpenBrowserMonitor" />
-                        <Button Content="表示中の字幕を編集"
-                                ToolTip="バッジ・本文・補足文をページごとに編集します。新着・更新情報の受信時に元の表示へ戻ります。"
-                                Command="{Binding EditSubtitleCommand}" />
-                        <Button Content="受信前の定型文を編集"
-                                ToolTip="『念のため津波に注意してください』など、受信前に用意する固定文を編集します。決定後は「保存して反映」を押してください。"
-                                Command="{Binding EditSubtitlePhraseTemplatesCommand}" />
-                        <TextBlock Text="種別別に表示を消去" Foreground="{StaticResource MutedBrush}" Margin="0,5,0,2" />
-                        <UniformGrid Columns="4">
-                            <Button Content="地震" Background="#FFB33A2B" Command="{Binding ClearQuakeDisplayCommand}" ToolTip="地震情報だけを消去します。受信は継続します。" />
-                            <Button Content="津波" Background="#FFB33A2B" Command="{Binding ClearTsunamiDisplayCommand}" ToolTip="津波情報だけを消去します。受信は継続します。" />
-                            <Button Content="EEW" Background="#FFB33A2B" Command="{Binding ClearEewDisplayCommand}" ToolTip="緊急地震速報だけを消去します。受信は継続します。" />
-                            <Button Content="気象" Background="#FFB33A2B" Command="{Binding ClearWeatherDisplayCommand}" ToolTip="気象情報だけを消去します。受信は継続します。" />
-                        </UniformGrid>
-                        <TextBlock Text="OBS Local View" Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0" />
-                        <DockPanel LastChildFill="False" Margin="0,3,0,0">
-                            <TextBlock Text="{Binding ObsStatusText}" />
-                            <TextBlock DockPanel.Dock="Right" Foreground="{StaticResource MutedBrush}">
-                                <Run Text="接続 " />
-                                <Run Text="{Binding ObsClientCount, Mode=OneWay}" />
-                            </TextBlock>
-                        </DockPanel>
-                        <TextBlock Text="用途別OBS URL" Foreground="{StaticResource MutedBrush}"
-                                   Margin="0,5,0,3" />
-                        <UniformGrid Columns="1">
-                            <Button Content="地震字幕・音声 URLをコピー"
-                                    Command="{Binding CopyObsOutputUrlCommand}"
-                                    CommandParameter="{Binding ObsUrlText}"
-                                    ToolTip="{Binding ObsUrlText}" Padding="10,4" Margin="0,1" />
-                            <Button Content="緊急地震速報・音声 URLをコピー"
-                                    Command="{Binding CopyObsOutputUrlCommand}"
-                                    CommandParameter="{Binding EewObsUrlText}"
-                                    ToolTip="{Binding EewObsUrlText}" Padding="10,4" Margin="0,1" />
-                            <Button Content="津波字幕・音声 URLをコピー"
-                                    Command="{Binding CopyObsOutputUrlCommand}"
-                                    CommandParameter="{Binding TsunamiObsUrlText}"
-                                    ToolTip="{Binding TsunamiObsUrlText}" Padding="10,4" Margin="0,1" />
-                             <Button Content="気象情報・音声 URLをコピー"
-                                    Visibility="{Binding IsExtendedFeaturesEnabled, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                    Command="{Binding CopyObsOutputUrlCommand}"
-                                    CommandParameter="{Binding WeatherObsUrlText}"
-                                    ToolTip="{Binding WeatherObsUrlText}" Padding="10,4" Margin="0,1" />
-                        </UniformGrid>
-                    </StackPanel>
-                </Border>
+                    <Border Background="{StaticResource PanelBrush}" CornerRadius="10" Padding="12" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="出力" FontSize="18" FontWeight="Bold" Margin="0,0,0,12" />
+                            <Button Content="ブラウザープレビューを開く（無音）" Style="{StaticResource PrimaryButton}"
+                                    Padding="8,8" Click="OnOpenBrowserMonitor" />
+                            <Button Content="表示中の字幕を編集"
+                                    ToolTip="バッジ・本文・補足文をページごとに編集します。新着・更新情報の受信時に元の表示へ戻ります。"
+                                    Command="{Binding EditSubtitleCommand}" />
+                            <Button Content="受信前の定型文を編集"
+                                    ToolTip="『念のため津波に注意してください』など、受信前に用意する固定文を編集します。決定後は「保存して反映」を押してください。"
+                                    Command="{Binding EditSubtitlePhraseTemplatesCommand}" />
+                            <TextBlock Text="種別別に表示を消去" Foreground="{StaticResource MutedBrush}" Margin="0,5,0,2" />
+                            <UniformGrid Columns="4">
+                                <Button Content="地震" Background="#FFB33A2B" Padding="6,8" Command="{Binding ClearQuakeDisplayCommand}" ToolTip="地震情報だけを消去します。受信は継続します。" />
+                                <Button Content="津波" Background="#FFB33A2B" Padding="6,8" Command="{Binding ClearTsunamiDisplayCommand}" ToolTip="津波情報だけを消去します。受信は継続します。" />
+                                <Button Content="EEW" Background="#FFB33A2B" Padding="6,8" Command="{Binding ClearEewDisplayCommand}" ToolTip="緊急地震速報だけを消去します。受信は継続します。" />
+                                <Button Content="気象" Background="#FFB33A2B" Padding="6,8" Command="{Binding ClearWeatherDisplayCommand}" ToolTip="気象情報だけを消去します。受信は継続します。" />
+                            </UniformGrid>
+                            <TextBlock Text="OBS Local View" Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0" />
+                            <DockPanel LastChildFill="False" Margin="0,3,0,0">
+                                <TextBlock Text="{Binding ObsStatusText}" />
+                                <TextBlock DockPanel.Dock="Right" Foreground="{StaticResource MutedBrush}">
+                                    <Run Text="接続 " />
+                                    <Run Text="{Binding ObsClientCount, Mode=OneWay}" />
+                                </TextBlock>
+                            </DockPanel>
+                            <TextBlock Text="用途別OBS URL" Foreground="{StaticResource MutedBrush}"
+                                       Margin="0,5,0,3" />
+                            <UniformGrid Columns="1">
+                                <Button Content="地震字幕・音声 URLをコピー"
+                                        Command="{Binding CopyObsOutputUrlCommand}"
+                                        CommandParameter="{Binding ObsUrlText}"
+                                        ToolTip="{Binding ObsUrlText}" Padding="10,4" Margin="0,1" />
+                                <Button Content="緊急地震速報・音声 URLをコピー"
+                                        Command="{Binding CopyObsOutputUrlCommand}"
+                                        CommandParameter="{Binding EewObsUrlText}"
+                                        ToolTip="{Binding EewObsUrlText}" Padding="10,4" Margin="0,1" />
+                                <Button Content="津波字幕・音声 URLをコピー"
+                                        Command="{Binding CopyObsOutputUrlCommand}"
+                                        CommandParameter="{Binding TsunamiObsUrlText}"
+                                        ToolTip="{Binding TsunamiObsUrlText}" Padding="10,4" Margin="0,1" />
+                                 <Button Content="気象情報・音声 URLをコピー"
+                                        Visibility="{Binding IsExtendedFeaturesEnabled, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                        Command="{Binding CopyObsOutputUrlCommand}"
+                                        CommandParameter="{Binding WeatherObsUrlText}"
+                                        ToolTip="{Binding WeatherObsUrlText}" Padding="10,4" Margin="0,1" />
+                            </UniformGrid>
+                        </StackPanel>
+                    </Border>
 
-                <Border Background="#FF352A13" BorderBrush="#FF7A5B00" BorderThickness="1" CornerRadius="8" Padding="13">
-                    <TextBlock Text="本番接続中のテストは確認ダイアログを表示します。訓練テロップには全ページで識別バナーが付きます。"
-                               Foreground="#FFFFE600" TextWrapping="Wrap" />
-                </Border>
-            </StackPanel>
+                    <Border Background="#FF352A13" BorderBrush="#FF7A5B00" BorderThickness="1" CornerRadius="8" Padding="13">
+                        <TextBlock Text="テスト・訓練を利用するには、本番受信を切断してください。"
+                                   Foreground="#FFFFE600" TextWrapping="Wrap" />
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
 
             <TabControl Grid.Column="2" Background="{StaticResource PanelBrush}" BorderBrush="#FF344555">
                 <TabItem Header="受信">
@@ -260,6 +321,9 @@
                         <StackPanel>
                             <GroupBox Header="受信元">
                                 <StackPanel>
+                                    <CheckBox Content="起動時に受信APIへ自動接続"
+                                              IsChecked="{Binding Settings.AutoConnectOnStartup}"
+                                              ToolTip="初期値はOFFです。保存して反映した次回起動時から、選択済みの受信元に自動で接続します。" />
                                     <TextBlock Text="情報種別ごとの受信元" Foreground="{StaticResource MutedBrush}" />
                                     <TextBlock Text="「受信しない」を選んだ情報は処理せず、そのAPIを使う情報が1件もなければAPIへ接続しません。"
                                                Foreground="#FFFFC66D" TextWrapping="Wrap" Margin="0,3,0,4" />
@@ -293,21 +357,21 @@
                                                   SelectedValue="{Binding Settings.TsunamiProvider}" />
                                         <TextBlock Grid.Row="3" Text="気象情報" VerticalAlignment="Center"
                                                    Visibility="{Binding DataContext.IsExtendedFeaturesEnabled, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                        <ComboBox Grid.Row="3" Grid.Column="1"
+                                        <ComboBox x:Name="WeatherSourceSelector" Grid.Row="3" Grid.Column="1"
                                                   ItemsSource="{Binding Settings.CommercialProviderOptions}"
                                                   DisplayMemberPath="Label" SelectedValuePath="Value"
                                                   SelectedValue="{Binding Settings.WeatherProvider}"
                                                   Visibility="{Binding DataContext.IsExtendedFeaturesEnabled, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                         <TextBlock Grid.Row="4" Text="火山情報" VerticalAlignment="Center"
                                                    Visibility="{Binding DataContext.IsExtendedFeaturesEnabled, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                        <ComboBox Grid.Row="4" Grid.Column="1"
+                                        <ComboBox x:Name="VolcanoSourceSelector" Grid.Row="4" Grid.Column="1"
                                                   ItemsSource="{Binding Settings.CommercialProviderOptions}"
                                                   DisplayMemberPath="Label" SelectedValuePath="Value"
                                                   SelectedValue="{Binding Settings.VolcanoProvider}"
                                                   Visibility="{Binding DataContext.IsExtendedFeaturesEnabled, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                         <TextBlock Grid.Row="5" Text="南海トラフ" VerticalAlignment="Center"
                                                    Visibility="{Binding Settings.HasCommercialProviderOptions, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                        <ComboBox Grid.Row="5" Grid.Column="1"
+                                        <ComboBox x:Name="NankaiTroughSourceSelector" Grid.Row="5" Grid.Column="1"
                                                   ItemsSource="{Binding Settings.CommercialProviderOptions}"
                                                   DisplayMemberPath="Label" SelectedValuePath="Value"
                                                   SelectedValue="{Binding Settings.NankaiTroughProvider}"
@@ -360,7 +424,7 @@
                                             <TextBlock Text="{Binding DmdataOAuthStatusText}" Foreground="#FFFFC66D" TextWrapping="Wrap" />
                                             <TextBlock Text="認可は選択した情報種別に必要な権限のみ要求します。情報種別やEEW契約区分を増やす場合は再認証してください。期限の近いトークンは再接続等のAPI要求時に自動更新します。"
                                                        Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
-                                            <Expander Header="詳細設定（独自のOAuthクライアントを使う場合）" IsExpanded="False">
+                                            <Expander x:Name="DmdataOAuthDetails" Header="詳細設定（独自のOAuthクライアントを使う場合）" IsExpanded="False">
                                                 <StackPanel>
                                                     <TextBlock Text="OAuthクライアントID（CId.で始まるID）" Foreground="{StaticResource MutedBrush}" />
                                                     <TextBox Text="{Binding Settings.DmdataOAuthClientId, UpdateSourceTrigger=PropertyChanged}" />
@@ -460,12 +524,10 @@
                                             ToolTip="プロバイダー、接続先、契約区分、認証入力を初期化します。保存して反映するまでは運用設定に反映されません。" />
                                 </StackPanel>
                             </GroupBox>
-                            <GroupBox Header="互換・安全">
+                            <GroupBox Header="互換設定">
                                 <StackPanel>
                                     <CheckBox Content="/jma/quake/{id} 補完（7秒制限）" IsChecked="{Binding Settings.EnrichQuakeById}" />
-                                    <CheckBox Content="本番中のテストを確認" IsChecked="{Binding Settings.ConfirmTestInProduction}" />
-                                    <TextBlock Text="Productionでは確認を無効化できません。" Foreground="#FFFFC66D" />
-                                    <Button Content="互換・安全設定を初期設定に戻す"
+                                    <Button Content="互換設定を初期設定に戻す"
                                             Command="{Binding ResetCompatibilityAndSafetySettingsCommand}"
                                             Margin="0,8,0,0" />
                                 </StackPanel>
@@ -1147,7 +1209,7 @@
                                         <TextBlock Text="Simulatorのトークン（保存しません）" Margin="0,8,0,0" />
                                         <PasswordBox x:Name="SimulatorTokenBox" Password="cdi-sim-test" />
                                         <WrapPanel Margin="0,8,0,0">
-                                            <Button Content="訓練接続" Click="OnSimulatorConnect" />
+                                            <Button Content="訓練接続" Click="OnSimulatorConnect" IsEnabled="{Binding CanUseTests}" />
                                             <Button Content="切断・訓練表示消去" Click="OnSimulatorDisconnect" />
                                         </WrapPanel>
                                         <TextBlock Text="{Binding SimulatorStatus}" TextWrapping="Wrap" />
@@ -1183,7 +1245,7 @@
                                         </Grid>
                                     </DataTemplate></ListBox.ItemTemplate>
                                 </ListBox>
-                                <Expander Header="選択ケースの情報" IsExpanded="False">
+                                <Expander x:Name="SelectedTestCaseDetails" Header="選択ケースの情報" IsExpanded="False">
                                     <Grid Margin="0,8,0,0">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="160" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                         <Grid.RowDefinitions>

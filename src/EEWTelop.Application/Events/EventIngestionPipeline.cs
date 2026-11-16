@@ -19,11 +19,18 @@ public sealed class EventIngestionPipeline
     private DisplaySettings _settings;
     private FilterSettings _filter;
     private int _holdBeforeDisplay;
+    private int _blockTestMessages;
 
     public bool HoldBeforeDisplay
     {
         get => Volatile.Read(ref _holdBeforeDisplay) != 0;
         set => Volatile.Write(ref _holdBeforeDisplay, value ? 1 : 0);
+    }
+
+    public bool BlockTestMessages
+    {
+        get => Volatile.Read(ref _blockTestMessages) != 0;
+        set => Volatile.Write(ref _blockTestMessages, value ? 1 : 0);
     }
 
     public EventIngestionPipeline(
@@ -88,6 +95,13 @@ public sealed class EventIngestionPipeline
         }
 
         DisasterEvent receivedEvent = normalized.Event;
+        if (BlockTestMessages &&
+            (receivedEvent.SourceMode != SourceMode.Production || receivedEvent is EewEvent { IsTest: true }))
+        {
+            return CreateResult(raw, EventIngestionStatus.Ignored, receivedEvent, null, null,
+                normalized.Issues, "本番接続中のためテスト電文を除外");
+        }
+
         if (normalized.PreviewOnly && receivedEvent.SourceMode == SourceMode.Production)
         {
             return CreateResult(raw, EventIngestionStatus.Ignored, null, null, null, normalized.Issues,

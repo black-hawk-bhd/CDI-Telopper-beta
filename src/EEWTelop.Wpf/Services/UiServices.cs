@@ -5,8 +5,6 @@ namespace EEWTelop.Wpf.Services;
 
 public interface IConfirmationService
 {
-    bool ConfirmProductionTest();
-
     bool ConfirmDisconnect();
 
     bool ConfirmProfileApply(string differences) => true;
@@ -25,13 +23,6 @@ public interface IUiDispatcher
 
 public sealed class MessageBoxConfirmationService : IConfirmationService
 {
-    public bool ConfirmProductionTest() => MessageBox.Show(
-        "本番受信中です。訓練テロップをプレビューへ表示しますか？\n本番出力と混同しないことを確認してください。",
-        "本番中のテスト確認",
-        MessageBoxButton.YesNo,
-        MessageBoxImage.Warning,
-        MessageBoxResult.No) == MessageBoxResult.Yes;
-
     public bool ConfirmDisconnect() => MessageBox.Show(
         "APIとの接続を切断しますか？",
         "切断の確認",

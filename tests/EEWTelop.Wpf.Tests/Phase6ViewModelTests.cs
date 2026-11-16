@@ -1,5 +1,12 @@
 using System.Runtime.CompilerServices;
 using System.Globalization;
+using System.Text.Json.Nodes;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
+using System.Windows.Media;
+using System.Windows.Threading;
 using EEWTelop.Application.Abstractions;
 using EEWTelop.Application.Audio;
 using EEWTelop.Application.Configuration;
@@ -29,6 +36,15 @@ public sealed partial class Phase6ViewModelTests
 {
     private static readonly string[] EmbeddedClientWeatherScopes =
         ["socket.start", "socket.close", "telegram.get.weather"];
+
+    private static readonly string[] TrayReceptionStates =
+    [
+        "CDI-Telopper｜受信状態 接続中…",
+        "CDI-Telopper｜受信状態 接続済み",
+        "CDI-Telopper｜受信状態 再接続待機中",
+        "CDI-Telopper｜受信状態 要確認",
+        "CDI-Telopper｜受信状態 切断中（手動）",
+    ];
 
     [TestMethod]
     public async Task HiddenContinuationStillUpdatesAnnouncementBaselineWithoutEvaluatingAudio()
@@ -659,7 +675,6 @@ public sealed partial class Phase6ViewModelTests
             HistoryLimit = 999,
             HistoryApi = HistoryApi.LocalJmaXml,
             LocalHistoryXmlFilePath = @" C:\test-data\sample.xml ",
-            ConfirmTestInProduction = false,
             HideQuakeBelowIntensity3 = true,
             HideWeatherContinuationOnly = false,
             AutoHideSeconds = -1,
@@ -711,7 +726,6 @@ public sealed partial class Phase6ViewModelTests
         Assert.AreEqual(OutputTransformSettings.Default, result.Display.OutputTransform);
         Assert.IsTrue(result.Filter.HideQuakeBelowIntensity3);
         Assert.IsFalse(result.Filter.HideWeatherContinuationOnly);
-        Assert.IsTrue(result.Safety.ConfirmTestInProduction);
         Assert.IsFalse(result.Audio.EewEnabled);
         Assert.IsFalse(result.Audio.TsunamiEnabled);
         Assert.IsFalse(result.Audio.QuakeEnabled);
@@ -915,7 +929,6 @@ public sealed partial class Phase6ViewModelTests
             SaveRawProviderMessages = true,
             RawMessageRetentionDays = 90,
             EnrichQuakeById = true,
-            ConfirmTestInProduction = false,
         };
         editor.SetWeatherPrefectureCodes(["13", "27"]);
         editor.SetSubtitlePhraseOverrides(new Dictionary<string, string>
@@ -936,7 +949,6 @@ public sealed partial class Phase6ViewModelTests
 
         editor.ResetCompatibilityAndSafetySettings();
         Assert.AreEqual(defaults.Compatibility.EnrichQuakeById, editor.EnrichQuakeById);
-        Assert.AreEqual(defaults.Safety.ConfirmTestInProduction, editor.ConfirmTestInProduction);
 
         editor.ResetDisplaySettings();
         Assert.AreEqual(defaults.Display.PageDurationSeconds, editor.PageDurationSeconds);
@@ -1088,6 +1100,332 @@ public sealed partial class Phase6ViewModelTests
     }
 
     [TestMethod]
+    public async Task TrayTooltipFollowsTheCurrentReceptionState()
+    {
+        var clock = new FakeClock();
+        var source = new FakeEventSource(clock.UtcNow, ProviderConnectionState.Stopped);
+        AppServices services = CreateServices(
+            ProviderConnectionState.Stopped, clock, suppliedEventSource: source);
+        await using var viewModel = new ControlWindowViewModel(
+            services, services.InitialSettings, new FakeConfirmationService(), new ImmediateUiDispatcher());
+
+        Assert.AreEqual("CDI-Telopper｜受信状態 切断中（手動）", viewModel.TrayReceptionText);
+        var updates = new List<string>();
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(ControlWindowViewModel.TrayReceptionText))
+            {
+                updates.Add(viewModel.TrayReceptionText);
+            }
+        };
+
+        source.SetConnectionState(ProviderConnectionState.Connecting);
+        source.SetConnectionState(ProviderConnectionState.Connected);
+        source.SetConnectionState(ProviderConnectionState.Connected);
+        source.SetConnectionState(ProviderConnectionState.Reconnecting);
+        source.SetConnectionState(ProviderConnectionState.Faulted);
+        await source.StopAsync();
+
+        CollectionAssert.AreEqual(TrayReceptionStates, updates);
+    }
+
+    [STATestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void WeatherVolcanoAndNankaiHaveAVisibleDefaultSelection(bool useLegacyRouting)
+    {
+        AppSettings settings = AppSettings.CreateDefault();
+        if (useLegacyRouting)
+        {
+            settings = settings with
+            {
+                Provider = settings.Provider with
+                {
+                    Routing = settings.Provider.Routing with
+                    {
+                        Weather = ReceptionProvider.P2pQuake,
+                        Volcano = ReceptionProvider.P2pQuake,
+                        NankaiTrough = ReceptionProvider.P2pQuake,
+                    },
+                },
+            };
+        }
+
+        InspectControlWindow(settings, window =>
+        {
+            ComboBox[] selectors =
+            [
+                (ComboBox)window.FindName("WeatherSourceSelector"),
+                (ComboBox)window.FindName("VolcanoSourceSelector"),
+                (ComboBox)window.FindName("NankaiTroughSourceSelector"),
+            ];
+            ArrangeControlWindow(window);
+            AssertDisabledReceptionSelections(selectors);
+
+            SettingsEditorViewModel editor = window.ViewModel.Settings;
+            ReceptionProvider availableProvider = editor.CommercialProviderOptions[^1].Value;
+            editor.WeatherProvider = availableProvider;
+            editor.VolcanoProvider = availableProvider;
+            editor.NankaiTroughProvider = availableProvider;
+            window.ViewModel.ResetReceptionSettingsCommand.Execute(null);
+            ArrangeControlWindow(window);
+            AssertDisabledReceptionSelections(selectors);
+        });
+    }
+
+    private static void AssertDisabledReceptionSelections(IEnumerable<ComboBox> selectors)
+    {
+        foreach (var selector in selectors)
+        {
+            var selected = Assert.IsInstanceOfType<ReceptionProviderOption>(selector.SelectedItem);
+            Assert.AreEqual(ReceptionProvider.Disabled, selected.Value);
+            Assert.AreEqual("受信しない", selected.Label);
+        }
+    }
+
+    [STATestMethod]
+    public void MultipleApiStatusesAndReconnectCountsAreBoundToTheControlWindow()
+    {
+        AppSettings defaults = AppSettings.CreateDefault();
+        var routing = defaults.Provider.Routing with { Quake = ReceptionProvider.Wolfx };
+        AppSettings settings = defaults with
+        {
+            Provider = defaults.Provider with { Routing = routing, ReceptionProvider = routing.GetCompatibilityProvider() },
+        };
+        var p2p = new FakeEventSource(DateTimeOffset.UtcNow, ProviderConnectionState.Stopped);
+        var wolfx = new FakeEventSource(DateTimeOffset.UtcNow, ProviderConnectionState.Stopped);
+        var source = new RoutedProviderEventSource(settings.Provider, new Dictionary<ReceptionProvider, IEventSource>
+        {
+            [ReceptionProvider.P2pQuake] = p2p,
+            [ReceptionProvider.Wolfx] = wolfx,
+        });
+
+        InspectControlWindow(settings, window =>
+        {
+            ArrangeControlWindow(window);
+            var summary = (ItemsControl)window.FindName("ProviderStatusSummary");
+            var table = (StackPanel)window.FindName("ProviderStatusTable");
+            ItemsControl rows = table.Children.OfType<ItemsControl>().Single();
+            Assert.AreEqual(Visibility.Visible, summary.Visibility);
+            Assert.AreEqual(Visibility.Visible, table.Visibility);
+            Assert.HasCount(2, rows.Items);
+            Assert.HasCount(2, summary.Items);
+
+            string? trayUpdate = null;
+            window.ViewModel.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(ControlWindowViewModel.TrayReceptionText))
+                {
+                    trayUpdate = window.ViewModel.TrayReceptionText;
+                }
+            };
+
+            p2p.SetConnectionState(ProviderConnectionState.Faulted);
+            wolfx.SetConnectionState(ProviderConnectionState.Connected);
+            trayUpdate = null;
+            wolfx.SetConnectionState(ProviderConnectionState.Reconnecting);
+            ArrangeControlWindow(window);
+            Assert.AreEqual(ProviderConnectionState.Faulted, window.ViewModel.ConnectionState);
+            Assert.AreEqual(new ProviderConnectionRow("P2P", "要確認", 0), rows.Items[0]);
+            Assert.AreEqual(new ProviderConnectionRow("Wolfx", "再接続待機中", 1), rows.Items[1]);
+            Assert.AreEqual("Wolfx  再接続待機中", ((ProviderConnectionRow)summary.Items[1]).SummaryText);
+            Assert.AreEqual(window.ViewModel.TrayReceptionText, trayUpdate);
+            Assert.Contains("P2P  要確認（再接続 0回）", window.ViewModel.TrayReceptionText);
+            Assert.Contains("Wolfx  再接続待機中（再接続 1回）", window.ViewModel.TrayReceptionText);
+
+            source.ConfigureProvider(defaults.Provider);
+            ArrangeControlWindow(window);
+            Assert.AreEqual(Visibility.Collapsed, summary.Visibility);
+            Assert.AreEqual(Visibility.Collapsed, table.Visibility);
+            Assert.AreEqual("CDI-Telopper｜受信状態 要確認", trayUpdate);
+        }, source);
+    }
+
+    [TestMethod]
+    public void TrayTooltipDirectsToMenuWhenAllProviderDetailsWillNotFit()
+    {
+        ProviderConnectionRow[] providers =
+        [
+            new("P2P", "再接続待機中", int.MaxValue),
+            new("DMDATA.JP", "再接続待機中", int.MaxValue),
+            new("AXIS", "再接続待機中", int.MaxValue),
+            new("Wolfx", "再接続待機中", int.MaxValue),
+            new("気象庁XML", "再接続待機中", int.MaxValue),
+            new("YDITSテスト", "再接続待機中", int.MaxValue),
+        ];
+        string text = ControlWindowViewModel.FormatTrayReceptionText("再接続待機中", providers);
+        Assert.AreEqual("CDI-Telopper｜API別の受信状態・再接続回数は右クリック", text);
+    }
+
+    [STATestMethod]
+    public void ApiModeSummaryShowsItsLastCharacterWithinTheMinimumWindowSize()
+    {
+        AppSettings defaults = AppSettings.CreateDefault();
+        var routing = defaults.Provider.Routing with
+        {
+            Eew = ReceptionProvider.YditsTest, Quake = ReceptionProvider.Wolfx,
+            Weather = ReceptionProvider.JmaXml, Volcano = ReceptionProvider.JmaXml,
+            NankaiTrough = ReceptionProvider.Disabled,
+        };
+        AppSettings settings = defaults with
+        {
+            Provider = defaults.Provider with { Routing = routing, ReceptionProvider = routing.GetCompatibilityProvider() },
+        };
+        InspectControlWindow(settings, window =>
+        {
+            ArrangeControlWindow(window);
+            var text = (TextBlock)window.FindName("ApiModeSummary");
+            var sidebar = (ScrollViewer)window.FindName("ControlSidebar");
+            Assert.AreEqual(window.ViewModel.ApiModeText, text.Text);
+            StringAssert.EndsWith(text.Text, "南海トラフ 受信しない");
+            Rect lastCharacter = text.ContentEnd.GetCharacterRect(LogicalDirection.Backward);
+            Assert.IsTrue(!lastCharacter.IsEmpty && lastCharacter.Top > 0 &&
+                lastCharacter.Right <= text.ActualWidth + 1 && lastCharacter.Bottom <= text.ActualHeight + 1);
+            Assert.IsTrue(sidebar.ScrollableHeight > 0);
+        });
+    }
+
+    [STATestMethod]
+    public void ControlWindowExpanderHeadersUseLightText()
+    {
+        InspectControlWindow(AppSettings.CreateDefault(), window =>
+        {
+            AssertExpanderHeaderUsesLightText((Expander)window.FindName("DmdataOAuthDetails"));
+            AssertExpanderHeaderUsesLightText((Expander)window.FindName("SelectedTestCaseDetails"));
+        });
+    }
+
+    private static void AssertExpanderHeaderUsesLightText(Expander expander)
+    {
+        expander.ApplyTemplate();
+        var header = Assert.IsInstanceOfType<ToggleButton>(expander.Template.FindName("HeaderSite", expander));
+        var foreground = Assert.IsInstanceOfType<SolidColorBrush>(header.Foreground);
+        Assert.AreEqual(Colors.White, foreground.Color);
+    }
+
+    private static void ArrangeControlWindow(ControlWindow window)
+    {
+        window.Dispatcher.Invoke(static () => { }, DispatcherPriority.DataBind);
+        var size = new Size(window.MinWidth, window.MinHeight);
+        var layout = (FrameworkElement)window.Content;
+        layout.Measure(size);
+        layout.Arrange(new Rect(size));
+        layout.UpdateLayout();
+    }
+
+    private static void InspectControlWindow(
+        AppSettings settings, Action<ControlWindow> inspect, IEventSource? source = null)
+    {
+        AppSettings isolated = settings with
+        {
+            Obs = settings.Obs with { Enabled = false, BrowserSourceSyncEnabled = false },
+        };
+        var window = new ControlWindow(CreateServices(
+            ProviderConnectionState.Stopped, suppliedSettings: isolated, suppliedEventSource: source));
+        try
+        {
+            inspect(window);
+        }
+        finally
+        {
+            // Keep the dispatcher available while the window's services shut down.
+            Task shutdown = window.DisposeAsync().AsTask();
+            var frame = new DispatcherFrame();
+            _ = shutdown.ContinueWith(
+                _ => window.Dispatcher.BeginInvoke(() => frame.Continue = false),
+                CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            Dispatcher.PushFrame(frame);
+            shutdown.GetAwaiter().GetResult();
+            window.Close();
+        }
+    }
+
+    [TestMethod]
+    [DataRow(false, ReceptionProvider.P2pQuake, 0)]
+    [DataRow(true, ReceptionProvider.P2pQuake, 1)]
+    [DataRow(true, ReceptionProvider.Disabled, 0)]
+    public async Task StartupConnectUsesSavedSettingAndReceptionRouting(
+        bool enabled, ReceptionProvider provider, int expectedStarts)
+    {
+        AppSettings defaults = AppSettings.CreateDefault();
+        AppSettings settings = defaults with
+        {
+            Provider = defaults.Provider with
+            {
+                ReceptionProvider = provider,
+                Routing = ProviderRoutingSettings.FromLegacy(provider),
+                AutoConnectOnStartup = enabled,
+            },
+        };
+        var source = new FaultedActiveConfigurableEventSource();
+        AppServices services = CreateServices(ProviderConnectionState.Stopped,
+            suppliedSettings: settings, suppliedEventSource: source);
+        await using var viewModel = new ControlWindowViewModel(
+            services, settings, new FakeConfirmationService(), new ImmediateUiDispatcher());
+
+        viewModel.Settings.AutoConnectOnStartup = !enabled;
+        viewModel.StartReceptionOnStartup();
+        viewModel.StartReceptionOnStartup();
+
+        Assert.AreEqual(expectedStarts, source.ReadCount);
+        if (provider == ReceptionProvider.Disabled)
+        {
+            Assert.Contains("すべての情報を受信しない設定", viewModel.ReceptionStatusText);
+        }
+    }
+
+    [TestMethod]
+    public async Task SavingStartupConnectDoesNotStartOrRestartCurrentReception()
+    {
+        AppSettings settings = AppSettings.CreateDefault();
+        var source = new FaultedActiveConfigurableEventSource();
+        AppServices services = CreateServices(ProviderConnectionState.Stopped,
+            suppliedSettings: settings, suppliedEventSource: source);
+        await using var viewModel = new ControlWindowViewModel(
+            services, settings, new FakeConfirmationService(), new ImmediateUiDispatcher());
+
+        viewModel.Settings.AutoConnectOnStartup = true;
+        await viewModel.SaveSettingsAsync();
+        Assert.IsTrue((await services.SettingsStore.LoadAsync()).Provider.AutoConnectOnStartup);
+        Assert.AreEqual(0, source.ReadCount);
+
+        viewModel.ConnectCommand.Execute(null);
+        await WaitUntilAsync(() => source.IsReaderActive);
+        viewModel.Settings.ResetReceptionSettings();
+        await viewModel.SaveSettingsAsync();
+
+        Assert.IsFalse((await services.SettingsStore.LoadAsync()).Provider.AutoConnectOnStartup);
+        Assert.AreEqual(1, source.ReadCount);
+        Assert.AreEqual(0, source.StopCount);
+        Assert.IsTrue(source.IsReaderActive);
+    }
+
+    [TestMethod]
+    public async Task StartupConnectSurvivesJsonReloadAndDefaultsOffInExistingFiles()
+    {
+        string directory = Directory.CreateTempSubdirectory("cdi-startup-connect-").FullName;
+        string path = Path.Combine(directory, "settings.json");
+        try
+        {
+            AppSettings defaults = AppSettings.CreateDefault();
+            var store = new JsonSettingsStore(path, new UiLogBuffer());
+            var editor = new SettingsEditorViewModel(defaults) { AutoConnectOnStartup = true };
+            await store.SaveAsync(editor.ToSettings(defaults));
+            Assert.IsTrue(new SettingsEditorViewModel(await store.LoadAsync()).AutoConnectOnStartup);
+
+            JsonObject document = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+            Assert.IsTrue(document["provider"]!.AsObject().Remove("autoConnectOnStartup"));
+            await File.WriteAllTextAsync(path, document.ToJsonString());
+            Assert.IsFalse((await store.LoadAsync()).Provider.AutoConnectOnStartup);
+        }
+        finally
+        {
+            File.Delete(path);
+            Directory.Delete(directory);
+        }
+    }
+
+    [TestMethod]
     public async Task SavingProviderSettingsRestartsFaultedButActiveReception()
     {
         AppSettings settings = AppSettings.CreateDefault();
@@ -1229,51 +1567,86 @@ public sealed partial class Phase6ViewModelTests
     }
 
     [TestMethod]
-    public async Task ProductionTestRequiresConfirmationAndAcceptedTestHasBanner()
+    public async Task StartingProductionClearsTestOutputAndKeepsTestsBlockedUntilReceptionStops()
     {
-        var confirmation = new FakeConfirmationService { Result = false };
-        AppServices services = CreateServices(ProviderConnectionState.Connected);
-        var viewModel = new ControlWindowViewModel(
+        var source = new FaultedActiveConfigurableEventSource();
+        AppServices services = CreateServices(ProviderConnectionState.Stopped, suppliedEventSource: source);
+        var store = new ObsSnapshotStore(services.InitialSettings.Display, services.Clock.UtcNow);
+        await using var viewModel = new ControlWindowViewModel(
             services,
             services.InitialSettings,
-            confirmation,
-            new ImmediateUiDispatcher());
+            new FakeConfirmationService(),
+            new ImmediateUiDispatcher(),
+            store);
+        viewModel.SelectedScenario = viewModel.Scenarios.Single(item => item.Id == "detail-scale");
+
+        Assert.IsTrue(viewModel.RunTestCommand.CanExecute(null));
+        viewModel.RunTestCommand.Execute(null);
+        Assert.AreEqual("操作テスト／訓練", viewModel.Overlay.RehearsalLabel);
+        Assert.IsTrue(store.Read(ObsViewChannel.General, services.Clock.UtcNow).HasProgram);
+
+        viewModel.ConnectCommand.Execute(null);
+        await WaitUntilAsync(() => source.IsReaderActive && viewModel.ConnectionState == ProviderConnectionState.Faulted);
+        Assert.IsFalse(viewModel.RunTestCommand.CanExecute(null));
+        Assert.IsTrue(services.IngestionPipeline.BlockTestMessages);
+        Assert.IsFalse(viewModel.Overlay.HasProgram);
+        Assert.IsFalse(store.Read(ObsViewChannel.General, services.Clock.UtcNow).HasProgram);
 
         viewModel.RunTestCommand.Execute(null);
-
-        Assert.AreEqual(1, confirmation.CallCount);
         Assert.IsFalse(viewModel.Overlay.HasProgram);
 
-        confirmation.Result = true;
-        viewModel.RunTestCommand.Execute(null);
-
-        Assert.AreEqual(2, confirmation.CallCount);
-        Assert.IsTrue(viewModel.Overlay.HasProgram);
-        Assert.AreEqual("操作テスト／訓練", viewModel.Overlay.RehearsalLabel);
-        Assert.IsTrue(viewModel.Overlay.Blocks.Count > 0);
-        await viewModel.DisposeAsync();
+        viewModel.DisconnectCommand.Execute(null);
+        await WaitUntilAsync(() => viewModel.RunTestCommand.CanExecute(null));
+        Assert.IsFalse(services.IngestionPipeline.BlockTestMessages);
     }
 
     [TestMethod]
     [DataRow(ProviderConnectionState.Connected)]
     [DataRow(ProviderConnectionState.Stale)]
-    public async Task UnsavedSandboxModeCannotSkipProductionTestConfirmation(ProviderConnectionState connectionState)
+    [DataRow(ProviderConnectionState.Connecting)]
+    [DataRow(ProviderConnectionState.Reconnecting)]
+    public async Task UnsavedSandboxModeCannotAllowTestsDuringProduction(ProviderConnectionState connectionState)
     {
-        var confirmation = new FakeConfirmationService { Result = false };
         AppServices services = CreateServices(connectionState);
-        var viewModel = new ControlWindowViewModel(
+        await using var viewModel = new ControlWindowViewModel(
             services,
             services.InitialSettings,
-            confirmation,
+            new FakeConfirmationService(),
             new ImmediateUiDispatcher());
         viewModel.Settings.ProviderMode = ProviderMode.Sandbox;
 
+        Assert.IsFalse(viewModel.RunTestCommand.CanExecute(null));
         viewModel.RunTestCommand.Execute(null);
 
-        Assert.AreEqual(ProviderMode.Production, services.InitialSettings.Provider.Mode);
-        Assert.AreEqual(1, confirmation.CallCount);
         Assert.IsFalse(viewModel.Overlay.HasProgram);
-        await viewModel.DisposeAsync();
+    }
+
+    [TestMethod]
+    [DataRow(ReceptionProvider.P2pQuake, ProviderMode.Sandbox, ReceptionProvider.Disabled, true)]
+    [DataRow(ReceptionProvider.YditsTest, ProviderMode.Production, ReceptionProvider.Disabled, true)]
+    [DataRow(ReceptionProvider.YditsTest, ProviderMode.Production, ReceptionProvider.P2pQuake, false)]
+    [DataRow(ReceptionProvider.P2pQuake, ProviderMode.Sandbox, ReceptionProvider.JmaXml, false)]
+    public async Task TestAvailabilityAccountsForLiveAndTestOnlyProviders(
+        ReceptionProvider eew, ProviderMode mode, ReceptionProvider quake, bool expected)
+    {
+        AppSettings defaults = AppSettings.CreateDefault();
+        var routing = new ProviderRoutingSettings(eew, quake, ReceptionProvider.Disabled,
+            ReceptionProvider.Disabled, ReceptionProvider.Disabled, ReceptionProvider.Disabled);
+        AppSettings settings = defaults with
+        {
+            Provider = defaults.Provider with
+            {
+                Mode = mode,
+                Routing = routing,
+                ReceptionProvider = routing.GetCompatibilityProvider(),
+            },
+        };
+        AppServices services = CreateServices(ProviderConnectionState.Connected, suppliedSettings: settings);
+        await using var viewModel = new ControlWindowViewModel(
+            services, settings, new FakeConfirmationService(), new ImmediateUiDispatcher());
+
+        Assert.AreEqual(expected, viewModel.RunTestCommand.CanExecute(null));
+        Assert.AreEqual(!expected, services.IngestionPipeline.BlockTestMessages);
     }
 
     [TestMethod]
@@ -1291,6 +1664,7 @@ public sealed partial class Phase6ViewModelTests
             new ImmediateUiDispatcher());
         viewModel.Settings.ProviderMode = ProviderMode.Sandbox;
 
+        Assert.IsFalse(viewModel.StartHistoryRehearsalCommand.CanExecute(null));
         viewModel.StartHistoryRehearsalCommand.Execute(null);
 
         Assert.IsFalse(viewModel.IsHistoryRehearsalRunning);
@@ -1299,6 +1673,7 @@ public sealed partial class Phase6ViewModelTests
         viewModel.SelectedHistoryItem = new HistoryReplayItemViewModel(
             "履歴", quake, services.PageComposer.Compose(quake, services.InitialSettings.Display));
 
+        Assert.IsFalse(viewModel.PlaySelectedHistoryCommand.CanExecute(null));
         viewModel.PlaySelectedHistoryCommand.Execute(null);
 
         Assert.IsFalse(viewModel.IsHistoryRehearsalRunning);
@@ -1599,7 +1974,7 @@ public sealed partial class Phase6ViewModelTests
     }
 
     [TestMethod]
-    public async Task ReceivedProductionTelegramCanBeClearedAndRedisplayed()
+    public async Task ReceivedProductionTelegramCanBeClearedAndRedisplayedDuringLiveReception()
     {
         QuakeEvent quake = CreateQuake(SourceMode.Production, "received-production-quake");
         AppServices services = CreateServices(
@@ -1622,6 +1997,8 @@ public sealed partial class Phase6ViewModelTests
         viewModel.ConnectCommand.Execute(null);
         await WaitUntilAsync(() => viewModel.ReceivedTelegrams.Count == 1);
         Assert.HasCount(1, viewModel.ReceivedTelegrams);
+        source.SetConnectionState(ProviderConnectionState.Connected);
+        Assert.IsFalse(viewModel.RunTestCommand.CanExecute(null));
 
         viewModel.ClearQuakeDisplayCommand.Execute(null);
         Assert.IsFalse(viewModel.Overlay.HasProgram);
@@ -1638,11 +2015,12 @@ public sealed partial class Phase6ViewModelTests
             BuildExpectedReplayLabel(string.Empty, quake.IssuedAt, services.Clock.UtcNow),
             viewModel.Overlay.RehearsalLabel);
 
-        viewModel.IsTrainingReplayMode = true;
+        viewModel.IsPastInformationReplayMode = true;
+        Assert.IsTrue(viewModel.RedisplayReceivedTelegramCommand.CanExecute(null));
         viewModel.RedisplayReceivedTelegramCommand.Execute(null);
 
         Assert.AreEqual(
-            BuildExpectedReplayLabel("訓練", quake.IssuedAt, services.Clock.UtcNow),
+            BuildExpectedReplayLabel("過去情報", quake.IssuedAt, services.Clock.UtcNow),
             viewModel.Overlay.RehearsalLabel);
         await viewModel.DisposeAsync();
     }
@@ -1982,9 +2360,9 @@ public sealed partial class Phase6ViewModelTests
     public async Task ClearDisplayCommandClearsWpfObsAndCoordinatorWithoutStoppingReception()
     {
         AppServices services = CreateServices(ProviderConnectionState.Connected);
-        TestScenario scenario = TestScenarioCatalog.Create(services.Clock.UtcNow)[0];
+        QuakeEvent quake = CreateQuake(SourceMode.Production, "live-clear-display");
         services.DisplayCoordinator.Apply(
-            services.PageComposer.Compose(scenario.Event, services.InitialSettings.Display));
+            services.PageComposer.Compose(quake, services.InitialSettings.Display));
         var obsStore = new ObsSnapshotStore(services.InitialSettings.Display, services.Clock.UtcNow);
         var viewModel = new ControlWindowViewModel(
             services,
@@ -2009,9 +2387,9 @@ public sealed partial class Phase6ViewModelTests
     public async Task SubtitleEditUpdatesPreviewAndObsWithoutChangingCoordinatorOrReplayingAudio()
     {
         AppServices services = CreateServices(ProviderConnectionState.Connected);
-        TestScenario scenario = TestScenarioCatalog.Create(services.Clock.UtcNow)[0];
+        QuakeEvent quake = CreateQuake(SourceMode.Production, "live-subtitle-edit");
         services.DisplayCoordinator.Apply(
-            services.PageComposer.Compose(scenario.Event, services.InitialSettings.Display));
+            services.PageComposer.Compose(quake, services.InitialSettings.Display));
         var obsStore = new ObsSnapshotStore(services.InitialSettings.Display, services.Clock.UtcNow);
         var viewModel = new ControlWindowViewModel(
             services,
@@ -2278,23 +2656,13 @@ public sealed partial class Phase6ViewModelTests
 
     private sealed class FakeConfirmationService : IConfirmationService
     {
-        public bool Result { get; set; } = true;
-
         public bool DisconnectResult { get; set; } = true;
 
         public bool ResetAllSettingsResult { get; set; }
 
         public int ResetAllSettingsCallCount { get; private set; }
 
-        public int CallCount { get; private set; }
-
         public int DisconnectCallCount { get; private set; }
-
-        public bool ConfirmProductionTest()
-        {
-            CallCount++;
-            return Result;
-        }
 
         public bool ConfirmDisconnect()
         {
@@ -2529,9 +2897,14 @@ public sealed partial class Phase6ViewModelTests
         public ValueTask StopAsync(CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Connection = Connection with { State = ProviderConnectionState.Stopped };
-            ConnectionChanged?.Invoke(this, Connection);
+            SetConnectionState(ProviderConnectionState.Stopped);
             return ValueTask.CompletedTask;
+        }
+
+        public void SetConnectionState(ProviderConnectionState state)
+        {
+            Connection = Connection with { State = state };
+            ConnectionChanged?.Invoke(this, Connection);
         }
 
         public void RequestReconnect(ReconnectReason reason)

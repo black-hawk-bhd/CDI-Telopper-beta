@@ -23,6 +23,7 @@ public sealed class AboutViewModel
     [
         new("DMDATA.JP 公式サイト", new("https://dmdata.jp/")),
         new("DMDATA.JP コントロールパネル", new("https://control.dmdata.jp/")),
+        new("AXIS API 公式サイト", new("https://axis.prioris.jp/")),
         new("GitHub（ソースコード・説明）", new(RepositoryUrl)),
         new("配布版・更新履歴（Releases）", new(RepositoryUrl + "/releases")),
         new("利用規約・免責事項", new(RepositoryUrl + "/blob/main/TERMS.md")),

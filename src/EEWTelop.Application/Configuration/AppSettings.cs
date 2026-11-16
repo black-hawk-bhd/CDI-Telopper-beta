@@ -89,9 +89,7 @@ public sealed record AppSettings(
             RawMessageRetentionDays = 7,
             RawMessageMaximumTotalMegabytes = 256,
         },
-        Safety: new SafetySettings(
-            ConfirmTestInProduction: true,
-            RestoreRehearsalState: false));
+        Safety: new SafetySettings(RestoreRehearsalState: false));
 }
 
 public sealed record ProviderSettings(
@@ -102,6 +100,8 @@ public sealed record ProviderSettings(
     public ReceptionProvider ReceptionProvider { get; init; } = ReceptionProvider.P2pQuake;
 
     public ProviderRoutingSettings Routing { get; init; } = ProviderRoutingSettings.Default;
+
+    public bool AutoConnectOnStartup { get; init; }
 
     public bool JmaXmlAutoFallback { get; init; } = true;
 
@@ -173,9 +173,9 @@ public sealed record ProviderRoutingSettings(
         Eew: ReceptionProvider.P2pQuake,
         Quake: ReceptionProvider.P2pQuake,
         Tsunami: ReceptionProvider.P2pQuake,
-        Weather: ReceptionProvider.P2pQuake,
-        Volcano: ReceptionProvider.P2pQuake,
-        NankaiTrough: ReceptionProvider.P2pQuake);
+        Weather: ReceptionProvider.Disabled,
+        Volcano: ReceptionProvider.Disabled,
+        NankaiTrough: ReceptionProvider.Disabled);
 
     public static ProviderRoutingSettings AxisHybrid { get; } = new(
         Eew: ReceptionProvider.Axis,
@@ -213,21 +213,20 @@ public sealed record ProviderRoutingSettings(
                 ReceptionProvider.Dmdata,
                 ReceptionProvider.Dmdata,
                 ReceptionProvider.Dmdata),
-            ReceptionProvider.Wolfx => new ProviderRoutingSettings(
-                ReceptionProvider.Wolfx,
-                ReceptionProvider.Wolfx,
-                ReceptionProvider.P2pQuake,
-                ReceptionProvider.P2pQuake,
-                ReceptionProvider.P2pQuake,
-                ReceptionProvider.P2pQuake),
-            _ => new ProviderRoutingSettings(
-                ReceptionProvider.P2pQuake,
-                ReceptionProvider.P2pQuake,
-                ReceptionProvider.P2pQuake,
-                ReceptionProvider.P2pQuake,
-                ReceptionProvider.P2pQuake,
-                ReceptionProvider.P2pQuake),
+            ReceptionProvider.Wolfx => Default with
+            {
+                Eew = ReceptionProvider.Wolfx,
+                Quake = ReceptionProvider.Wolfx,
+            },
+            _ => Default,
         };
+
+    public ProviderRoutingSettings WithoutUnsupportedP2pRoutes() => this with
+    {
+        Weather = Weather == ReceptionProvider.P2pQuake ? ReceptionProvider.Disabled : Weather,
+        Volcano = Volcano == ReceptionProvider.P2pQuake ? ReceptionProvider.Disabled : Volcano,
+        NankaiTrough = NankaiTrough == ReceptionProvider.P2pQuake ? ReceptionProvider.Disabled : NankaiTrough,
+    };
 
     public bool Uses(ReceptionProvider provider) =>
         Eew == provider || Quake == provider || Tsunami == provider ||
@@ -638,7 +637,6 @@ public sealed record LogSettings(
 }
 
 public sealed record SafetySettings(
-    bool ConfirmTestInProduction,
     bool RestoreRehearsalState);
 
 public sealed record OperationalSettings(

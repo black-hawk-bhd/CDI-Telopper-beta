@@ -14,7 +14,7 @@ public sealed class ParallelEventSource : IEventSource, IProviderConfigurableEve
 {
     private readonly object _gate = new();
     private readonly IReadOnlyList<ParallelEventSourceBranch> _branches;
-    private readonly Dictionary<IEventSource, ProviderConnectionSnapshot> _connections;
+    private readonly Dictionary<IEventSource, ProviderBranchConnectionSnapshot> _connections;
     private ProviderConnectionSnapshot _connection;
     private int _readerActive;
     private bool _disposed;
@@ -48,7 +48,7 @@ public sealed class ParallelEventSource : IEventSource, IProviderConfigurableEve
         _branches = branches.ToArray();
         _connections = _branches.ToDictionary(
             static branch => branch.Source,
-            static branch => branch.Source.Connection);
+            static branch => new ProviderBranchConnectionSnapshot(branch.Name, branch.Source.Connection));
         foreach (ParallelEventSourceBranch branch in _branches)
         {
             branch.Source.ConnectionChanged += OnSourceConnectionChanged;
@@ -74,9 +74,7 @@ public sealed class ParallelEventSource : IEventSource, IProviderConfigurableEve
     {
         lock (_gate)
         {
-            return _branches.Select(branch => new ProviderBranchConnectionSnapshot(
-                branch.Name,
-                _connections[branch.Source])).ToArray();
+            return _branches.Select(branch => _connections[branch.Source]).ToArray();
         }
     }
 
@@ -216,12 +214,12 @@ public sealed class ParallelEventSource : IEventSource, IProviderConfigurableEve
         ProviderConnectionSnapshot aggregate;
         lock (_gate)
         {
-            if (!_connections.ContainsKey(source))
+            if (!_connections.TryGetValue(source, out var previous))
             {
                 return;
             }
 
-            _connections[source] = snapshot;
+            _connections[source] = previous.WithConnection(snapshot);
             aggregate = AggregateConnection();
             _connection = aggregate;
         }
@@ -232,7 +230,7 @@ public sealed class ParallelEventSource : IEventSource, IProviderConfigurableEve
     private ProviderConnectionSnapshot AggregateConnection()
     {
         ProviderConnectionSnapshot[] snapshots = _branches
-            .Select(branch => _connections[branch.Source])
+            .Select(branch => _connections[branch.Source].Connection)
             .ToArray();
         ProviderConnectionState state = AggregateState(snapshots);
         DateTimeOffset changedAt = snapshots.Max(static snapshot => snapshot.ChangedAt);
@@ -247,7 +245,7 @@ public sealed class ParallelEventSource : IEventSource, IProviderConfigurableEve
         string detail = string.Join(
             " / ",
             _branches.Select(branch =>
-                $"{branch.Name}: {_connections[branch.Source].State}"));
+                $"{branch.Name}: {_connections[branch.Source].Connection.State}"));
         return new ProviderConnectionSnapshot(
             state,
             changedAt,

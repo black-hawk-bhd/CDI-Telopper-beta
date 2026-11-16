@@ -114,7 +114,19 @@ public sealed class OperationalAlertCenter : IOperationalAlertCenter
 
 public sealed record ProviderBranchConnectionSnapshot(
     string Name,
-    ProviderConnectionSnapshot Connection);
+    ProviderConnectionSnapshot Connection)
+{
+    public int ReconnectCount { get; init; }
+    public bool IsStandby { get; init; }
+
+    internal ProviderBranchConnectionSnapshot WithConnection(ProviderConnectionSnapshot connection) =>
+        this with
+        {
+            Connection = connection,
+            ReconnectCount = ReconnectCount + (Connection.State != ProviderConnectionState.Reconnecting &&
+                connection.State == ProviderConnectionState.Reconnecting ? 1 : 0),
+        };
+}
 
 public interface IProviderConnectionDiagnostics
 {

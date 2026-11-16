@@ -147,6 +147,8 @@ public partial class ControlWindow : Window, IAsyncDisposable
             });
     }
 
+    internal ControlWindowViewModel ViewModel => _viewModel;
+
     protected override async void OnClosed(EventArgs e)
     {
         await DisposeAsync();

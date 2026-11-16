@@ -24,13 +24,15 @@ beta.51 adds per-domain upstream health, a separately authenticated rehearsal AP
 
 beta.50 improves unreported-intensity normalization and labeling, removes trailing full-width station markers only from display text, and preserves observed and unreported entries at the same place. Simulator decoding and additive external API fields are improved while training/live separation remains enforced.
 
-The current public release is **2.0.0-beta.67** (November 16, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.68** (November 16, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.67](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.67)
-- [English user guide](docs/USER_GUIDE_EN.md) / [Japanese beta.67 release guide](README_CDI-Telopper_2.0.0-beta.67.txt)
+- [Download 2.0.0-beta.68](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.68)
+- [English user guide](docs/USER_GUIDE_EN.md) / [Japanese beta.68 release guide](README_CDI-Telopper_2.0.0-beta.68.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
+
+beta.68 adds optional reception API connections at startup and per-provider status in the main window and notification area. Starting live reception stops running tests and blocks new tests. Operators can still redisplay past or previously received messages from the review window. [Japanese release notes](RELEASE_NOTES_2.0.0-beta.68.md)
 
 beta.67 adds JMA readings for seismic observation stations, seismic regions and tsunami forecast areas. Open **震度観測点（電文）** in the review window to see the source station names and their readings. [Japanese release notes](RELEASE_NOTES_2.0.0-beta.67.md)
 
@@ -94,7 +96,7 @@ Beta.37 removes the three generic earthquake pages from large-scale eruption rep
 - Handles updates, cancellations, lifted warnings and advisories, duplicates, and superseded reports for the same event
 - Shows the affected area and warning or advisory type when a warning is cleared
 - Provides a separate window for reviewing live and past telegrams
-- Redisplays a selected telegram in one of three modes: live-information repeat, past-information presentation, or operational training
+- Redisplays a selected telegram as a live-information replay or a past-information presentation, including during live reception
 - Provides OBS Local View and automatic browser-source registration and URL updates through OBS WebSocket 5.x
 - Routes notification audio to its matching OBS category source (beta.57 onward)
 - Checks AXIS token expiration and attempts renewal before expiration
@@ -229,10 +231,10 @@ The script restores dependencies, builds every project in the Release configurat
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.67
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.68
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.67\win-x64`. [Source build details](SOURCE_BUILD.md)
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.68\win-x64`. [Source build details](SOURCE_BUILD.md)
 
 ## External API integration: terms and disclaimer
 

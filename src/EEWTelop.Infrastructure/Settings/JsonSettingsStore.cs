@@ -232,6 +232,7 @@ public sealed class JsonSettingsStore : ISettingsStore
             routing = ProviderRoutingSettings.FromLegacy(
                 settings.Provider.ReceptionProvider);
         }
+        routing = routing.WithoutUnsupportedP2pRoutes();
         if (!IsValidProviderRouting(routing))
         {
             throw new InvalidDataException("The information provider routing is invalid.");

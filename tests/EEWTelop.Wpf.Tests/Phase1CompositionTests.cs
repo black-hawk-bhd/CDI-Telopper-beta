@@ -18,7 +18,6 @@ public sealed class Phase1CompositionTests
             AppSettings settings = await services.SettingsStore.LoadAsync();
 
             Assert.AreEqual(ProviderMode.Production, services.Provider.Mode);
-            Assert.IsTrue(settings.Safety.ConfirmTestInProduction);
             Assert.IsFalse(settings.Safety.RestoreRehearsalState);
             Assert.IsNotEmpty(services.IdGenerator.NewId());
             Assert.IsNotNull(services.EventNormalizer);

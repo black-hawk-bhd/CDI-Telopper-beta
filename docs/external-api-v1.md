@@ -73,8 +73,8 @@ CDI-Telopper が正規化した本番受信情報を、同じPCの外部ツー�
 | `WS /api/v1/rehearsal/events` | 全リソースのsnapshot / update / heartbeat |
 
 - 全応答に `channel="rehearsal"`, `isTraining=true`, `sessionId`, `rehearsalSessionId` を付加します。本番は `channel="production"`, `isTraining=false` です。
-- 手動テスト、Sandbox、履歴訓練、Simulator、電文確認の「動作訓練」での明示的再表示が対象です。本番再掲・過去情報としての紹介は対象外です。元電文は変更しません。
-- 訓練の `sourceMode` は `manualTest`, `sandbox`, `historyRehearsal`, `simulator`, `manualReplay`, `unknownTraining`。`production` へ変換しません。訓練バナー非表示操作でも区分を維持します。
+- 手動テスト、Sandbox、履歴訓練、Simulatorが対象です。本番再掲・過去情報としての紹介は対象外です。元電文は変更しません。
+- 訓練の `sourceMode` は `manualTest`, `sandbox`, `historyRehearsal`, `simulator`, `unknownTraining`。訓練バナーを非表示にしても区分を維持します。
 - 開始・明示的リセット・Simulatorセッション変更で `rehearsalSessionId` が変わります。外部ツールは以前の状態を破棄してください。API有効化後にテスト・履歴再生・Simulator接続を開始してください。
 - 「訓練APIのセッションを終了」やSimulatorの手動切断で `rehearsal.active=false` を通知します。外部の訓練表示を消去してください。APIの終了・リセット自体は字幕・音声・Simulator接続を操作しません。実行中にAPIを終了・リセットした場合はテスト・履歴再生・Simulator接続を開始し直してください。
 - Simulator通信断・異常終了は訓練終了に変換しません。最終データとactiveを保持し、`dataHealth` を `failed` にします。CDI側の字幕・音声は従来どおり停止します。外部ツールでも通信異常を明示してください。

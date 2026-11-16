@@ -11,6 +11,29 @@ namespace EEWTelop.Application.Tests;
 public sealed class EventIngestionPipelineTests
 {
     [TestMethod]
+    public void ProductionBlockDoesNotDisplayOrConsumeATestTelegram()
+    {
+        QuakeEvent earthquake = DisplayEventFactory.CreateQuake(QuakeIssueType.DetailScale,
+            sourceMode: SourceMode.Sandbox);
+        var clock = new FakeClock();
+        var coordinator = new PriorityCoordinator(clock, DisplayEventFactory.Settings);
+        var pipeline = new EventIngestionPipeline(new StubNormalizer(earthquake), new EventVersionCache(),
+            new PageComposer(), coordinator, DisplayEventFactory.Settings) { BlockTestMessages = true };
+        var raw = new RawProviderMessage("p2pquake", "{}", SourceMode.Production, clock.UtcNow);
+
+        EventIngestionResult blocked = pipeline.Process(raw);
+
+        Assert.AreEqual(EventIngestionStatus.Ignored, blocked.Status);
+        Assert.IsNull(blocked.Program);
+        Assert.IsNull(blocked.ReviewProgram);
+        Assert.IsNull(coordinator.Evaluate().CurrentProgram);
+
+        pipeline.BlockTestMessages = false;
+        Assert.AreEqual(EventIngestionStatus.Accepted, pipeline.Process(raw).Status);
+        Assert.AreEqual(SourceMode.Sandbox, coordinator.Evaluate().CurrentProgram?.SourceMode);
+    }
+
+    [TestMethod]
     public void QuakeRegionFilterOnlyChangesDisplayAndRetainsOriginalEventForApi()
     {
         QuakeEvent quake = DisplayEventFactory.CreateQuake(QuakeIssueType.DetailScale,

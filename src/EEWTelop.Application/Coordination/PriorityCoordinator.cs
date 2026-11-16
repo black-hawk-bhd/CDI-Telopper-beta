@@ -322,6 +322,27 @@ public sealed class PriorityCoordinator : IDisplayCoordinator
         }
     }
 
+    public void ClearTestPrograms()
+    {
+        lock (_gate)
+        {
+            foreach (EventKind kind in _pendingByKind
+                         .Where(static entry => IsTest(entry.Value)).Select(static entry => entry.Key).ToArray())
+                _pendingByKind.Remove(kind);
+            foreach (EventId id in _pendingWeatherByEventId
+                         .Where(static entry => IsTest(entry.Value)).Select(static entry => entry.Key).ToArray())
+                _pendingWeatherByEventId.Remove(id);
+
+            if (IsTest(_persistentTsunami))
+                _persistentTsunami = null;
+            if (IsTest(_current))
+                _current = null;
+        }
+
+        static bool IsTest(ScheduledProgram? program) =>
+            program?.Program.SourceMode is SourceMode.Sandbox or SourceMode.ManualTest;
+    }
+
     public CoordinatorSnapshot Restore(CoordinatorRestoreState state)
     {
         ArgumentNullException.ThrowIfNull(state);
