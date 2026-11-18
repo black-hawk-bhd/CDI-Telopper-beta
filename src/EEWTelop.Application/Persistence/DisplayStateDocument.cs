@@ -151,6 +151,8 @@ public sealed record StoredDisplayProgram(
     EndPolicy EndPolicy,
     string RehearsalLabel)
 {
+    public bool? IsRoutineNankaiCommentary { get; init; }
+
     public static StoredDisplayProgram From(DisplayProgram program, DateTimeOffset startedAtUtc) => new(
         program.ProgramId,
         program.EventId.Value,
@@ -161,7 +163,10 @@ public sealed record StoredDisplayProgram(
         program.Pages.Select(StoredDisplayPage.From).ToArray(),
         startedAtUtc,
         program.EndPolicy,
-        program.RehearsalLabel);
+        program.RehearsalLabel)
+    {
+        IsRoutineNankaiCommentary = program.IsRoutineNankaiCommentary,
+    };
 
     public bool TryToProgram(out DisplayProgram? program)
     {
@@ -186,7 +191,14 @@ public sealed record StoredDisplayProgram(
             pages,
             StartedAtUtc,
             EndPolicy,
-            RehearsalLabel ?? string.Empty);
+            RehearsalLabel ?? string.Empty)
+        {
+            // Older saved programs lack the classification but retain the Wolfx ID and title.
+            IsRoutineNankaiCommentary = IsRoutineNankaiCommentary ??
+                (Kind == EventKind.Quake && EventId.StartsWith("VYSE52-", StringComparison.Ordinal) &&
+                    pages.Length > 0 && pages[0].Blocks.Count > 0 &&
+                    pages[0].Blocks[0].PrimaryText == "南海トラフ地震関連解説情報（定例解説）"),
+        };
         return true;
     }
 }

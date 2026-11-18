@@ -283,6 +283,8 @@ public sealed record FilterSettings(
     // Other category and prefecture filters still apply.
     public bool ShowQuakeWithEewNoStrongShakingComment { get; init; }
 
+    public bool ShowRoutineNankaiCommentary { get; init; }
+
     public string[] QuakePrefectureCodes { get; init; } = [];
 
     public QuakePrefectureFilterMode QuakePrefectureMode { get; init; } =

@@ -46,6 +46,7 @@ public sealed record ObsViewBlock(
     string StyleToken)
 {
     public string WeatherHeading { get; init; } = string.Empty;
+    public string? SubtitleBodyText { get; init; }
     public bool HideBadge { get; init; }
     public EewWarningCard? EewCard { get; init; }
 }
@@ -169,6 +170,16 @@ public sealed partial class ObsSnapshotStore
                          .Where(entry => entry.Value.Program.SourceMode is SourceMode.Sandbox or SourceMode.ManualTest)
                          .Select(entry => entry.Key).ToArray())
                 _programs.Remove(channel);
+        }
+    }
+
+    internal void ClearRoutineNankaiCommentary(DateTimeOffset now)
+    {
+        lock (_gate)
+        {
+            if (_programs.TryGetValue(ObsViewChannel.General, out ObsProgramState? state) &&
+                state.Program.IsRoutineNankaiCommentary)
+                ClearProgram(EventKind.Quake, now, state.Program.ProgramId);
         }
     }
 
@@ -574,6 +585,7 @@ public sealed partial class ObsSnapshotStore
         return new ObsViewBlock(block.Badge, block.PrimaryText, block.SecondaryText, block.StyleToken)
         {
             WeatherHeading = block.WeatherHeading,
+            SubtitleBodyText = DisplayBadgeVisibility.GetAlignedSubtitleBody(source, block),
             HideBadge = DisplayBadgeVisibility.HideInformationBadges(program, settings),
             EewCard = block.EewCard,
         };

@@ -9,6 +9,27 @@ namespace EEWTelop.Application.Tests;
 public sealed class PriorityCoordinatorTests
 {
     [TestMethod]
+    public void DisablingRoutineCommentaryClearsWaitingAndRestoredProgramsSelectively()
+    {
+        var clock = new FakeClock();
+        var coordinator = new PriorityCoordinator(clock, CoordinatorTestSupport.Settings());
+        DisplayProgram routine = CoordinatorTestSupport.Program("routine", EventKind.Quake, OverlayPriority.Quake,
+            clock.UtcNow) with { IsRoutineNankaiCommentary = true };
+        DisplayProgram eew = CoordinatorTestSupport.Program("eew", EventKind.Eew, OverlayPriority.Eew, clock.UtcNow);
+        coordinator.Apply(eew);
+        Assert.HasCount(1, coordinator.Apply(routine).PendingPrograms);
+
+        coordinator.SetRoutineNankaiCommentaryEnabled(false);
+
+        Assert.AreEqual("eew", coordinator.Evaluate().CurrentProgram?.ProgramId);
+        Assert.IsEmpty(coordinator.Evaluate().PendingPrograms);
+        Assert.AreEqual(CoordinatorDecisionKind.IgnoredFilteredProgram, coordinator.Apply(routine).Decision.Kind);
+        var restored = coordinator.Restore(new CoordinatorRestoreState(new RestoredProgram(routine, clock.UtcNow),
+            null, [new RestoredProgram(eew, clock.UtcNow)]));
+        Assert.AreEqual("eew", restored.CurrentProgram?.ProgramId);
+    }
+
+    [TestMethod]
     public void HigherPriorityPreemptsAndLowerPriorityWaits()
     {
         var clock = new FakeClock();

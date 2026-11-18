@@ -179,6 +179,17 @@ public sealed class ProductionReplayCatalog
         }
     }
 
+    public void RemoveRoutineNankaiCommentary()
+    {
+        lock (_gate)
+        {
+            foreach (ProductionReplayKey key in _entries.Where(pair => pair.Value.Event is
+                         QuakeEvent { IsRoutineNankaiCommentary: true }).Select(pair => pair.Key).ToArray())
+                _entries.Remove(key);
+            ResetCursorIfMissing();
+        }
+    }
+
     private void RemoveExpiredAndDisabled(
         ProductionReplaySettings settings,
         DateTimeOffset nowUtc)

@@ -2395,6 +2395,42 @@ public sealed partial class Phase6ViewModelTests
     }
 
     [TestMethod]
+    public async Task SavingRoutineCommentaryOffClearsItsTelopButPreservesReview()
+    {
+        AppSettings defaults = AppSettings.CreateDefault();
+        AppSettings settings = defaults with { Filter = defaults.Filter with { ShowRoutineNankaiCommentary = true } };
+        AppServices services = CreateServices(ProviderConnectionState.Stopped, suppliedSettings: settings);
+        services.IngestionPipeline.UpdateSettings(settings.Display, settings.Filter);
+        QuakeEvent routine = CreateQuake(SourceMode.Production, "VYSE52-telop") with { IsRoutineNankaiCommentary = true };
+        DisplayProgram program = services.PageComposer.Compose(routine, services.InitialSettings.Display);
+        services.DisplayCoordinator.Apply(program);
+        var store = new ObsSnapshotStore(services.InitialSettings.Display, services.Clock.UtcNow);
+        await using var viewModel = new ControlWindowViewModel(services, services.InitialSettings,
+            new FakeConfirmationService(), new ImmediateUiDispatcher(), store);
+        var review = new ReceivedTelegramViewModel(routine, program);
+        viewModel.ReceivedTelegrams.Add(review);
+        viewModel.SelectedReceivedTelegram = review;
+        Assert.IsTrue(store.Read(ObsViewChannel.General, services.Clock.UtcNow).HasProgram);
+
+        viewModel.Settings.ShowRoutineNankaiCommentary = false;
+        await viewModel.SaveSettingsAsync();
+
+        Assert.IsFalse(viewModel.Overlay.HasProgram);
+        Assert.IsFalse(store.Read(ObsViewChannel.General, services.Clock.UtcNow).HasProgram);
+        Assert.AreSame(review, viewModel.SelectedReceivedTelegram);
+        viewModel.RedisplayReceivedTelegramCommand.Execute(null);
+        Assert.IsFalse(store.Read().HasProgram);
+        StringAssert.Contains(viewModel.TelegramReviewStatusText, "定例解説");
+
+        viewModel.Settings.ShowRoutineNankaiCommentary = true;
+        await viewModel.SaveSettingsAsync();
+        Assert.IsFalse(store.Read().HasProgram);
+        viewModel.RedisplayReceivedTelegramCommand.Execute(null);
+        Assert.IsTrue(store.Read().HasProgram);
+        Assert.AreEqual(SourceMode.HistoryRehearsal, store.Read().SourceMode);
+    }
+
+    [TestMethod]
     public async Task SubtitleEditUpdatesPreviewAndObsWithoutChangingCoordinatorOrReplayingAudio()
     {
         AppServices services = CreateServices(ProviderConnectionState.Connected);

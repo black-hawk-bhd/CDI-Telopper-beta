@@ -16,6 +16,27 @@ public sealed class Phase8PersistenceAndAudioTests
         new(2026, 8, 1, 0, 0, 0, TimeSpan.Zero);
 
     [TestMethod]
+    public void StoredRoutineCommentaryRetainsItsClassificationWithOrWithoutTheNewField()
+    {
+        const string title = "南海トラフ地震関連解説情報（定例解説）";
+        DisplayProgram routine = CoordinatorTestSupport.Program("routine", EventKind.Quake, OverlayPriority.Quake, Now) with
+        {
+            EventId = EventId.Create("VYSE52-routine"),
+            IsRoutineNankaiCommentary = true,
+            Pages = [new DisplayPage(0, [new DisplayBlock(string.Empty, title, string.Empty, DisplayStyleTokens.Summary)], title, null)],
+        };
+        StoredDisplayProgram stored = StoredDisplayProgram.From(routine, Now);
+
+        Assert.IsTrue(stored.TryToProgram(out DisplayProgram? current));
+        Assert.IsTrue(current is { IsRoutineNankaiCommentary: true });
+        var legacy = stored with { IsRoutineNankaiCommentary = null };
+        Assert.IsTrue(legacy.TryToProgram(out DisplayProgram? restored));
+        Assert.IsTrue(restored is { IsRoutineNankaiCommentary: true });
+        Assert.IsTrue((legacy with { EventId = "VYSE51-temporary" }).TryToProgram(out DisplayProgram? temporary));
+        Assert.IsTrue(temporary is { IsRoutineNankaiCommentary: false });
+    }
+
+    [TestMethod]
     public void AudioPolicyUsesSeparateTsunamiFilesAndAllowsEscalationCue()
     {
         var policy = new AudioPolicy();

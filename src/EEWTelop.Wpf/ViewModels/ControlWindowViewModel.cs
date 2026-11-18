@@ -776,12 +776,18 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             updated.Audio.EewContinuationFilePath != _settings.Audio.EewContinuationFilePath)
             _obsSnapshotStore.DiscardPendingEewContinuations();
 
-        _settings = updated;
+        _dispatcher.Invoke(() =>
+        {
+            bool hideRoutineCommentary = _settings.Filter.ShowRoutineNankaiCommentary &&
+                !updated.Filter.ShowRoutineNankaiCommentary;
+            _settings = updated;
+            _services.IngestionPipeline.UpdateSettings(updated.Display, updated.Filter);
+            if (hideRoutineCommentary) StopRoutineNankaiCommentaryOutput();
+        });
         _productionReplayCatalog.Prune(
             updated.Display.ProductionReplay,
             _services.Clock.UtcNow);
         _services.RawMessageArchive?.Configure(updated.Log);
-        _services.IngestionPipeline.UpdateSettings(updated.Display, updated.Filter);
         _previewCoordinator.UpdateSettings(updated.Display);
         Overlay.ApplySettings(updated.Display);
         _obsSnapshotStore.PublishSettings(updated.Display, _services.Clock.UtcNow);
@@ -1537,10 +1543,48 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             $"種別別に表示を手動消去しました。種別={kind} 受信は継続します。");
     }
 
+    private void StopRoutineNankaiCommentaryOutput()
+    {
+        DateTimeOffset now = _services.Clock.UtcNow;
+        _productionReplayCatalog.RemoveRoutineNankaiCommentary();
+        _obsSnapshotStore.ClearRoutineNankaiCommentary(now);
+
+        foreach (var draft in _preDisplaySubtitleDrafts.Where(draft => draft.Event is
+                     QuakeEvent { IsRoutineNankaiCommentary: true }).ToArray())
+        {
+            _preDisplaySubtitleDrafts.Remove(draft);
+            AddTelegramForReview(draft.Event, draft.Program, EventDisplayFilter.DescribeSuppression(_settings.Filter, draft.Event));
+        }
+        UpdatePreDisplayDraftState();
+
+        IDisplayCoordinator active = Volatile.Read(ref _activeCoordinator);
+        CoordinatorSnapshot snapshot = active.Evaluate();
+        if (!ReferenceEquals(active, _services.DisplayCoordinator) &&
+            snapshot.CurrentProgram?.IsRoutineNankaiCommentary == true)
+        {
+            active.Clear(EventKind.Quake);
+            if (ReferenceEquals(active, _productionReplayCoordinator))
+            {
+                _productionReplayCoordinator = null;
+                _productionReplayNextSwitchUtc = now;
+            }
+
+            Volatile.Write(ref _activeCoordinator, _services.DisplayCoordinator);
+            snapshot = _services.DisplayCoordinator.Evaluate();
+        }
+        ApplyDisplaySnapshot(snapshot);
+    }
+
     private void RedisplaySelectedTelegram()
     {
         if (SelectedReceivedTelegram is { } item)
         {
+            if (EventDisplayFilter.IsRoutineNankaiCommentarySuppressed(_settings.Filter, item.Event))
+            {
+                TelegramReviewStatusText = EventDisplayFilter.DescribeSuppression(_settings.Filter, item.Event);
+                return;
+            }
+
             if (_telegramReplayMode == TelegramReplayMode.ProductionReplay &&
                 item.Event.SourceMode != SourceMode.Production)
             {
@@ -2286,6 +2330,19 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     private void OnEventProcessed(object? sender, EventIngestionResult result) =>
         _dispatcher.Invoke(() =>
         {
+            if (result.Event is { } received && result.Program is { } program &&
+                EventDisplayFilter.IsRoutineNankaiCommentarySuppressed(_settings.Filter, received))
+            {
+                result = result with
+                {
+                    Program = null,
+                    ReviewProgram = program,
+                    Snapshot = null,
+                    AwaitingPreDisplayEdit = false,
+                    DisplaySuppressionReason = EventDisplayFilter.DescribeSuppression(_settings.Filter, received),
+                };
+            }
+
             if (result.ReceptionSummary is not null)
             {
                 FireAndForgetLog(
@@ -2411,6 +2468,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
             if (result.Status == EventIngestionStatus.Accepted &&
                 result.Event?.SourceMode == SourceMode.Production &&
+                !EventDisplayFilter.IsRoutineNankaiCommentarySuppressed(_settings.Filter, result.Event) &&
                 (result.Event.IsCancelled ||
                  result.Program is not null && IsEnabled(result.Event)))
             {

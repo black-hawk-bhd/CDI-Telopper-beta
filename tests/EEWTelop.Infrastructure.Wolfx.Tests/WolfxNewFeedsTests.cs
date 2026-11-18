@@ -113,6 +113,26 @@ public sealed class WolfxNewFeedsTests
     }
 
     [TestMethod]
+    [DataRow("VYSE52", "定例解説", "null", true)]
+    [DataRow("VYSE52", "", "\"200\"", true)]
+    [DataRow("VYSE52", "", "200", true)]
+    [DataRow("VYSE52", "", "null", false)]
+    [DataRow("VYSE51", "臨時解説", "200", false)]
+    [DataRow("VYSE50", "調査中", "null", false)]
+    [DataRow("VYSE60", "", "null", false)]
+    public void SpecialEarthquakeIdentifiesRoutineCommentaryFromLabelOrCode(
+        string product, string label, string code, bool isRoutine)
+    {
+        string json = $$"""
+            {"type":"jma_special_eq","report":{"id":"special","product":"{{product}}",
+             "time":"2026-11-18T04:00:00Z","status":"issued","label":"{{label}}","code":{{code}}
+            } }
+            """;
+        var item = Assert.IsInstanceOfType<QuakeEvent>(_normalizer.Normalize(Raw(json)).Event);
+        Assert.AreEqual(isRoutine, item.IsRoutineNankaiCommentary);
+    }
+
+    [TestMethod]
     public void SpecialEarthquakeBatchPreservesAllProductsAndRoutesOnlyToTheSpecialSource()
     {
         const string json = """

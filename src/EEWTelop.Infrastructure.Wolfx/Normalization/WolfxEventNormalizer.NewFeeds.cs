@@ -84,7 +84,11 @@ public sealed partial class WolfxEventNormalizer
                 OriginTimeIsKnown = false,
             },
             [], JoinText(narrative, appendix), isCancelled: status == "cancelled",
-            headline: product == "VYSE60" ? narrative : JoinText(heading, narrative));
+            headline: product == "VYSE60" ? narrative : JoinText(heading, narrative))
+        {
+            IsRoutineNankaiCommentary = product == "VYSE52" &&
+                (label == "定例解説" || (label.Length == 0 && ReadValue(report, "code").Trim() == "200")),
+        };
         return SuccessWithSignature(quake);
     }
 

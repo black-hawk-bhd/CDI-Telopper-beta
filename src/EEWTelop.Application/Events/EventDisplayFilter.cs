@@ -5,6 +5,8 @@ namespace EEWTelop.Application.Events;
 
 public static class EventDisplayFilter
 {
+    internal const string RoutineCommentarySuppressionReason = "南海トラフの定例解説をテロップに表示しない設定";
+
     public static DisasterEvent? Apply(FilterSettings filter, DisasterEvent disasterEvent)
     {
         ArgumentNullException.ThrowIfNull(filter);
@@ -175,7 +177,7 @@ public static class EventDisplayFilter
 
     private static QuakeEvent? FilterQuakeInformation(FilterSettings filter, QuakeEvent quake)
     {
-        if (!filter.Quake)
+        if (!filter.Quake || IsRoutineNankaiCommentarySuppressed(filter, quake))
         {
             return null;
         }
@@ -228,6 +230,9 @@ public static class EventDisplayFilter
                 : longPeriod with { Areas = areas });
     }
 
+    public static bool IsRoutineNankaiCommentarySuppressed(FilterSettings filter, DisasterEvent disasterEvent) =>
+        !filter.ShowRoutineNankaiCommentary && disasterEvent is QuakeEvent { IsRoutineNankaiCommentary: true };
+
     public static string DescribeSuppression(
         FilterSettings filter,
         DisasterEvent disasterEvent)
@@ -238,6 +243,7 @@ public static class EventDisplayFilter
         {
             EewEvent when !filter.Eew => "種別フィルター:緊急地震速報",
             QuakeEvent when !filter.Quake => "種別フィルター:地震情報",
+            QuakeEvent quake when IsRoutineNankaiCommentarySuppressed(filter, quake) => RoutineCommentarySuppressionReason,
             QuakeEvent quake when !IsQuakeIntensityEnabled(filter, quake) => "最大震度フィルター",
             QuakeEvent => "地震の都道府県フィルター",
             TsunamiEvent when !filter.Tsunami => "種別フィルター:津波情報",

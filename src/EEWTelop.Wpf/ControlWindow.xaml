@@ -540,6 +540,9 @@
                                         <CheckBox Content="緊急地震速報" IsChecked="{Binding Settings.FilterEew}" />
                                         <CheckBox Content="地震情報" IsChecked="{Binding Settings.FilterQuake}" />
                                         <StackPanel Margin="18,2,0,8" IsEnabled="{Binding Settings.FilterQuake}">
+                                            <CheckBox Content="南海トラフの定例解説をテロップに表示"
+                                                      IsChecked="{Binding Settings.ShowRoutineNankaiCommentary}"
+                                                      ToolTip="初期値はOFFです。保存して反映すると、定例解説の送出・再掲に適用します。確認一覧の表示はブラウザープレビューで選択できます。" />
                                             <TextBlock Text="表示しない地震の最大震度（チェックした階級を除外）" />
                                             <ItemsControl ItemsSource="{Binding Settings.QuakeIntensityFilters}">
                                                 <ItemsControl.ItemsPanel>

@@ -24,13 +24,15 @@ beta.51 adds per-domain upstream health, a separately authenticated rehearsal AP
 
 beta.50 improves unreported-intensity normalization and labeling, removes trailing full-width station markers only from display text, and preserves observed and unreported entries at the same place. Simulator decoding and additive external API fields are improved while training/live separation remains enforced.
 
-The current public release is **2.0.0-beta.70** (November 18, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.71** (November 18, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.70](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.70)
-- [English user guide](docs/USER_GUIDE_EN.md) / [Japanese beta.70 release guide](README_CDI-Telopper_2.0.0-beta.70.txt)
+- [Download 2.0.0-beta.71](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.71)
+- [English user guide](docs/USER_GUIDE_EN.md) / [Japanese beta.71 release guide](README_CDI-Telopper_2.0.0-beta.71.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
+
+beta.71 adds backoff and clearer connection logs for Wolfx, adds separate controls for routine Nankai Trough commentary, and aligns earthquake and tsunami captions. [Japanese release notes](RELEASE_NOTES_2.0.0-beta.71.md)
 
 beta.70 corrects the Wolfx settings help to list the supported reception categories and explain how earthquake details are retrieved. [Japanese release notes](RELEASE_NOTES_2.0.0-beta.70.md)
 
@@ -236,10 +238,10 @@ The script restores dependencies, builds every project in the Release configurat
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.70
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.71
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.70\win-x64`. [Source build details](SOURCE_BUILD.md)
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.71\win-x64`. [Source build details](SOURCE_BUILD.md)
 
 ## External API integration: terms and disclaimer
 

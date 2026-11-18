@@ -52,6 +52,8 @@ public sealed class EventIngestionPipeline
         _displayCoordinator = displayCoordinator;
         _settings = settings;
         _filter = filter ?? new FilterSettings(true, true, true);
+        if (_displayCoordinator is PriorityCoordinator coordinator)
+            coordinator.SetRoutineNankaiCommentaryEnabled(_filter.ShowRoutineNankaiCommentary);
     }
 
     public EventIngestionResult Process(RawProviderMessage raw)
@@ -167,7 +169,7 @@ public sealed class EventIngestionPipeline
                     ? "外部連携：初期状態同期（字幕・音声なし）" : "情報の有効期限切れ（字幕・音声なし）") with
             {
                 ReviewProgram = raw.IsStateSnapshot && displayEvent is QuakeEvent
-                    ? _pageComposer.Compose(displayEvent, _settings) : null,
+                    ? _pageComposer.Compose(displayEvent, _settings) : ComposeSuppressedRoutineCommentary(disasterEvent),
             };
         }
         if (displayEvent is null)
@@ -179,7 +181,10 @@ public sealed class EventIngestionPipeline
                 null,
                 null,
                 normalized.Issues,
-                EventDisplayFilter.DescribeSuppression(_filter, disasterEvent));
+                EventDisplayFilter.DescribeSuppression(_filter, disasterEvent)) with
+            {
+                ReviewProgram = ComposeSuppressedRoutineCommentary(disasterEvent),
+            };
         }
 
         DisplayProgram program = _pageComposer.Compose(displayEvent, _settings);
@@ -232,6 +237,14 @@ public sealed class EventIngestionPipeline
             };
         }
         CoordinatorSnapshot snapshot = _displayCoordinator.Apply(program);
+        if (snapshot.Decision.Kind == CoordinatorDecisionKind.IgnoredFilteredProgram)
+        {
+            return CreateResult(raw, EventIngestionStatus.Accepted, disasterEvent, null, null,
+                normalized.Issues, EventDisplayFilter.RoutineCommentarySuppressionReason) with
+            {
+                ReviewProgram = program,
+            };
+        }
         return CreateResult(
             raw,
             EventIngestionStatus.Accepted,
@@ -242,6 +255,10 @@ public sealed class EventIngestionPipeline
             null,
             CountItems(displayEvent));
     }
+
+    private DisplayProgram? ComposeSuppressedRoutineCommentary(DisasterEvent disasterEvent) =>
+        EventDisplayFilter.IsRoutineNankaiCommentarySuppressed(_filter, disasterEvent)
+            ? _pageComposer.Compose(disasterEvent, _settings) : null;
 
     private EventIngestionResult ClearTsunamiSnapshot(RawProviderMessage raw, TsunamiEvent tsunami,
         IReadOnlyList<ValidationIssue> issues)
@@ -325,6 +342,8 @@ public sealed class EventIngestionPipeline
         _settings = settings;
         if (filter is not null)
         {
+            if (_displayCoordinator is PriorityCoordinator coordinator)
+                coordinator.SetRoutineNankaiCommentaryEnabled(filter.ShowRoutineNankaiCommentary);
             _filter = filter;
             ClearWeatherDisplayStates();
         }

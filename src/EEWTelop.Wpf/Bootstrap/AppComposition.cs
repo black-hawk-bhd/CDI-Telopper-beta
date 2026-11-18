@@ -148,6 +148,7 @@ public static class AppComposition
         var historyLoader = new HistoryRehearsalLoader(new HistoryMessageSourceRouter(historySources),
             new ProviderRoutingEventNormalizer(historyNormalizers));
         var displayCoordinator = new PriorityCoordinator(clock, settings.Display);
+        displayCoordinator.SetRoutineNankaiCommentaryEnabled(settings.Filter.ShowRoutineNankaiCommentary);
         DisplayStateDocument storedState = stateStore.LoadAsync().AsTask().GetAwaiter().GetResult();
         CoordinatorSnapshot restored = displayCoordinator.Restore(storedState.ToRestoreState(clock.UtcNow));
         if (restored.CurrentProgram is not null || restored.PersistentTsunami is not null)

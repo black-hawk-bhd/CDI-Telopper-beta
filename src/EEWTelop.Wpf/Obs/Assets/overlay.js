@@ -78,7 +78,7 @@ const badgeColors = new Map([
   ["津波注意報", ["#ffd000", "#222"]], ["訂正", ["#d35400", "#fff"]]
 ]);
 
-function renderBlock(item, previousBadge) {
+function renderBlock(item, previousBadge, alignsCaption) {
   const block = document.createElement("div");
   const style = allowedStyles.has(item.styleToken) ? item.styleToken : "summary";
   block.className = `block ${style}`;
@@ -88,8 +88,9 @@ function renderBlock(item, previousBadge) {
   const hasWeatherContext = weatherStyle && item.badge && (explicitHeading || contextEnd > 0 &&
     item.primaryText.slice(0, contextEnd).includes("｜"));
   if (hasWeatherContext) block.classList.add("weather-area-heading");
+  if (alignsCaption) block.classList.add("aligned-label");
   const volcanoStyle = style.startsWith("volcano-") || style === "eruption-flash";
-  const reservesBadge = (style === "intensity" || style === "tsunami" || style === "correction" || weatherStyle || volcanoStyle) &&
+  const reservesBadge = (alignsCaption || style === "correction" || weatherStyle || volcanoStyle) &&
     (item.badge || previousBadge);
   if (reservesBadge && !item.hideBadge) {
     const badgeText = item.badge || previousBadge;
@@ -117,6 +118,9 @@ function renderBlock(item, previousBadge) {
     }
     block.appendChild(badge);
   }
+  if (alignsCaption && item.hideBadge) {
+    block.appendChild(textNode("primary subtitle-label", item.subtitleBodyText != null ? item.badge : ""));
+  }
   const texts = document.createElement("div");
   if (hasWeatherContext) {
     const context = textNode("primary weather-context", explicitHeading || item.primaryText.slice(0, contextEnd));
@@ -124,7 +128,9 @@ function renderBlock(item, previousBadge) {
     block.appendChild(context);
   }
   texts.className = "texts";
-  texts.appendChild(textNode("primary", hasWeatherContext && !explicitHeading ? item.primaryText.slice(contextEnd + 1) : item.primaryText));
+  const primaryText = alignsCaption && item.subtitleBodyText != null ? item.subtitleBodyText
+    : hasWeatherContext && !explicitHeading ? item.primaryText.slice(contextEnd + 1) : item.primaryText;
+  texts.appendChild(textNode("primary", primaryText));
   if (item.secondaryText) {
     texts.appendChild(textNode("secondary", item.secondaryText));
   }
@@ -184,6 +190,7 @@ function applySnapshot(state) {
   banner.hidden = !state.rehearsalLabel;
   content.hidden = !state.hasProgram;
   blocks.replaceChildren();
+  blocks.classList.remove("aligned-labels");
   const items = state.blocks ?? [];
   const isEew = items.some(item => String(item.styleToken ?? "").startsWith("eew-"));
   const eewHeaderCount = items.filter(item => {
@@ -200,9 +207,15 @@ function applySnapshot(state) {
     fitVerticalEew();
   } else {
     let previousBadge = "";
+    let previousAlignedStyle = "";
     for (const item of items) {
-      blocks.appendChild(renderBlock(item, previousBadge));
-      if (item.badge) previousBadge = item.badge;
+      const hasBadge = Boolean(item.badge?.trim());
+      const alignsCaption = (item.styleToken === "intensity" || item.styleToken === "tsunami") &&
+        (hasBadge ? !item.hideBadge || item.subtitleBodyText != null : previousAlignedStyle === item.styleToken);
+      blocks.appendChild(renderBlock(item, previousBadge, alignsCaption));
+      if (alignsCaption) blocks.classList.add("aligned-labels");
+      previousAlignedStyle = alignsCaption ? item.styleToken : "";
+      if (hasBadge) previousBadge = item.badge;
     }
   }
   canvas.style.setProperty("--font-scale", String(Number(state.fontScale) || 1));

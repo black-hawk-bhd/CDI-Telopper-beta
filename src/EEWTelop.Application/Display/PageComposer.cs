@@ -12,7 +12,10 @@ public sealed class PageComposer : IPageComposer
 
         DisplayProgram program = disasterEvent switch
         {
-            QuakeEvent quake => QuakePageComposer.Compose(quake, settings),
+            QuakeEvent quake => QuakePageComposer.Compose(quake, settings) with
+            {
+                IsRoutineNankaiCommentary = quake.IsRoutineNankaiCommentary,
+            },
             TsunamiEvent tsunami => TsunamiPageComposer.Compose(tsunami, settings),
             EewEvent eew => EewPageComposer.Compose(eew, settings),
             WeatherWarningEvent weather => WeatherWarningPageComposer.Compose(weather, settings),

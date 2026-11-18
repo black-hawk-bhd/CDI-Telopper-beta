@@ -19,7 +19,11 @@ for (const [key, title] of Object.entries({general:"地震・火山",eew:"緊急
   screen.append(frame); tile.append(button, screen); grid.append(tile); tiles.set(key, {tile,frame,state});
 }
 const reviewFrame = document.getElementById("review-frame"); reviewFrame.src = endpoint("/monitor/view");
-let telegrams = [], selected = "", pages = [], page = 0, generation = 0, listKey = "";
+const reviewSelection = document.getElementById("selection");
+const showRoutineCommentary = document.getElementById("show-routine-commentary");
+const routineCommentaryPreference = "cdi-monitor.show-routine-commentary";
+try { showRoutineCommentary.checked = localStorage.getItem(routineCommentaryPreference) !== "false"; } catch {}
+let telegrams = [], selected = null, pages = [], page = 0, generation = 0, listKey = "";
 let latestState = null;
 function send(frame, state) { frame.contentWindow?.postMessage({type:"cdi-monitor",state}, location.origin); }
 function showChannels(data) {
@@ -43,29 +47,40 @@ document.getElementById("next").addEventListener("click", () => { if(page < page
 function renderList() {
   const list = document.getElementById("list"); list.replaceChildren();
   const filter = document.getElementById("filter").value;
-  for (const item of telegrams.filter(item => !filter || item.kind === filter)) {
+  for (const item of telegrams.filter(item => (!filter || item.kind === filter) &&
+    (showRoutineCommentary.checked || !item.isRoutineNankaiCommentary))) {
     const button = document.createElement("button"); button.type = "button";
     button.textContent = `${time(item.receivedAt)} ${source(item.sourceMode)} ${kinds[item.kind] ?? item.kind} ${item.pages}ページ`;
     const summary = document.createElement("small"); summary.textContent = item.summary ?? ""; summary.style.display = "block";
     button.append(summary);
-    button.setAttribute("aria-pressed", String(selected === item.id));
+    button.setAttribute("aria-pressed", String(selected?.id === item.id));
     button.addEventListener("click", () => { void select(item); }); list.append(button);
   }
   if (!list.childElementCount) list.textContent = "該当する電文はありません。";
 }
 document.getElementById("filter").addEventListener("change", renderList);
+showRoutineCommentary.addEventListener("change", () => {
+  try { localStorage.setItem(routineCommentaryPreference, String(showRoutineCommentary.checked)); } catch {}
+  if (!showRoutineCommentary.checked && selected?.isRoutineNankaiCommentary) {
+    generation++; selected = null; pages = []; page = 0;
+    reviewFrame.style.visibility = "hidden";
+    reviewSelection.textContent = "一覧から電文を選択してください。";
+    showPage();
+  }
+  renderList();
+});
 async function select(item) {
-  const request = ++generation; selected = item.id; pages = []; page = 0; showPage(); renderList();
+  const request = ++generation; selected = item; pages = []; page = 0; showPage(); renderList();
   reviewFrame.style.visibility = "hidden";
-  const label = document.getElementById("selection"); label.textContent = "読み込み中…";
+  reviewSelection.textContent = "読み込み中…";
   try {
     const response = await fetch(endpoint(`/monitor/item?id=${encodeURIComponent(item.id)}`), {cache:"no-store",signal:AbortSignal.timeout(5000)});
     if(!response.ok) throw new Error("unavailable");
     const value = await response.json(); if(request !== generation) return;
     pages = value; page = 0; reviewFrame.style.visibility = pages.length ? "visible" : "hidden";
-    label.textContent = `確認専用・${source(item.sourceMode)}｜${kinds[item.kind] ?? item.kind}｜${time(item.issuedAt)}発表｜${item.provider}｜${item.result}`;
+    reviewSelection.textContent = `確認専用・${source(item.sourceMode)}｜${kinds[item.kind] ?? item.kind}｜${time(item.issuedAt)}発表｜${item.provider}｜${item.result}`;
     showPage();
-  } catch { if(request === generation) label.textContent = "取得できません。通信状態または電文の保存件数上限を確認してください。"; }
+  } catch { if(request === generation) reviewSelection.textContent = "取得できません。通信状態または電文の保存件数上限を確認してください。"; }
 }
 async function poll() {
   try {

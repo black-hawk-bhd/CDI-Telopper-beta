@@ -175,6 +175,46 @@ run('non-EEW output and empty state unchanged', () => {
   applySnapshot({ ...base, hasProgram: false });
   assert(content.hidden, 'Empty output remains visible');
 });
+function caption(styleToken, badge, body, hideBadge = false, secondaryText = "") {
+  const subtitleBodyText = hideBadge && badge ? body : null;
+  return { styleToken, badge, hideBadge, subtitleBodyText, secondaryText,
+    primaryText: subtitleBodyText === null ? body : badge + '　' + body };
+}
+function checkCaptionColumns(rows, badgeCount, plainLabels) {
+  applySnapshot({ ...base, blocks: rows });
+  const texts = [...blocks.querySelectorAll('.texts .primary')];
+  assert(texts.length === rows.length, 'Missing subtitle rows');
+  const left = texts[0].getBoundingClientRect().left;
+  for (const [index, text] of texts.entries()) {
+    assert(Math.abs(text.getBoundingClientRect().left - left) < 1, 'Subtitle columns are not aligned');
+    assert(text.textContent === (rows[index].subtitleBodyText ?? rows[index].primaryText), 'Subtitle changed');
+  }
+  assert(blocks.querySelectorAll('.badge:not(.placeholder)').length === badgeCount, 'Badge visibility changed');
+  const labels = [...blocks.querySelectorAll('.subtitle-label')].map(label => label.textContent).filter(Boolean);
+  assert(JSON.stringify(labels) === JSON.stringify(plainLabels), 'Severity text changed');
+}
+run('earthquake captions align across different badge widths', () => {
+  checkCaptionColumns([caption('intensity', '震度5弱以上 未入電', '石川県輪島市'),
+    caption('intensity', '震度3', '富山県富山市')], 2, []);
+});
+run('earthquake plain severity keeps continuation rows aligned', () => {
+  checkCaptionColumns([caption('intensity', '震度5弱', '石川県輪島市', true),
+    caption('intensity', '', '石川県珠洲市', true)], 0, ['震度5弱']);
+});
+run('tsunami captions align with or without badges', () => {
+  for (const hideBadge of [false, true]) {
+    checkCaptionColumns([caption('tsunami', '津波注意報', '岩手県', hideBadge, '〔1m〕'),
+      caption('tsunami', '', '宮城県', hideBadge, '〔1m〕')], hideBadge ? 0 : 1, hideBadge ? ['津波注意報'] : []);
+  }
+});
+run('weather area headings retain their position beside the badge', () => {
+  applySnapshot({ ...base, blocks: [{ ...caption('weather-warning', '大雨警報', '千代田区'), weatherHeading: '東京都｜発表' }] });
+  const badge = blocks.querySelector('.badge').getBoundingClientRect();
+  const heading = blocks.querySelector('.weather-context').getBoundingClientRect();
+  const places = blocks.querySelector('.texts .primary').getBoundingClientRect();
+  assert(heading.left > badge.right && places.left === badge.left && places.top >= heading.bottom, 'Weather heading moved');
+  assert(!blocks.classList.contains('aligned-labels'), 'Earthquake and tsunami columns applied to weather');
+});
 // Leave a representative two-warning frame for the screenshot.
 applySnapshot({ ...base, alignVerticalEewWarningsLeft: ${leftPreview}, blocks: [...warning(first), ...warning(second)] });
 const result = document.createElement('pre'); result.id = 'probe-result'; result.hidden = true;

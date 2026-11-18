@@ -12,6 +12,13 @@ public static class DisplayBadgeVisibility
     public static bool HideInformationBadges(DisplayProgram program, DisplaySettings settings) =>
         IsNormalProduction(program) ? settings.HideNormalInformationBadges : program.HideInformationBadges;
 
+    public static bool UsesAlignedCaptionColumn(DisplayBlock block) =>
+        block.StyleToken is DisplayStyleTokens.Intensity or DisplayStyleTokens.Tsunami;
+
+    public static string? GetAlignedSubtitleBody(DisplayBlock source, DisplayBlock formatted) =>
+        UsesAlignedCaptionColumn(source) && source.PrimaryText != formatted.PrimaryText
+            ? source.PrimaryText : null;
+
     public static DisplayBlock FormatBlockForOutput(
         DisplayBlock block, DisplayProgram program, DisplaySettings settings)
     {

@@ -115,10 +115,12 @@ public sealed class ReplaySettingsTests
         overlay.Apply(snapshot, settings.Display);
         Assert.IsTrue(obs.Blocks[0].HideBadge);
         Assert.AreEqual("津波注意報　地域A", obs.Blocks[0].PrimaryText);
+        Assert.AreEqual("地域A", obs.Blocks[0].SubtitleBodyText);
         Assert.AreEqual(obs.Blocks[0].PrimaryText, published.Blocks[0].PrimaryText);
         Assert.AreEqual(obs.Blocks[0].PrimaryText, overlay.Blocks[0].SubtitlePrimaryText);
         Assert.IsFalse(overlay.Blocks[0].IsBadgeVisible);
         Assert.AreEqual("地域B", obs.Blocks[1].PrimaryText);
+        Assert.IsNull(obs.Blocks[1].SubtitleBodyText);
         Assert.AreEqual("1m", obs.Blocks[0].SecondaryText);
         Assert.AreEqual(source.RehearsalLabel, obs.RehearsalLabel);
         Assert.AreEqual(source.SourceMode, obs.SourceMode);
@@ -131,6 +133,7 @@ public sealed class ReplaySettingsTests
         var badgeOutput = store.Publish(badgeSnapshot, settings.Display, now);
         overlay.Apply(badgeSnapshot, settings.Display);
         Assert.IsFalse(badgeOutput.Blocks[0].HideBadge);
+        Assert.IsNull(badgeOutput.Blocks[0].SubtitleBodyText);
         Assert.AreEqual("地域A", badgeOutput.Blocks[0].PrimaryText);
         Assert.IsTrue(overlay.Blocks[0].IsBadgeVisible);
         Assert.AreEqual(source.RehearsalLabel, overlay.RehearsalLabel);

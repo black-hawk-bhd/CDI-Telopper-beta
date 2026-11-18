@@ -16,6 +16,7 @@ public sealed class PriorityCoordinator : IDisplayCoordinator
     private ScheduledProgram? _current;
     private ScheduledProgram? _persistentTsunami;
     private long _nextSequence;
+    private bool _showRoutineNankaiCommentary = true;
 
     public PriorityCoordinator(IClock clock, DisplaySettings settings)
         : this(clock, settings, new PageClock())
@@ -39,6 +40,12 @@ public sealed class PriorityCoordinator : IDisplayCoordinator
         lock (_gate)
         {
             EvaluateCurrentAndPromote(resynchronizeFromUtc: false);
+            if (!_showRoutineNankaiCommentary && program.IsRoutineNankaiCommentary)
+            {
+                return BuildSnapshot(new CoordinatorDecision(CoordinatorDecisionKind.IgnoredFilteredProgram,
+                    "Routine Nankai Trough commentary is disabled.", program.ProgramId),
+                    rehearsalStopped: false, resynchronizeFromUtc: false);
+            }
             if (program.Pages.Count == 0)
             {
                 return BuildSnapshot(
@@ -324,6 +331,26 @@ public sealed class PriorityCoordinator : IDisplayCoordinator
         }
     }
 
+    public void SetRoutineNankaiCommentaryEnabled(bool enabled)
+    {
+        lock (_gate)
+        {
+            _showRoutineNankaiCommentary = enabled;
+            RemoveSuppressedRoutineCommentary();
+        }
+    }
+
+    private void RemoveSuppressedRoutineCommentary()
+    {
+        if (_showRoutineNankaiCommentary) return;
+
+        if (_current?.Program.IsRoutineNankaiCommentary == true)
+            _current = null;
+        if (_pendingByKind.TryGetValue(EventKind.Quake, out ScheduledProgram? pending) &&
+            pending.Program.IsRoutineNankaiCommentary)
+            _pendingByKind.Remove(EventKind.Quake);
+    }
+
     public void ClearTestPrograms()
     {
         lock (_gate)
@@ -377,6 +404,7 @@ public sealed class PriorityCoordinator : IDisplayCoordinator
                 }
             }
 
+            RemoveSuppressedRoutineCommentary();
             CoordinatorDecision evaluation = EvaluateCurrentAndPromote(resynchronizeFromUtc: true);
             return BuildSnapshot(
                 new CoordinatorDecision(

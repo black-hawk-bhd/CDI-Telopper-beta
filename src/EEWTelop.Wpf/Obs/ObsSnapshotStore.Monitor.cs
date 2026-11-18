@@ -29,6 +29,7 @@ public sealed partial class ObsSnapshotStore
             issuedAt = item.Event.IssuedAt, receivedAt = item.Event.ReceivedAt,
             provider = item.Event.Provider, pages = item.Program.Pages.Count, result = item.Result,
             summary = MonitorSummary(item.Program),
+            isRoutineNankaiCommentary = item.Event is QuakeEvent { IsRoutineNankaiCommentary: true },
         }).ToArray();
     }
 

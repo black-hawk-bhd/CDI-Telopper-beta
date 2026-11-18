@@ -42,6 +42,7 @@ public sealed class BrowserMonitorTests
         Assert.AreEqual(HttpStatusCode.OK, html.StatusCode);
         Assert.IsTrue(html.Headers.CacheControl!.NoStore);
         StringAssert.Contains(html.Headers.GetValues("Content-Security-Policy").Single(), "frame-src 'self'");
+        StringAssert.Contains(await html.Content.ReadAsStringAsync(), "id=\"show-routine-commentary\" type=\"checkbox\" checked");
         using var frame = await client.GetAsync(root + "/monitor/view" + query);
         Assert.AreEqual(HttpStatusCode.OK, frame.StatusCode);
         using var data = JsonDocument.Parse(await client.GetStringAsync(root + "/monitor/data" + query));
@@ -53,6 +54,7 @@ public sealed class BrowserMonitorTests
         }
         var entries = data.RootElement.GetProperty("telegrams");
         Assert.AreEqual(4, entries.GetArrayLength());
+        Assert.IsTrue(entries.EnumerateArray().All(entry => !entry.GetProperty("isRoutineNankaiCommentary").GetBoolean()));
         string id = entries[0].GetProperty("id").GetString()!;
         using var detail = JsonDocument.Parse(await client.GetStringAsync(root + "/monitor/item" + query + "&id=" + id));
         Assert.IsTrue(detail.RootElement.GetArrayLength() > 0);
@@ -64,6 +66,21 @@ public sealed class BrowserMonitorTests
         Assert.AreEqual(HttpStatusCode.MethodNotAllowed, post.StatusCode);
         using var unknown = await client.GetAsync(root + "/monitor/item" + query + "&id=99999");
         Assert.AreEqual(HttpStatusCode.NotFound, unknown.StatusCode);
+    }
+
+    [TestMethod]
+    public void RoutineCommentaryCanBeFilteredInTheBrowserWithoutRemovingItsReviewPages()
+    {
+        var store = new ObsSnapshotStore(Settings, Now);
+        var item = (QuakeEvent)TestScenarioCatalog.Create(Now).First(s => s.Event.Kind == EventKind.Quake).Event;
+        var commentary = item with { IsRoutineNankaiCommentary = true };
+        var program = new PageComposer().Compose(commentary, Settings);
+        store.AddMonitorTelegram(commentary, program, Settings, "確認専用");
+
+        JsonElement entry = JsonSerializer.SerializeToElement(store.ReadMonitorList())[0];
+        Assert.IsTrue(entry.GetProperty("isRoutineNankaiCommentary").GetBoolean());
+        Assert.IsNotNull(store.ReadMonitorTelegram(1, Now));
+        Assert.IsFalse(store.Read(ObsViewChannel.General, Now).HasProgram);
     }
 
     [TestMethod]

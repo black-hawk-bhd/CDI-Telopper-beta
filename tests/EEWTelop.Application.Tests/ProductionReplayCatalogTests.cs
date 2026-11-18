@@ -9,6 +9,28 @@ namespace EEWTelop.Application.Tests;
 public sealed class ProductionReplayCatalogTests
 {
     [TestMethod]
+    public void RemovingRoutineCommentaryRetainsOtherProgramsInRotation()
+    {
+        var catalog = new ProductionReplayCatalog();
+        ProductionReplaySettings settings = Enable(EventKind.Quake, EventKind.Tsunami);
+        QuakeEvent routine = DisplayEventFactory.CreateQuake(QuakeIssueType.NankaiTroughCommentary) with
+        {
+            IsRoutineNankaiCommentary = true,
+        };
+        TsunamiEvent tsunami = DisplayEventFactory.CreateTsunami([DisplayEventFactory.TsunamiArea(1, TsunamiGrade.Warning)]);
+        DateTimeOffset now = routine.ReceivedAt;
+        catalog.Update(routine, CreateProgram(routine, OverlayPriority.Quake), settings, now);
+        catalog.Update(tsunami, CreateProgram(tsunami, OverlayPriority.TsunamiWarning), settings, now);
+
+        catalog.RemoveRoutineNankaiCommentary();
+
+        var selection = catalog.SelectNext(settings, now);
+        Assert.IsNotNull(selection);
+        Assert.AreSame(tsunami, selection.Event);
+        Assert.AreEqual(1, selection.ActiveItemCount);
+    }
+
+    [TestMethod]
     public void UpdateDisabledPolicyDoesNotEnterRotation()
     {
         var catalog = new ProductionReplayCatalog();

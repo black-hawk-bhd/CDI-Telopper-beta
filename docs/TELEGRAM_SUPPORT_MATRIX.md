@@ -83,9 +83,9 @@ AXISの `eew` は気象庁XML形状ではありません。`jmx-*` と同じDeco
 | `wss://ws-api.wolfx.jp/jma_tsunami` | VTSE41・VTSE51・VTSE52 | 津波の状態全体を更新。観測報は発表時刻と取消を個別に保持し、警報の信頼期限を表示と外部APIに適用 |
 | `wss://ws-api.wolfx.jp/jma_special_eq` | VYSE50・VYSE51・VYSE52・VYSE60 | 製品別に `QuakeEvent` へ変換し、「南海トラフ等」の選択を適用。初回スナップショットは電文確認用 |
 
-選択した分類ごとに独立したWebSocketを使用します。`heartbeat` を受けると同じ接続へ `ping` を返します。津波情報と特別地震情報は接続時に各キャッシュ取得コマンドを送信します。 [Wolfx WebSocket仕様](https://wolfx.jp/docs/websocket/)
+選択した分類ごとに独立したWebSocketを使用します。`heartbeat` を受けると同じ接続へ `ping` を返します。津波情報と特別地震情報は接続時に各キャッシュ取得コマンドを送信します。接続失敗や短時間での切断が続く場合は5秒から60秒まで再接続間隔を延ばし、HTTP 429や `Retry-After` に応じてさらに待ちます。 [Wolfx WebSocket仕様](https://wolfx.jp/docs/websocket/)
 
-地震詳細の観測は報告単位で取り込みます。全製品の取消が確認できた場合に地震全体の取消を反映します。接続時に取得した最新の既報は電文確認から参照できます。 [Wolfx 地震詳細API](https://wolfx.jp/docs/open-api/#jma-地震詳細-json-api)
+地震詳細HTTPは取得に失敗すると60秒から5分まで間隔を延ばし、HTTP 429や `Retry-After` に応じてさらに待ちます。地震詳細の観測は報告単位で取り込みます。全製品の取消が確認できた場合に地震全体の取消を反映します。接続時に取得した最新の既報は電文確認から参照できます。 [Wolfx 地震詳細API](https://wolfx.jp/docs/open-api/#jma-地震詳細-json-api)
 
 ## 追加・変更時のチェックリスト
 

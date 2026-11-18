@@ -11,6 +11,32 @@ namespace EEWTelop.Application.Tests;
 public sealed class EventIngestionPipelineTests
 {
     [TestMethod]
+    [DataRow(false, false, true, false)]
+    [DataRow(false, true, true, false)]
+    [DataRow(true, false, true, true)]
+    [DataRow(false, false, false, true)]
+    public void RoutineCommentaryFilterPreservesReviewAndOtherEarthquakeInformation(
+        bool enabled, bool stateSnapshot, bool routine, bool displays)
+    {
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(QuakeIssueType.NankaiTroughCommentary,
+            rawType: routine ? "VYSE52" : "VYSE51") with { IsRoutineNankaiCommentary = routine };
+        var clock = new FakeClock();
+        var coordinator = new PriorityCoordinator(clock, DisplayEventFactory.Settings);
+        FilterSettings filter = AppSettings.CreateDefault().Filter;
+        if (enabled) filter = filter with { ShowRoutineNankaiCommentary = true };
+        var pipeline = new EventIngestionPipeline(new StubNormalizer(quake), new EventVersionCache(),
+            new PageComposer(), coordinator, DisplayEventFactory.Settings, filter);
+
+        EventIngestionResult result = pipeline.Process(CreateRaw(clock, "special") with { IsStateSnapshot = stateSnapshot });
+        Assert.AreEqual(EventIngestionStatus.Accepted, result.Status);
+        Assert.AreSame(quake, result.Event);
+        Assert.AreEqual(displays, result.Program is not null);
+        Assert.AreEqual(displays, coordinator.Evaluate().CurrentProgram is not null);
+        if (!displays)
+            Assert.IsTrue(result.ReviewProgram is { IsRoutineNankaiCommentary: true });
+    }
+
+    [TestMethod]
     public void ProductionBlockDoesNotDisplayOrConsumeATestTelegram()
     {
         QuakeEvent earthquake = DisplayEventFactory.CreateQuake(QuakeIssueType.DetailScale,

@@ -46,6 +46,7 @@ public enum CoordinatorDecisionKind
     IgnoredOlderUpdate,
     IgnoredRehearsal,
     IgnoredEmptyProgram,
+    IgnoredFilteredProgram,
 }
 
 public sealed record CoordinatorDecision(

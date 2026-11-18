@@ -2,7 +2,7 @@
 
 [日本語](USER_GUIDE.md) | English
 
-This guide covers **2.0.0-beta.70** for Windows x64. Menu names appear as they do in the Japanese interface. [Download](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.70) / [Release notes in Japanese](../RELEASE_NOTES_2.0.0-beta.70.md)
+This guide covers **2.0.0-beta.71** for Windows x64. Menu names appear as they do in the Japanese interface. [Download](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.71) / [Release notes in Japanese](../RELEASE_NOTES_2.0.0-beta.71.md)
 
 ## Install or update
 
@@ -25,11 +25,14 @@ With multiple sources, the window header shows the connection state of each sour
 
 JMA XML polls at intervals of at least 60 seconds and carries no EEW in this app. If automatic fallback is enabled and an eligible DMDATA.JP, P2PQuake or AXIS connection is faulted or reconnecting for at least 30 seconds, CDI-Telopper can temporarily use JMA XML for supported non-EEW categories. It returns to the selected provider after reconnection. YDITS production and test reception are temporarily suspended. A previous YDITS selection is treated as **受信しない** (Do not receive) for EEW. [Data sources](data-sources.md)
 
+Under **フィルター** (Filters) → **表示フィルター** (Display filters), **南海トラフの定例解説をテロップに表示** (Show routine Nankai Trough commentary on the overlay) is off by default. Check it and save to enable captions. Turning it off clears any routine commentary on screen. Received reports are available in message review.
+
 ## Connect OBS and preview
 
 - Enable **OBS Local View** in **出力** (Output) and save. For manual setup, add the four OBS URLs to separate OBS browser sources for earthquake, EEW, tsunami and weather. Enable **Control audio via OBS** on each source. The default canvas is 1920×1080. [OBS source names and setup](../README_EN.md#obs-output)
 - For automatic registration, enable the OBS WebSocket server and enter its URL and password under **OBS WebSocket 自動登録**. Turn on **OBSのブラウザーソースを自動作成・URL更新** (Create OBS browser sources and update URLs automatically) and save. Select **今すぐOBSと同期** (Sync with OBS now) when needed.
 - Select **ブラウザープレビューを開く（無音）** (Open silent browser preview) to inspect active captions and individual received messages. Check notification audio in OBS. If you registered OBS URLs manually, copy the current URLs after restarting CDI-Telopper.
+- Under **受信済み電文の個別確認** (Review individual messages), use **南海トラフの定例解説を表示** (Show routine Nankai Trough commentary) to control whether routine reports appear in the review list. The checkbox is on by default.
 
 ## Review past messages and run rehearsals
 

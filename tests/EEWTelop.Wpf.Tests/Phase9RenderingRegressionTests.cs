@@ -290,6 +290,39 @@ public sealed class Phase9RenderingRegressionTests
     }
 
     [TestMethod]
+    [DataRow(EventKind.Quake, false, "震度5弱以上 未入電", "震度3")]
+    [DataRow(EventKind.Quake, true, "震度5弱", "")]
+    [DataRow(EventKind.Tsunami, true, "津波注意報", "")]
+    public void EarthquakeAndTsunamiLocationsStartInTheSameColumn(
+        EventKind kind, bool hideBadges, string firstBadge, string secondBadge)
+    {
+        RunSta(() =>
+        {
+            const string firstLocation = "石川県輪島市";
+            const string secondLocation = "石川県珠洲市";
+            string style = kind == EventKind.Quake ? DisplayStyleTokens.Intensity : DisplayStyleTokens.Tsunami;
+            string note = kind == EventKind.Tsunami ? "〔1m〕" : string.Empty;
+            var page = new DisplayPage(0,
+                [new(firstBadge, firstLocation, note, style), new(secondBadge, secondLocation, note, style)],
+                $"{firstBadge} {firstLocation} {secondBadge} {secondLocation}", null);
+            var program = new DisplayProgram("caption-columns", EventId.Create("caption-columns"), kind,
+                SourceMode.Production, Now, OverlayPriority.Quake, [page], Now, EndPolicy.AutoHide, string.Empty);
+            DisplaySettings settings = AppSettings.CreateDefault().Display with { HideNormalInformationBadges = hideBadges };
+
+            (TelopView view, OverlayViewModel overlay, _) = Render(program, 0, settings);
+
+            Assert.IsTrue(overlay.Blocks.All(block => block.SharesCaptionColumn));
+            Assert.AreEqual(hideBadges ? firstBadge : string.Empty, overlay.Blocks[0].SubtitleLabel);
+            OutlinedText[] locations = FindVisualChildren<OutlinedText>(view)
+                .Where(text => text.ActualHeight > 0 && text.Text is firstLocation or secondLocation).ToArray();
+            Assert.HasCount(2, locations);
+            double left = locations[0].TransformToAncestor(view).Transform(new Point()).X;
+            double nextLeft = locations[1].TransformToAncestor(view).Transform(new Point()).X;
+            Assert.AreEqual(left, nextLeft, 1, "地名の開始位置を揃えます。");
+        });
+    }
+
+    [TestMethod]
     public void TsunamiRowsShareOneForecastAreaColumnWithoutDetachedShadowText()
     {
         RunSta(() =>

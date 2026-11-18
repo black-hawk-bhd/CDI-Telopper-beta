@@ -204,27 +204,38 @@ public sealed class OverlayViewModel : ObservableObject
         AccessibleText = page.AccessibleText;
         bool hideInformationBadges = DisplayBadgeVisibility.HideInformationBadges(program, settings);
         string previousBadge = string.Empty;
+        string? previousAlignedStyle = null;
         foreach (DisplayBlock sourceBlock in page.Blocks.Where(
             static block => block.StyleToken != DisplayStyleTokens.PageIndicator))
         {
             DisplayBlock block = DisplayBadgeVisibility.FormatBlockForOutput(sourceBlock, program, settings);
-            bool reservesPreviousBadge = string.IsNullOrWhiteSpace(block.Badge) &&
-                (block.StyleToken is DisplayStyleTokens.Intensity or DisplayStyleTokens.Tsunami ||
-                 block.StyleToken.StartsWith("weather-", StringComparison.Ordinal) ||
+            string? subtitleBody = DisplayBadgeVisibility.GetAlignedSubtitleBody(sourceBlock, block);
+            bool hasBadge = !string.IsNullOrWhiteSpace(block.Badge);
+            bool alignsCaption = DisplayBadgeVisibility.UsesAlignedCaptionColumn(block) &&
+                (hasBadge ? !hideInformationBadges || subtitleBody is not null : previousAlignedStyle == block.StyleToken);
+            bool reservesPreviousBadge = !hasBadge &&
+                (alignsCaption || block.StyleToken.StartsWith("weather-", StringComparison.Ordinal) ||
                  block.StyleToken.StartsWith("volcano-", StringComparison.Ordinal) ||
                  block.StyleToken == DisplayStyleTokens.EruptionFlash) &&
                 !string.IsNullOrWhiteSpace(previousBadge);
-            if (!string.IsNullOrWhiteSpace(block.Badge))
+            if (hasBadge)
             {
                 previousBadge = block.Badge;
             }
+            previousAlignedStyle = alignsCaption ? block.StyleToken : null;
             Blocks.Add(new OverlayBlockViewModel(
                 block.Badge,
                 string.IsNullOrWhiteSpace(block.Badge) ? previousBadge : block.Badge,
                 !hideInformationBadges && (!string.IsNullOrWhiteSpace(block.Badge) || reservesPreviousBadge),
                 block.PrimaryText,
                 block.SecondaryText,
-                block.StyleToken) { WeatherHeading = block.WeatherHeading, HideBadge = hideInformationBadges });
+                block.StyleToken)
+            {
+                WeatherHeading = block.WeatherHeading,
+                HideBadge = hideInformationBadges,
+                SharesCaptionColumn = alignsCaption,
+                SubtitleBodyText = subtitleBody,
+            });
         }
     }
 
@@ -286,6 +297,12 @@ public sealed record OverlayBlockViewModel(
 {
     public string WeatherHeading { get; init; } = string.Empty;
     public bool HideBadge { get; init; }
+    public bool SharesCaptionColumn { get; init; }
+    public string? SubtitleBodyText { get; init; }
+    public string? CaptionColumnGroup => SharesCaptionColumn ? "CaptionLabel" : null;
+    public bool HasLabelColumn => HasBadgeColumn || SharesCaptionColumn;
+    public string SubtitleLabel => SubtitleBodyText is null ? string.Empty : Badge;
+    public string RenderedPrimaryText => SubtitleBodyText ?? SubtitlePrimaryText;
     public bool IsBadgeVisible => !HideBadge && !string.IsNullOrWhiteSpace(Badge);
 
     public double BadgeOpacity => IsBadgeVisible ? 1 : 0;

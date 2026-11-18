@@ -101,6 +101,8 @@ public sealed record QuakeEvent : DisasterEvent
 
     public string Headline { get; }
 
+    public bool IsRoutineNankaiCommentary { get; init; }
+
     public QuakeEvent WithDisplayObservations(
         IReadOnlyList<QuakePoint> points,
         LongPeriodIntensityInfo? longPeriodIntensity) => this with

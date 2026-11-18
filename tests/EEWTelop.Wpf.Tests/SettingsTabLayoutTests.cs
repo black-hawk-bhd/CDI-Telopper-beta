@@ -86,6 +86,7 @@ public sealed class SettingsTabLayoutTests
             ("フィルター", "IsChecked", "{Binding Settings.FilterQuake}"),
             ("フィルター", "IsChecked", "{Binding Settings.FilterWeatherWarnings}"),
             ("フィルター", "IsChecked", "{Binding Settings.HideWeatherContinuationOnly}"),
+            ("フィルター", "IsChecked", "{Binding Settings.ShowRoutineNankaiCommentary}"),
             ("フィルター", "Command", "{Binding ResetFilterSettingsCommand}"),
             ("表示", "Text", "{Binding Settings.PageDurationSeconds}"),
             ("表示", "IsChecked", "{Binding Settings.SeparateIntensityPagesByScale}"),

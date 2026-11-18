@@ -101,6 +101,14 @@
       line-height: 1.1; text-align: center; white-space: nowrap;
       box-shadow: 3px 3px 7px rgba(0,0,0,.8); }
     #content.subtitle .badge.placeholder { visibility: hidden; }
+    #content.subtitle #blocks.aligned-labels { display: grid;
+      grid-template-columns: fit-content(45%) minmax(0, 1fr); row-gap: 20px; margin-bottom: 20px; }
+    #content.subtitle #blocks.aligned-labels > .block { grid-column: 1 / -1; margin: 0; }
+    #content.subtitle #blocks.aligned-labels > .block.aligned-label { display: contents; }
+    #content.subtitle .aligned-label > .badge, #content.subtitle .aligned-label > .subtitle-label {
+      grid-column: 1; justify-self: start; align-self: start; max-width: 100%; margin-right: 0;
+      white-space: normal; overflow-wrap: anywhere; }
+    #content.subtitle .aligned-label > .texts { grid-column: 2; margin-left: 22px; }
     #content.subtitle .block[class*="weather-"] { flex-direction: column; align-items: stretch; }
     #content.subtitle .block[class*="weather-"] .badge { align-self: flex-start;
       margin: 0 0 18px; max-width: 100%; white-space: normal; }

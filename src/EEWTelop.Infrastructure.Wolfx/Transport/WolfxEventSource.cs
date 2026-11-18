@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -22,7 +23,6 @@ namespace EEWTelop.Infrastructure.Wolfx.Transport;
 public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventSource
 {
     private const int MaximumMessageBytes = 4 * 1024 * 1024;
-    private static readonly TimeSpan DetailPollInterval = TimeSpan.FromSeconds(30);
     private readonly object _gate = new();
     private readonly IClock _clock;
     private readonly IAppLogWriter _log;
@@ -32,6 +32,9 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
     private CancellationTokenSource? _readerCancellation;
     private WolfxProviderOptions _options;
     private ProviderConnectionSnapshot _connection;
+    private long? _lastDetailAttemptFinished;
+    private TimeSpan _detailCooldown = WolfxRetryPolicy.DetailPollInterval;
+    private int _detailFailureCount;
     private int _readerActive;
     private bool _disposed;
 
@@ -238,7 +241,7 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
         string? initialQuery = null,
         WolfxEventNormalizer.EarthquakeDetailReports? quakeDetails = null)
     {
-        int retry = 0;
+        int failureCount = 0;
         var specialReports = expectedType == "jma_special_eq" ? new WolfxEventNormalizer.SpecialEarthquakeReports() : null;
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -247,17 +250,20 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
                 cancellationToken,
                 reconnectToken);
             using var socket = new ClientWebSocket();
+            socket.Options.CollectHttpResponseDetails = true;
+            long? connectedTimestamp = null;
+            Exception? failure = null;
             try
             {
                 Transition(
-                    retry == 0
+                    failureCount == 0
                         ? ProviderConnectionState.Connecting
                         : ProviderConnectionState.Reconnecting,
                     $"Wolfx {label}");
                 await socket.ConnectAsync(endpoint, attemptCancellation.Token)
                     .ConfigureAwait(false);
                 DateTimeOffset connectedAt = _clock.UtcNow;
-                retry = 0;
+                connectedTimestamp = _clock.GetTimestamp();
                 Transition(ProviderConnectionState.Connected, $"Wolfx {label} connected");
                 if (initialQuery is not null)
                 {
@@ -336,12 +342,7 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
             }
             catch (Exception exception) when (exception is not StackOverflowException)
             {
-                await LogAsync(
-                    AppLogLevel.Warning,
-                    "WolfxConnectionFailed",
-                    $"Wolfx {label} connection stopped and will reconnect.",
-                    exception,
-                    cancellationToken).ConfigureAwait(false);
+                failure = exception;
             }
 
             if (cancellationToken.IsCancellationRequested)
@@ -349,16 +350,28 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
                 break;
             }
 
+            bool reconnectRequested = reconnectToken.IsCancellationRequested;
             ResetReconnectSignalIfCancelled();
-            TimeSpan delay = TimeSpan.FromSeconds(Math.Min(30, 1 << Math.Min(retry, 4)));
-            retry = Math.Min(retry + 1, 30);
+            TimeSpan delay = TimeSpan.FromSeconds(1);
+            if (!reconnectRequested)
+            {
+                TimeSpan? duration = connectedTimestamp is long started ? _clock.GetElapsedTime(started) : null;
+                failureCount = WolfxRetryPolicy.NextWebSocketFailureCount(failureCount, duration);
+                HttpStatusCode? status = (int)socket.HttpStatusCode >= 400 ? socket.HttpStatusCode : null;
+                delay = WolfxRetryPolicy.WebSocketDelay(failureCount, status, ReadWebSocketRetryAfter(socket));
+                string reason = DescribeWebSocketFailure(socket, status, failure);
+                string action = connectedTimestamp.HasValue ? "切断されました" : "接続に失敗しました";
+                await LogAsync(AppLogLevel.Warning, "WolfxConnectionFailed",
+                    $"Wolfx {label}のWebSocketは{action}（{reason}）。{Math.Ceiling(delay.TotalSeconds):0}秒後に再接続します。",
+                    failure, cancellationToken).ConfigureAwait(false);
+            }
             Transition(
                 ProviderConnectionState.Reconnecting,
                 $"Wolfx {label} retry",
                 retryDelay: delay);
             try
             {
-                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                await WaitForRetryAsync(delay, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -370,40 +383,90 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
     private async Task RunEarthquakeDetailAsync(WolfxEventNormalizer.EarthquakeDetailReports reports,
         ProviderMessageBuffer writer, CancellationToken cancellationToken)
     {
-        bool failed = false;
         while (!cancellationToken.IsCancellationRequested)
         {
-            TimeSpan delay = DetailPollInterval;
+            if (_lastDetailAttemptFinished is long finished)
+                await WaitForRetryAsync(_detailCooldown - _clock.GetElapsedTime(finished), cancellationToken).ConfigureAwait(false);
+
+            HttpStatusCode? status = null;
+            TimeSpan? retryAfter = null;
             try
             {
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 timeout.CancelAfter(TimeSpan.FromSeconds(10));
                 using var response = await _detailHttp.GetAsync(WolfxProviderOptions.EarthquakeDetailUri,
                     HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
-                if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)
+                if (!response.IsSuccessStatusCode)
                 {
-                    TimeSpan? retryAfter = response.Headers.RetryAfter?.Delta ?? response.Headers.RetryAfter?.Date - _clock.UtcNow;
-                    if (retryAfter > delay) delay = retryAfter.Value;
+                    status = response.StatusCode;
+                    retryAfter = ReadRetryAfter(response.Headers.RetryAfter);
                 }
                 response.EnsureSuccessStatusCode();
                 await response.Content.LoadIntoBufferAsync(MaximumMessageBytes, timeout.Token).ConfigureAwait(false);
                 string payload = await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
                 await reports.PublishDetailsAsync(new RawProviderMessage(WolfxProviderOptions.ProviderName,
                     payload, SourceMode.Production, _clock.UtcNow), writer, cancellationToken).ConfigureAwait(false);
-                failed = false;
+                if (_detailFailureCount > 0)
+                    await LogAsync(AppLogLevel.Information, "WolfxEarthquakeDetailRecovered",
+                        "Wolfxの地震詳細HTTP取得が復旧しました。", null, cancellationToken).ConfigureAwait(false);
+                _detailFailureCount = 0;
+                _detailCooldown = WolfxRetryPolicy.DetailPollInterval;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return; }
             catch (Exception exception) when (exception is HttpRequestException or IOException or JsonException or
                 OperationCanceledException or InvalidOperationException)
             {
-                if (!failed)
+                TimeSpan previousCooldown = _detailCooldown;
+                _detailFailureCount = Math.Min(_detailFailureCount + 1, 4);
+                _detailCooldown = WolfxRetryPolicy.DetailDelay(_detailFailureCount, status, retryAfter);
+                if (previousCooldown != _detailCooldown)
+                {
+                    string reason = status is HttpStatusCode http ? $"HTTP {(int)http}"
+                        : exception is OperationCanceledException ? "10秒でタイムアウト" : exception.GetType().Name;
                     await LogAsync(AppLogLevel.Warning, "WolfxEarthquakeDetailFailed",
-                        "Wolfxの地震詳細を取得できません。WebSocketの地震概要は引き続き受信します。",
+                        $"Wolfxの地震詳細HTTP取得に失敗しました（{reason}）。次の取得まで{Math.Ceiling(_detailCooldown.TotalSeconds):0}秒以上待ちます。",
                         exception, cancellationToken).ConfigureAwait(false);
-                failed = true;
+                }
             }
-            await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+            finally { _lastDetailAttemptFinished = _clock.GetTimestamp(); }
         }
+    }
+
+    private TimeSpan? ReadWebSocketRetryAfter(ClientWebSocket socket)
+    {
+        if (socket.HttpResponseHeaders is not { } headers) return null;
+
+        foreach (var (name, values) in headers)
+        {
+            if (!name.Equals("Retry-After", StringComparison.OrdinalIgnoreCase)) continue;
+            foreach (string value in values)
+                if (RetryConditionHeaderValue.TryParse(value, out var retryAfter)) return ReadRetryAfter(retryAfter);
+        }
+        return null;
+    }
+
+    private TimeSpan? ReadRetryAfter(RetryConditionHeaderValue? header) =>
+        header?.Delta ?? (header?.Date - _clock.UtcNow);
+
+    private static string DescribeWebSocketFailure(ClientWebSocket socket, HttpStatusCode? status, Exception? failure)
+    {
+        if (status is HttpStatusCode http) return $"HTTP {(int)http}";
+        if (socket.CloseStatus is WebSocketCloseStatus close) return $"終了コード {(int)close}";
+        if (failure is WebSocketException webSocket) return webSocket.WebSocketErrorCode.ToString();
+        return failure?.GetType().Name ?? "接続終了";
+    }
+
+    private static async Task WaitForRetryAsync(TimeSpan remaining, CancellationToken cancellationToken)
+    {
+        // Split long Retry-After values so they stay within Task.Delay's supported range.
+        TimeSpan maximumDelay = TimeSpan.FromDays(1);
+        while (remaining > maximumDelay)
+        {
+            await Task.Delay(maximumDelay, cancellationToken).ConfigureAwait(false);
+            remaining -= maximumDelay;
+        }
+        if (remaining > TimeSpan.Zero)
+            await Task.Delay(remaining, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task<string?> ReceiveTextAsync(
