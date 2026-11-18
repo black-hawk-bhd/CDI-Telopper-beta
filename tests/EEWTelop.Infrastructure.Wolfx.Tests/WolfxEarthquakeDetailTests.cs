@@ -46,6 +46,7 @@ public sealed class WolfxEarthquakeDetailTests
         Assert.AreEqual("岐阜県飛騨地方", quake.Earthquake.Hypocenter!.Name);
         Assert.AreEqual(10, quake.Earthquake.Hypocenter.DepthKilometers);
         Assert.AreEqual(DomesticTsunami.None, quake.Earthquake.DomesticTsunami);
+        Assert.AreEqual("この地震による津波の心配はありません。", quake.FreeFormComment);
         QuakePoint station = quake.Points.Single(static point => point.StationCode.Length > 0);
         Assert.AreEqual("2120321", station.StationCode);
         Assert.AreEqual("430", station.SeismicAreaCode);
@@ -57,6 +58,8 @@ public sealed class WolfxEarthquakeDetailTests
         string captions = string.Join('\n', program.Pages.Select(static page => page.AccessibleText));
         StringAssert.Contains(captions, "岐阜県高山市");
         StringAssert.Contains(captions, "震度5弱以上 未入電");
+        Assert.AreEqual(1, program.Pages.Count(static page =>
+            page.AccessibleText.Contains("津波の心配はありません", StringComparison.Ordinal)));
     }
 
     [TestMethod]

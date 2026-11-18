@@ -197,6 +197,22 @@ run('earthquake captions align across different badge widths', () => {
   checkCaptionColumns([caption('intensity', '震度5弱以上 未入電', '石川県輪島市'),
     caption('intensity', '震度3', '富山県富山市')], 2, []);
 });
+run('intensity badge is centered on the first location line', () => {
+  for (const [fontScale, lineSpacing, location, wraps] of [
+    [1, 1, '石川県能登', false],
+    [1.2, 1.25, '石川県能登　'.repeat(9), true]
+  ]) {
+    applySnapshot({ ...base, fontScale, lineSpacing, blocks: [caption('intensity', '震度4', location)] });
+    const badge = blocks.querySelector('.badge').getBoundingClientRect();
+    const text = blocks.querySelector('.texts .primary');
+    const scale = new DOMMatrixReadOnly(getComputedStyle(canvas).transform).a;
+    const lineHeight = parseFloat(getComputedStyle(text).lineHeight) * scale;
+    const box = text.getBoundingClientRect();
+    assert((box.height > lineHeight * 1.5) === wraps, 'Unexpected location wrapping');
+    const offset = Math.abs((badge.top + badge.height / 2) - (box.top + lineHeight / 2));
+    assert(offset < 0.75, 'Badge and first line differ by ' + offset.toFixed(2) + 'px');
+  }
+});
 run('earthquake plain severity keeps continuation rows aligned', () => {
   checkCaptionColumns([caption('intensity', '震度5弱', '石川県輪島市', true),
     caption('intensity', '', '石川県珠洲市', true)], 0, ['震度5弱']);

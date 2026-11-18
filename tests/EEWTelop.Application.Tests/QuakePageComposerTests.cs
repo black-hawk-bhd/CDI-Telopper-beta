@@ -83,6 +83,62 @@ public sealed class QuakePageComposerTests
     }
 
     [TestMethod]
+    [DataRow(DomesticTsunami.Unknown)]
+    [DataRow(DomesticTsunami.Checking)]
+    public void ScalePromptShowsTsunamiCautionAndOtherGuidanceOnceEach(DomesticTsunami status)
+    {
+        const string caution = "念のため津波に注意してください";
+        const string followUp = "今後の情報に注意してください。";
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(QuakeIssueType.ScalePrompt,
+            [DisplayEventFactory.Point(1, JmaScale.Four)], status,
+            comment: $"{caution}\r\n{followUp}\n{followUp.TrimEnd('。')}");
+
+        DisplayProgram program = Compose(quake);
+
+        Assert.HasCount(4, program.Pages);
+        Assert.AreEqual(caution + "。", ContentBlocks(program.Pages[1]).Single().PrimaryText);
+        Assert.AreEqual(followUp, ContentBlocks(program.Pages[^1]).Single().PrimaryText);
+        Assert.AreEqual(DisplayStyleTokens.Intensity, ContentBlocks(program.Pages[2]).Single().StyleToken);
+    }
+
+    [TestMethod]
+    [DataRow(DomesticTsunami.Checking, "津波の有無を調査中です。念のため津波に注意してください。")]
+    [DataRow(DomesticTsunami.NonEffective, "日本の沿岸では若干の海面変動があるかもしれませんが、被害の心配はありません。")]
+    [DataRow(DomesticTsunami.Watch, "この地震により津波注意報が発表されています。")]
+    [DataRow(DomesticTsunami.Warning, "この地震により津波情報を発表しています。")]
+    public void DetailedEarthquakeDoesNotRepeatIndividualTsunamiSentences(DomesticTsunami status, string duplicateText)
+    {
+        const string note = "余震に注意してください。";
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(QuakeIssueType.DetailScale,
+            [DisplayEventFactory.Point(1, JmaScale.Four)], status,
+            comment: duplicateText + note + duplicateText);
+
+        DisplayProgram program = Compose(quake);
+
+        Assert.AreEqual(1, program.Pages.SelectMany(ContentBlocks).Count(block => block.StyleToken == DisplayStyleTokens.Advisory));
+        Assert.AreEqual(note, ContentBlocks(program.Pages[^1]).Single().PrimaryText);
+        Assert.AreEqual(duplicateText + note + duplicateText, quake.FreeFormComment);
+    }
+
+    [TestMethod]
+    public void OverriddenTsunamiCautionDeduplicatesAgainstTheDisplayedText()
+    {
+        const string followUp = "今後の情報に注意してください。";
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(QuakeIssueType.ScalePrompt,
+            [DisplayEventFactory.Point(1, JmaScale.Four)], DomesticTsunami.Checking, comment: followUp);
+        DisplaySettings settings = DisplayEventFactory.Settings with
+        {
+            SubtitlePhraseOverrides = new Dictionary<string, string> { ["quake.tsunami.caution"] = followUp },
+        };
+
+        DisplayProgram program = _composer.Compose(quake, settings);
+
+        Assert.HasCount(3, program.Pages);
+        Assert.AreEqual(followUp, ContentBlocks(program.Pages[1]).Single().PrimaryText);
+        Assert.AreEqual(followUp, quake.FreeFormComment);
+    }
+
+    [TestMethod]
     public void CancelledScalePromptUsesOnlyCancellationMessage()
     {
         QuakeEvent quake = DisplayEventFactory.CreateQuake(
@@ -196,6 +252,35 @@ public sealed class QuakePageComposerTests
             .SelectMany(ContentBlocks)
             .Where(block => block.StyleToken == DisplayStyleTokens.Intensity)
             .All(block => block.PrimaryText.Split('　').Length <= 3));
+    }
+
+    [TestMethod]
+    [DataRow(QuakeIssueType.Destination, "この地震による津波の心配はありません。", "")]
+    [DataRow(QuakeIssueType.ScalePrompt, "この地震による津波の心配はありません", "")]
+    [DataRow(QuakeIssueType.DetailScale, "この地震による津波の心配はありません。今後の情報に注意してください。", "今後の情報に注意してください。")]
+    [DataRow(QuakeIssueType.Other, "今後の情報に注意してください。\r\n　この地震による津波の心配はありません。　", "今後の情報に注意してください。")]
+    public void NoTsunamiConcernIsDisplayedOnceAndOtherCommentsRemain(QuakeIssueType kind, string comment, string remaining)
+    {
+        const string advisory = "この地震による津波の心配はありません";
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(kind,
+            [DisplayEventFactory.Point(1, JmaScale.Four)], DomesticTsunami.None, comment: comment);
+
+        DisplayBlock[] blocks = Compose(quake).Pages.SelectMany(ContentBlocks).ToArray();
+
+        Assert.AreEqual(1, blocks.Count(block => block.PrimaryText.Contains(advisory, StringComparison.Ordinal)));
+        Assert.AreEqual(remaining, string.Concat(blocks.Where(block =>
+            block.StyleToken == DisplayStyleTokens.Comment).Select(block => block.PrimaryText)));
+        Assert.AreEqual(comment, quake.FreeFormComment);
+    }
+
+    [TestMethod]
+    public void ACommentWithoutASeparateNoTsunamiAdvisoryRemainsVisible()
+    {
+        const string comment = "この地震による津波の心配はありません。";
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(QuakeIssueType.Destination,
+            domesticTsunami: DomesticTsunami.Unknown, comment: comment);
+
+        Assert.AreEqual(comment, ContentBlocks(Compose(quake).Pages[^1]).Single().PrimaryText);
     }
 
     [TestMethod]

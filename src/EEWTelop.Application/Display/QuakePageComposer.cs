@@ -35,14 +35,14 @@ internal static class QuakePageComposer
             quake.Points, quake.Earthquake.MaximumScale, settings.ShowLowIntensityPointsInStrongQuakes);
         IReadOnlyList<PageDraft> pages = quake.IssueType switch
         {
-            QuakeIssueType.ScalePrompt => ComposeScalePrompt(quake, intensityRows, settings.SeparateIntensityPagesByScale),
-            QuakeIssueType.DetailScale => ComposeDetailed(quake, intensityRows, includeIntensity: true, settings.SeparateIntensityPagesByScale),
+            QuakeIssueType.ScalePrompt => ComposeScalePrompt(quake, intensityRows, settings),
+            QuakeIssueType.DetailScale => ComposeDetailed(quake, intensityRows, includeIntensity: true, settings),
             QuakeIssueType.ScaleAndDestination =>
-                ComposeDetailed(quake, intensityRows, includeIntensity: true, settings.SeparateIntensityPagesByScale),
+                ComposeDetailed(quake, intensityRows, includeIntensity: true, settings),
             QuakeIssueType.Destination =>
-                ComposeDetailed(quake, intensityRows, includeIntensity: false, settings.SeparateIntensityPagesByScale),
+                ComposeDetailed(quake, intensityRows, includeIntensity: false, settings),
             QuakeIssueType.Foreign => ComposeForeign(quake),
-            QuakeIssueType.Other => ComposeOther(quake),
+            QuakeIssueType.Other => ComposeOther(quake, settings),
             QuakeIssueType.LongPeriodObservation => ComposeLongPeriodObservation(quake),
             QuakeIssueType.NankaiTroughTemporaryInformation =>
                 ComposeNankaiTroughInformation(quake, "南海トラフ地震臨時情報"),
@@ -64,7 +64,7 @@ internal static class QuakePageComposer
     private static List<PageDraft> ComposeScalePrompt(
         QuakeEvent quake,
         IReadOnlyList<IntensityRow> intensityRows,
-        bool separateByScale)
+        DisplaySettings settings)
     {
         string time = FormatOriginTime(quake.Earthquake);
         var pages = new List<PageDraft>
@@ -85,8 +85,8 @@ internal static class QuakePageComposer
         AddIntensityPages(
             pages,
             intensityRows,
-            "震度速報の対象地域情報はありません", separateByScale);
-        AddCommentPage(pages, quake.FreeFormComment);
+            "震度速報の対象地域情報はありません", settings.SeparateIntensityPagesByScale);
+        AddCommentPage(pages, GetSupplementaryComment(quake.FreeFormComment, tsunamiText, settings));
         return pages;
     }
 
@@ -94,7 +94,7 @@ internal static class QuakePageComposer
         QuakeEvent quake,
         IReadOnlyList<IntensityRow> intensityRows,
         bool includeIntensity,
-        bool separateByScale)
+        DisplaySettings settings)
     {
         // 大規模噴火の遠地情報もVXSE53で届く。地震の定型ページを付けず、
         // 津波到達予想を含む実際の噴火情報を本文から表示する。
@@ -117,19 +117,18 @@ internal static class QuakePageComposer
             CreateSummaryPage(quake, primary, secondary),
         };
 
-        AddAdvisoryPage(
-            pages,
-            PageComposerSupport.GetDomesticTsunamiText(quake.Earthquake.DomesticTsunami));
+        string tsunamiText = PageComposerSupport.GetDomesticTsunamiText(quake.Earthquake.DomesticTsunami);
+        AddAdvisoryPage(pages, tsunamiText);
         if (includeIntensity &&
             (intensityRows.Count > 0 || !IsEewNoStrongShakingComment(quake.FreeFormComment)))
         {
             AddIntensityPages(
                 pages,
                 intensityRows,
-                "各地の詳しい震度情報はありません", separateByScale);
+                "各地の詳しい震度情報はありません", settings.SeparateIntensityPagesByScale);
         }
 
-        AddCommentPage(pages, quake.FreeFormComment);
+        AddCommentPage(pages, GetSupplementaryComment(quake.FreeFormComment, tsunamiText, settings));
         return pages;
     }
 
@@ -166,7 +165,7 @@ internal static class QuakePageComposer
         return pages;
     }
 
-    private static IReadOnlyList<PageDraft> ComposeOther(QuakeEvent quake)
+    private static IReadOnlyList<PageDraft> ComposeOther(QuakeEvent quake, DisplaySettings settings)
     {
         string time = FormatOriginTime(quake.Earthquake);
         var blocks = CreateCorrectionPrefix(quake);
@@ -197,11 +196,12 @@ internal static class QuakePageComposer
                 DisplayStyleTokens.Advisory));
         }
 
-        if (!string.IsNullOrWhiteSpace(quake.FreeFormComment))
+        string comment = GetSupplementaryComment(quake.FreeFormComment, tsunamiText, settings);
+        if (!string.IsNullOrWhiteSpace(comment))
         {
             blocks.Add(new DisplayBlock(
                 string.Empty,
-                quake.FreeFormComment.Trim(),
+                comment.Trim(),
                 string.Empty,
                 DisplayStyleTokens.Comment));
         }
@@ -580,6 +580,32 @@ internal static class QuakePageComposer
             string displayComment = FormatCommentForDisplay(comment);
             AddNarrativePages(pages, displayComment, DisplayStyleTokens.Comment);
         }
+    }
+
+    private static string GetSupplementaryComment(string comment, string tsunamiText, DisplaySettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(comment)) return string.Empty;
+
+        var replacements = SubtitlePhraseCatalog.GetReplacements(settings);
+        string advisory = SubtitlePhraseCatalog.ReplaceKnownPhrases(tsunamiText, replacements);
+        var shownSentences = new HashSet<string>(advisory.Split(['。', '\r', '\n'],
+            StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries), StringComparer.Ordinal);
+
+        // Compare complete rendered sentences and retain the first occurrence's wording.
+        ReadOnlySpan<char> source = comment.AsSpan();
+        var remaining = new StringBuilder(source.Length);
+        while (!source.IsEmpty)
+        {
+            int separator = source.IndexOfAny('。', '\r', '\n');
+            int sentenceLength = separator < 0 ? source.Length : separator;
+            int next = Math.Min(sentenceLength + 1, source.Length);
+            string sentence = SubtitlePhraseCatalog.ReplaceKnownPhrases(source[..next].Trim().ToString(), replacements);
+            string key = sentence.TrimEnd().TrimEnd('。').Trim();
+            if (key.Length == 0 || shownSentences.Add(key))
+                remaining.Append(source[..next]);
+            source = source[next..];
+        }
+        return remaining.ToString().Trim();
     }
 
     private static void AddNarrativePages(

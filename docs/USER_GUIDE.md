@@ -2,7 +2,7 @@
 
 [English](USER_GUIDE_EN.md) | 日本語
 
-対象は Windows x64 版の **2.0.0-beta.71** です。画面に表示される日本語の項目名で操作を案内します。[ダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.71) / [変更内容](../RELEASE_NOTES_2.0.0-beta.71.md)
+対象は Windows x64 版の **2.0.0-beta.72** です。画面に表示される日本語の項目名で操作を案内します。[ダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.72) / [変更内容](../RELEASE_NOTES_2.0.0-beta.72.md)
 
 ## インストールと更新
 

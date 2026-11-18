@@ -74,22 +74,7 @@ public static class SubtitlePhraseCatalog
     {
         ArgumentNullException.ThrowIfNull(program);
         ArgumentNullException.ThrowIfNull(settings);
-        Dictionary<string, string>? overrides = settings.SubtitlePhraseOverrides;
-        if (overrides is null || overrides.Count == 0)
-        {
-            return program;
-        }
-
-        KeyValuePair<string, string>[] replacements = All
-            .Where(definition => overrides.ContainsKey(definition.Id))
-            .Select(definition => new KeyValuePair<string, string>(
-                definition.DefaultText,
-                overrides[definition.Id] ?? string.Empty))
-            .Where(replacement => !string.Equals(
-                replacement.Key,
-                replacement.Value,
-                StringComparison.Ordinal))
-            .ToArray();
+        var replacements = GetReplacements(settings);
         if (replacements.Length == 0)
         {
             return program;
@@ -124,7 +109,21 @@ public static class SubtitlePhraseCatalog
         return program with { Pages = pages };
     }
 
-    private static string ReplaceKnownPhrases(
+    internal static KeyValuePair<string, string>[] GetReplacements(DisplaySettings settings)
+    {
+        Dictionary<string, string>? overrides = settings.SubtitlePhraseOverrides;
+        if (overrides is null || overrides.Count == 0) return [];
+
+        return All
+            .Where(definition => overrides.ContainsKey(definition.Id))
+            .Select(definition => new KeyValuePair<string, string>(
+                definition.DefaultText,
+                overrides[definition.Id] ?? string.Empty))
+            .Where(replacement => !string.Equals(replacement.Key, replacement.Value, StringComparison.Ordinal))
+            .ToArray();
+    }
+
+    internal static string ReplaceKnownPhrases(
         string text,
         IReadOnlyList<KeyValuePair<string, string>> replacements)
     {

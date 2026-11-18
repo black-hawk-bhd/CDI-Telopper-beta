@@ -2,7 +2,7 @@
 
 [日本語](USER_GUIDE.md) | English
 
-This guide covers **2.0.0-beta.71** for Windows x64. Menu names appear as they do in the Japanese interface. [Download](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.71) / [Release notes in Japanese](../RELEASE_NOTES_2.0.0-beta.71.md)
+This guide covers **2.0.0-beta.72** for Windows x64. Menu names appear as they do in the Japanese interface. [Download](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.72) / [Release notes in Japanese](../RELEASE_NOTES_2.0.0-beta.72.md)
 
 ## Install or update
 
