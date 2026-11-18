@@ -2,7 +2,7 @@
 
 [English](USER_GUIDE_EN.md) | 日本語
 
-対象は Windows x64 版の **2.0.0-beta.68** です。画面に表示される日本語の項目名で操作を案内します。[ダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.68) / [変更内容](../RELEASE_NOTES_2.0.0-beta.68.md)
+対象は Windows x64 版の **2.0.0-beta.69** です。画面に表示される日本語の項目名で操作を案内します。[ダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.69) / [変更内容](../RELEASE_NOTES_2.0.0-beta.69.md)
 
 ## インストールと更新
 
@@ -23,7 +23,7 @@
 
 複数の受信元を使うときは、画面上部に受信元ごとの接続状態を表示します。左側の「接続」欄とタスクトレイでは、各受信元が起動後に再接続待機へ移った回数も確認できます。トレイの表示が長いときは、右クリックして「API別の状態と再接続回数」を開きます。
 
-気象庁XMLは60秒以上の間隔で巡回し、EEWには対応しません。自動切替がONの場合、DMDATA.JP・P2P地震情報・AXISの接続障害が30秒以上続いた対象種別を気象庁XMLで取得し、元の接続が復旧すると戻します。YDITSは一般向けEEW警報（VXSE43）の取得に対応します。「YDITS（テストモード）」の電文はブラウザープレビューの個別確認用で、OBSへ自動送出しません。警報対象地域の表示と、照合情報のないYDITS取消報の反映には対応していません。[対応電文](TELEGRAM_SUPPORT_MATRIX.md) / [提供元と取得条件](data-sources.md)
+気象庁XMLは60秒以上の間隔で巡回し、EEWには対応しません。自動切替がONの場合、DMDATA.JP・P2P地震情報・AXISの接続障害が30秒以上続いた対象種別を気象庁XMLで取得し、元の接続が復旧すると戻します。YDITSの本番・テスト受信は一時停止中です。以前YDITSを選択していた場合は、EEWの受信元を「受信しない」として扱います。[対応電文](TELEGRAM_SUPPORT_MATRIX.md) / [提供元と取得条件](data-sources.md)
 
 ## OBSとプレビュー
 

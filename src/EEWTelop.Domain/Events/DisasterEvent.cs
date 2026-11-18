@@ -169,6 +169,11 @@ public sealed record TsunamiEvent : DisasterEvent
     /// warning grade to a different current Kind grade.
     /// </summary>
     public bool WarningStateChanged { get; init; }
+
+    // A complete source snapshot replaces previous sections. The observation
+    // telegrams keep their own timestamps and cancellation states.
+    public IReadOnlyList<TsunamiEvent>? SnapshotObservations { get; init; }
+    public string? SourceReportId { get; init; }
 }
 
 public sealed record EewEvent : DisasterEvent

@@ -48,7 +48,10 @@ internal static class PageComposerSupport
             Pages: pages,
             StartedAtUtc: disasterEvent.ReceivedAt.ToUniversalTime(),
             endPolicy,
-            RehearsalLabel: GetRehearsalLabel(disasterEvent));
+            RehearsalLabel: GetRehearsalLabel(disasterEvent))
+        {
+            ExpiresAtUtc = disasterEvent is TsunamiEvent { SnapshotObservations: not null } tsunami ? tsunami.ExpireAt : null,
+        };
     }
 
     public static string FormatJapanTime(DateTimeOffset value) =>
@@ -68,6 +71,8 @@ internal static class PageComposerSupport
             "VXSE53" => "震源・震度に関する情報",
             "VXSE62" => "長周期地震動に関する観測情報",
             "VYSE50" => "南海トラフ地震臨時情報",
+            "VYSE51" => "南海トラフ地震臨時情報に関する解説情報",
+            "VYSE52" => "南海トラフ地震関連解説情報",
             "VYSE60" => "北海道・三陸沖後発地震注意情報",
             _ => quake.IssueType switch
             {

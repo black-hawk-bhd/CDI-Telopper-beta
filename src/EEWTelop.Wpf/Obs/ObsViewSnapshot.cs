@@ -144,7 +144,11 @@ public sealed partial class ObsSnapshotStore
 
         lock (_gate)
         {
-            _programs[channel.Value] = new ObsProgramState(program, settings, now);
+            DateTimeOffset startedAt = now;
+            if (program.ExpiresAtUtc.HasValue && _programs.TryGetValue(channel.Value, out var current) &&
+                current.Program.ProgramId == program.ProgramId)
+                startedAt = current.StartedAtUtc;
+            _programs[channel.Value] = new ObsProgramState(program, settings, startedAt);
         }
     }
 

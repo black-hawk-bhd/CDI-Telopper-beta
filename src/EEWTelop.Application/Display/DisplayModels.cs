@@ -38,6 +38,7 @@ public sealed record DisplayProgram(
     string RehearsalLabel)
 {
     public int? MaximumDisplayCycles { get; init; }
+    public DateTimeOffset? ExpiresAtUtc { get; init; }
 
     // Session-only presentation option. Never persisted or used to reclassify training data.
     [System.Text.Json.Serialization.JsonIgnore]

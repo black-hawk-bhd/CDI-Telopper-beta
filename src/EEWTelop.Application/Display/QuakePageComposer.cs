@@ -45,7 +45,9 @@ internal static class QuakePageComposer
             QuakeIssueType.Other => ComposeOther(quake),
             QuakeIssueType.LongPeriodObservation => ComposeLongPeriodObservation(quake),
             QuakeIssueType.NankaiTroughTemporaryInformation =>
-                ComposeNankaiTroughTemporaryInformation(quake),
+                ComposeNankaiTroughInformation(quake, "南海トラフ地震臨時情報"),
+            QuakeIssueType.NankaiTroughCommentary =>
+                ComposeNankaiTroughInformation(quake, PageComposerSupport.GetQuakeCancellationSubject(quake)),
             QuakeIssueType.SubsequentEarthquakeAdvisory =>
                 ComposeSubsequentEarthquakeAdvisory(quake),
             _ => ComposeUnknown(quake),
@@ -332,10 +334,8 @@ internal static class QuakePageComposer
         return pages;
     }
 
-    private static List<PageDraft> ComposeNankaiTroughTemporaryInformation(
-        QuakeEvent quake)
+    private static List<PageDraft> ComposeNankaiTroughInformation(QuakeEvent quake, string defaultTitle)
     {
-        const string defaultTitle = "南海トラフ地震臨時情報";
         string[] lines = quake.Headline
             .Replace('\r', '\n')
             .Split(

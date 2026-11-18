@@ -1,5 +1,6 @@
 using EEWTelop.Application.Configuration;
 using EEWTelop.Application.Display;
+using EEWTelop.Domain.Events;
 
 namespace EEWTelop.Application.Coordination;
 
@@ -14,6 +15,7 @@ public interface IDisplayCoordinator
     CoordinatorSnapshot SelectManualPage(int pageIndex);
 
     CoordinatorSnapshot Clear();
+    CoordinatorSnapshot Clear(EventKind kind) => Evaluate();
 
     CoordinatorSnapshot Restore(CoordinatorRestoreState state);
 }

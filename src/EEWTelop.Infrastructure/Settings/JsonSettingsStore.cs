@@ -681,10 +681,8 @@ public sealed class JsonSettingsStore : ISettingsStore
         Enum.IsDefined(routing.Weather) &&
         Enum.IsDefined(routing.Volcano) &&
         Enum.IsDefined(routing.NankaiTrough) &&
-        routing.Tsunami != ReceptionProvider.Wolfx &&
         routing.Weather != ReceptionProvider.Wolfx &&
-        routing.Volcano != ReceptionProvider.Wolfx &&
-        routing.NankaiTrough != ReceptionProvider.Wolfx;
+        routing.Volcano != ReceptionProvider.Wolfx;
 
     private static bool IsValidProductionReplayPolicy(ProductionReplayPolicy? policy) =>
         policy is not null && policy.RepeatCount is >= 1 and <= 100;

@@ -8,9 +8,14 @@ public sealed record WolfxProviderOptions(
     Uri EewWebSocketUri,
     Uri QuakeWebSocketUri,
     bool ReceiveEew,
-    bool ReceiveQuake)
+    bool ReceiveQuake,
+    bool ReceiveTsunami = false,
+    bool ReceiveSpecialEarthquake = false)
 {
     public const string ProviderName = "wolfx";
+    public static Uri TsunamiWebSocketUri { get; } = new("wss://ws-api.wolfx.jp/jma_tsunami");
+    public static Uri SpecialEarthquakeWebSocketUri { get; } = new("wss://ws-api.wolfx.jp/jma_special_eq");
+    public static Uri EarthquakeDetailUri { get; } = new("https://api.wolfx.jp/jma_earthquake_detail.json");
 
     public static WolfxProviderOptions FromSettings(ProviderSettings settings)
     {
@@ -19,7 +24,9 @@ public sealed record WolfxProviderOptions(
             new Uri(settings.WolfxEewWebSocketUrl, UriKind.Absolute),
             new Uri(settings.WolfxQuakeWebSocketUrl, UriKind.Absolute),
             settings.Routing.Eew == ReceptionProvider.Wolfx,
-            settings.Routing.Quake == ReceptionProvider.Wolfx);
+            settings.Routing.Quake == ReceptionProvider.Wolfx,
+            settings.Routing.Tsunami == ReceptionProvider.Wolfx,
+            settings.Routing.NankaiTrough == ReceptionProvider.Wolfx);
     }
 
     public IReadOnlyList<string> Validate()
@@ -27,7 +34,7 @@ public sealed record WolfxProviderOptions(
         var errors = new List<string>();
         ValidateUri(EewWebSocketUri, "EEW", errors);
         ValidateUri(QuakeWebSocketUri, "earthquake", errors);
-        if (!ReceiveEew && !ReceiveQuake)
+        if (!ReceiveEew && !ReceiveQuake && !ReceiveTsunami && !ReceiveSpecialEarthquake)
         {
             errors.Add("At least one Wolfx information category must be selected.");
         }

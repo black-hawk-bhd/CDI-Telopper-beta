@@ -12,7 +12,9 @@
 
 P2Pの入口は `P2pEventNormalizer` です。切断後のREST復旧対象とライブ受信対象は同一ではありません。復旧処理を変更する場合は、`P2pEventSource`、`P2pRestRecoveryClient`、`P2pHistoryMessageSource`を併せて確認します。
 
-## YDITS API
+## YDITS API（受信を一時停止中）
+
+本番・テストとも受信元の選択肢から外しています。実装の再有効化はWPFの `BuildFeatures.YditsProviderEnabled` で切り替えます。
 
 | 取得先 | 内容 | 正規化先 | 表示先 |
 | --- | --- | --- | --- |
@@ -76,11 +78,14 @@ AXISの `eew` は気象庁XML形状ではありません。`jmx-*` と同じDeco
 | WebSocket | 入力 | 処理 |
 | --- | --- | --- |
 | `wss://ws-api.wolfx.jp/jma_eew` | JMA EEW JSON | 警報・取消を `EewEvent`へ変換。予報のみは無視 |
-| `wss://ws-api.wolfx.jp/jma_eqlist` | JMA地震情報一覧JSON | VXSE53相当の「震源・震度情報」。`No1`の最新項目を `QuakeEvent`へ変換 |
+| `wss://ws-api.wolfx.jp/jma_eqlist` | JMA地震情報一覧JSON | `No1` の地震概要を取り込み、同じ公式イベントIDに詳細を取得済みの場合は詳細を保持 |
+| `https://api.wolfx.jp/jma_earthquake_detail.json` | VXSE51・VXSE52・VXSE53・VXSE61・VXSE62 | HTTPで30秒以上の間隔を空けて取得し、各報告の時刻・震源・震度観測・長周期階級を `QuakeEvent` に変換 |
+| `wss://ws-api.wolfx.jp/jma_tsunami` | VTSE41・VTSE51・VTSE52 | 津波の状態全体を更新。観測報は発表時刻と取消を個別に保持し、警報の信頼期限を表示と外部APIに適用 |
+| `wss://ws-api.wolfx.jp/jma_special_eq` | VYSE50・VYSE51・VYSE52・VYSE60 | 製品別に `QuakeEvent` へ変換し、「南海トラフ等」の選択を適用。初回スナップショットは電文確認用 |
 
-WolfxはEEW・地震情報にだけ割り当て可能です。1分間隔の `heartbeat` を受けた場合は同じ接続へ `ping` を返し、字幕イベントにはしません。両分類がWolfxの場合は2本のWebSocketを独立して再接続します。選択されていない分類のWolfx WebSocketには接続しません。
+選択した分類ごとに独立したWebSocketを使用します。`heartbeat` を受けると同じ接続へ `ping` を返します。津波情報と特別地震情報は接続時に各キャッシュ取得コマンドを送信します。 [Wolfx WebSocket仕様](https://wolfx.jp/docs/websocket/)
 
-Wolfxの地震情報は現在VXSE53相当の「震源・震度情報」だけです。VXSE51、VXSE52、VXSE62などの個別電文をWolfxから取得できるものとして扱わないでください。
+地震詳細の観測は報告単位で取り込みます。全製品の取消が確認できた場合に地震全体の取消を反映します。接続時に取得した最新の既報は電文確認から参照できます。 [Wolfx 地震詳細API](https://wolfx.jp/docs/open-api/#jma-地震詳細-json-api)
 
 ## 追加・変更時のチェックリスト
 

@@ -12,6 +12,7 @@ public enum QuakeIssueType
     LongPeriodObservation,
     SubsequentEarthquakeAdvisory,
     NankaiTroughTemporaryInformation,
+    NankaiTroughCommentary,
 }
 
 public enum CorrectionType

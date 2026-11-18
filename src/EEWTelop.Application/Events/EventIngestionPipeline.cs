@@ -122,9 +122,12 @@ public sealed class EventIngestionPipeline
         // State-only sync must also seed a fresh API session when a signature was
         // restored from disk. It can never replay output; live duplicates still stop here.
         EventVersionDecision version = _versionCache.CheckAndAccept(receivedEvent);
+        bool completeTsunami = receivedEvent is TsunamiEvent { SnapshotObservations: not null };
+        bool revalidatedTsunami = completeTsunami && version.Disposition == EventVersionDisposition.Duplicate;
         if (version.Issue is not null)
             normalized = normalized with { Issues = [.. normalized.Issues, version.Issue] };
-        if (!version.Accepted && !(raw.IsStateSnapshot && version.Disposition == EventVersionDisposition.Duplicate))
+        if (!version.Accepted && !revalidatedTsunami &&
+            !(raw.IsStateSnapshot && version.Disposition == EventVersionDisposition.Duplicate))
         {
             return CreateResult(
                 raw,
@@ -145,16 +148,27 @@ public sealed class EventIngestionPipeline
             };
         }
 
-        DisasterEvent disasterEvent = receivedEvent is TsunamiEvent tsunami
+        DisasterEvent disasterEvent = !completeTsunami && receivedEvent is TsunamiEvent tsunami
             ? _tsunamiStateAccumulator.Merge(tsunami)
             : receivedEvent;
 
         DisasterEvent? displayEvent = EventDisplayFilter.Apply(_filter, disasterEvent);
-        if (raw.IsStateSnapshot || disasterEvent.IsExpired || disasterEvent is TsunamiEvent { ExpireAt: { } expiry } && expiry <= raw.ReceivedAt)
+        if (disasterEvent is TsunamiEvent { SnapshotObservations: not null } snapshotTsunami &&
+            (snapshotTsunami.IsExpired || snapshotTsunami.ExpireAt <= raw.ReceivedAt ||
+             snapshotTsunami.Areas.Count == 0 && !snapshotTsunami.IsCancelled ||
+             raw.IsStateSnapshot && snapshotTsunami.IsCancelled))
+            return ClearTsunamiSnapshot(raw, snapshotTsunami, normalized.Issues);
+
+        bool stateOnly = raw.IsStateSnapshot;
+        if (stateOnly || disasterEvent.IsExpired || disasterEvent is TsunamiEvent { ExpireAt: { } expiry } && expiry <= raw.ReceivedAt)
         {
             return CreateResult(raw, EventIngestionStatus.Accepted, disasterEvent,
-                null, null, normalized.Issues, raw.IsStateSnapshot
-                    ? "外部連携：初期状態同期（字幕・音声なし）" : "情報の有効期限切れ（字幕・音声なし）");
+                null, null, normalized.Issues, stateOnly
+                    ? "外部連携：初期状態同期（字幕・音声なし）" : "情報の有効期限切れ（字幕・音声なし）") with
+            {
+                ReviewProgram = raw.IsStateSnapshot && displayEvent is QuakeEvent
+                    ? _pageComposer.Compose(displayEvent, _settings) : null,
+            };
         }
         if (displayEvent is null)
         {
@@ -169,6 +183,15 @@ public sealed class EventIngestionPipeline
         }
 
         DisplayProgram program = _pageComposer.Compose(displayEvent, _settings);
+        if (completeTsunami && program.Pages.Count == 0)
+            return ClearTsunamiSnapshot(raw, (TsunamiEvent)disasterEvent, normalized.Issues);
+        if (revalidatedTsunami)
+        {
+            bool refreshDisplay = !HoldBeforeDisplay && !disasterEvent.IsCancelled;
+            return CreateResult(raw, EventIngestionStatus.Accepted, disasterEvent,
+                refreshDisplay ? program : null, refreshDisplay ? _displayCoordinator.Apply(program) : null,
+                normalized.Issues, "津波情報の状態を確認しました") with { IsTsunamiStateRefresh = true };
+        }
         if (displayEvent is EewEvent eew)
         {
             program = _concurrentEewComposer.Compose(eew, program, _settings);
@@ -218,6 +241,15 @@ public sealed class EventIngestionPipeline
             normalized.Issues,
             null,
             CountItems(displayEvent));
+    }
+
+    private EventIngestionResult ClearTsunamiSnapshot(RawProviderMessage raw, TsunamiEvent tsunami,
+        IReadOnlyList<ValidationIssue> issues)
+    {
+        bool live = tsunami.SourceMode == SourceMode.Production;
+        var snapshot = live ? _displayCoordinator.Clear(EventKind.Tsunami) : null;
+        return CreateResult(raw, EventIngestionStatus.Accepted, tsunami, null, snapshot, issues,
+            "表示できる有効な津波情報なし") with { ClearTsunamiDisplay = live };
     }
 
     private EventIngestionResult CreateResult(
@@ -395,6 +427,8 @@ public sealed record EventIngestionResult(
     public int UnknownWeatherItemCount { get; init; }
 
     public bool AwaitingPreDisplayEdit { get; init; }
+    public bool IsTsunamiStateRefresh { get; init; }
+    public bool ClearTsunamiDisplay { get; init; }
 
     public bool RequiresReview { get; init; }
 

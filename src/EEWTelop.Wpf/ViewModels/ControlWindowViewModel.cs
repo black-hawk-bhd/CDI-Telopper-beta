@@ -600,7 +600,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         $"津波 {ProviderLabel(Settings.TsunamiProvider)} / " +
         $"気象 {ProviderLabel(Settings.WeatherProvider)} / " +
         $"火山 {ProviderLabel(Settings.VolcanoProvider)} / " +
-        $"南海トラフ {ProviderLabel(Settings.NankaiTroughProvider)}";
+        $"南海トラフ等 {ProviderLabel(Settings.NankaiTroughProvider)}";
 
     public string ApplicationVersionText => _applicationVersionText;
 
@@ -2292,6 +2292,27 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                     AppLogLevel.Debug,
                     "ProviderMessageReceived",
                     result.ReceptionSummary.ToLogMessage());
+            }
+
+            if (result.ClearTsunamiDisplay || result.IsTsunamiStateRefresh)
+            {
+                DateTimeOffset now = _services.Clock.UtcNow;
+                if (result.ClearTsunamiDisplay)
+                {
+                    if (result.Event is TsunamiEvent { IsCancelled: true } cancelled)
+                        _services.AudioPolicy?.Observe(cancelled);
+                    _productionReplayCatalog.RemoveKind(EventKind.Tsunami);
+                    _obsSnapshotStore.ClearProgram(EventKind.Tsunami, now);
+                    _productionReplayCoordinator?.Clear(EventKind.Tsunami);
+                }
+                else if (result.Event is { } tsunami && result.Program is { } updated && IsEnabled(tsunami))
+                {
+                    _productionReplayCatalog.Update(tsunami, updated, _settings.Display.ProductionReplay, now);
+                    _obsSnapshotStore.PublishProgram(tsunami, updated, _settings.Display, now);
+                }
+                if (result.Snapshot is { } snapshot && !IsTemporaryCoordinator(Volatile.Read(ref _activeCoordinator)))
+                    ApplyDisplaySnapshot(snapshot);
+                return;
             }
 
             if (result is { Status: EventIngestionStatus.Accepted, Event: { SourceMode: not SourceMode.Production } previewEvent,

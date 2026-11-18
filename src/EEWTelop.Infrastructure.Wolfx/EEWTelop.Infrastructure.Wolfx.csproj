@@ -5,6 +5,7 @@
     <RootNamespace>EEWTelop.Infrastructure.Wolfx</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="EEWTelop.Infrastructure.Wolfx.Tests" />
     <ProjectReference Include="..\EEWTelop.Application\EEWTelop.Application.csproj" />
     <ProjectReference Include="..\EEWTelop.Domain\EEWTelop.Domain.csproj" />
   </ItemGroup>

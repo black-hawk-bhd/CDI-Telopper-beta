@@ -51,6 +51,11 @@ public sealed class PageClock : IPageClock
         };
 
         TimeSpan? lifetime = GetLifetime(program, settings, pageDuration);
+        if (program.ExpiresAtUtc is { } deadline)
+        {
+            TimeSpan untilDeadline = deadline - programStartedAtUtc;
+            if (lifetime is null || untilDeadline < lifetime) lifetime = untilDeadline;
+        }
         bool isExpired = lifetime is TimeSpan duration && safeElapsed >= duration;
         DateTimeOffset? expiresAtUtc = lifetime is TimeSpan expiryDuration
             ? programStartedAtUtc + expiryDuration

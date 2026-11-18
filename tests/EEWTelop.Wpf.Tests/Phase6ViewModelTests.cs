@@ -97,7 +97,8 @@ public sealed partial class Phase6ViewModelTests
     [TestMethod]
     public void DistributionSettingsExposeEnabledProvidersAndSupportedPresentationOptions()
     {
-        var editor = new SettingsEditorViewModel(AppSettings.CreateDefault());
+        AppSettings defaults = AppSettings.CreateDefault();
+        var editor = new SettingsEditorViewModel(defaults);
 
         var expectedProviders = new List<ReceptionProvider> { ReceptionProvider.P2pQuake };
         if (BuildFeatures.DmdataProviderEnabled)
@@ -111,21 +112,31 @@ public sealed partial class Phase6ViewModelTests
         expectedProviders.Add(ReceptionProvider.Disabled);
         expectedProviders.Add(ReceptionProvider.Wolfx);
         if (BuildFeatures.DmdataProviderEnabled) expectedProviders.Add(ReceptionProvider.JmaXml);
-        expectedProviders.Add(ReceptionProvider.Ydits);
-        expectedProviders.Add(ReceptionProvider.YditsTest);
+        if (BuildFeatures.YditsProviderEnabled)
+        {
+            expectedProviders.Add(ReceptionProvider.Ydits);
+            expectedProviders.Add(ReceptionProvider.YditsTest);
+        }
         Assert.IsFalse(editor.EewAndQuakeProviderOptions.Any(option => option.Value == ReceptionProvider.JmaXml));
         Assert.AreEqual(BuildFeatures.DmdataProviderEnabled,
             editor.EarthquakeProviderOptions.Any(option => option.Value == ReceptionProvider.JmaXml));
         CollectionAssert.AreEqual(expectedProviders, editor.ReceptionProviders.ToArray());
         Assert.IsTrue(editor.EewAndQuakeProviderOptions.Any(option =>
             option.Value == ReceptionProvider.Wolfx));
-        Assert.IsFalse(editor.TsunamiProviderOptions.Any(option =>
+        Assert.IsTrue(editor.TsunamiProviderOptions.Any(option =>
+            option.Value == ReceptionProvider.Wolfx));
+        Assert.IsTrue(editor.SpecialEarthquakeProviderOptions.Any(option =>
             option.Value == ReceptionProvider.Wolfx));
         Assert.IsFalse(editor.CommercialProviderOptions.Any(option =>
             option.Value == ReceptionProvider.Wolfx));
         Assert.IsFalse(editor.IsWolfxQuakeProvider);
         editor.QuakeProvider = ReceptionProvider.Wolfx;
         Assert.IsTrue(editor.IsWolfxQuakeProvider);
+        editor.TsunamiProvider = ReceptionProvider.Wolfx;
+        editor.NankaiTroughProvider = ReceptionProvider.Wolfx;
+        ProviderRoutingSettings savedRouting = JsonSettingsStore.NormalizeDocument(editor.ToSettings(defaults)).Provider.Routing;
+        Assert.AreEqual(ReceptionProvider.Wolfx, savedRouting.Tsunami);
+        Assert.AreEqual(ReceptionProvider.Wolfx, savedRouting.NankaiTrough);
         CollectionAssert.AreEqual(
             new[] { ProviderMode.Production, ProviderMode.Sandbox },
             editor.ProviderModes.ToArray());
@@ -1277,7 +1288,7 @@ public sealed partial class Phase6ViewModelTests
             var text = (TextBlock)window.FindName("ApiModeSummary");
             var sidebar = (ScrollViewer)window.FindName("ControlSidebar");
             Assert.AreEqual(window.ViewModel.ApiModeText, text.Text);
-            StringAssert.EndsWith(text.Text, "南海トラフ 受信しない");
+            StringAssert.EndsWith(text.Text, "南海トラフ等 受信しない");
             Rect lastCharacter = text.ContentEnd.GetCharacterRect(LogicalDirection.Backward);
             Assert.IsTrue(!lastCharacter.IsEmpty && lastCharacter.Top > 0 &&
                 lastCharacter.Right <= text.ActualWidth + 1 && lastCharacter.Bottom <= text.ActualHeight + 1);
@@ -2328,13 +2339,13 @@ public sealed partial class Phase6ViewModelTests
                 item.Id == "tsunami-warning").Event;
             AudioDecision expectedEew = new AudioPolicy().Evaluate(eew, audio);
             Assert.IsTrue(expectedEew.ShouldPlay, expectedEew.Reason);
-            Assert.AreEqual(AudioCueId.EewContinuation, expectedEew.Cue);
+            Assert.AreEqual(AudioCueId.EewInitial, expectedEew.Cue);
             Assert.AreEqual(1, obsServer.ClientCount);
 
             viewModel.PlayEventAudio(weather, audio);
             viewModel.PlayEventAudio(eew, audio);
             await WaitUntilAsync(() =>
-                obsStore.Read().AudioCue == AudioCueId.EewContinuation.ToString());
+                obsStore.Read().AudioCue == AudioCueId.EewInitial.ToString());
             long eewSequence = obsStore.Read().AudioSequence;
 
             viewModel.PlayEventAudio(tsunami, audio);
@@ -2344,7 +2355,7 @@ public sealed partial class Phase6ViewModelTests
 
             Assert.AreEqual(eewSequence, obsStore.Read().AudioSequence);
             Assert.AreEqual(
-                AudioCueId.EewContinuation.ToString(),
+                AudioCueId.EewInitial.ToString(),
                 obsStore.Read().AudioCue,
                 string.Join(" | ", viewModel.Logs.Select(static entry =>
                     $"{entry.EventName}:{entry.Message}")));

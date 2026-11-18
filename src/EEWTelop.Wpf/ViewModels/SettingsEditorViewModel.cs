@@ -184,7 +184,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _tsunamiProvider = NormalizeRouteProvider(initialRouting.Tsunami, TsunamiProviderOptions);
         _weatherProvider = NormalizeRouteProvider(initialRouting.Weather, CommercialProviderOptions);
         _volcanoProvider = NormalizeRouteProvider(initialRouting.Volcano, CommercialProviderOptions);
-        _nankaiTroughProvider = NormalizeRouteProvider(initialRouting.NankaiTrough, CommercialProviderOptions);
+        _nankaiTroughProvider = NormalizeRouteProvider(initialRouting.NankaiTrough, SpecialEarthquakeProviderOptions);
         _providerMode = settings.Provider.Mode == ProviderMode.Sandbox
             ? ProviderMode.Sandbox
             : ProviderMode.Production;
@@ -392,26 +392,25 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 ReceptionProvider.Axis => BuildFeatures.AxisProviderEnabled,
                 ReceptionProvider.Wolfx => true,
                 ReceptionProvider.JmaXml => BuildFeatures.DmdataProviderEnabled,
-                ReceptionProvider.Ydits => true,
-                ReceptionProvider.YditsTest => true,
+                ReceptionProvider.Ydits or ReceptionProvider.YditsTest => BuildFeatures.YditsProviderEnabled,
                 _ => false,
             })
             .ToArray();
 
     public IReadOnlyList<ReceptionProviderOption> EewAndQuakeProviderOptions { get; } =
-        CreateReceptionProviderOptions(includeP2p: true, includeWolfx: true, includeYdits: true);
+        CreateReceptionProviderOptions(includeP2p: true, includeWolfx: true, includeYdits: BuildFeatures.YditsProviderEnabled);
 
     public IReadOnlyList<ReceptionProviderOption> EarthquakeProviderOptions { get; } =
         CreateReceptionProviderOptions(includeP2p: true, includeWolfx: true, includeJma: true);
 
     public IReadOnlyList<ReceptionProviderOption> TsunamiProviderOptions { get; } =
-        CreateReceptionProviderOptions(includeP2p: true, includeWolfx: false, includeJma: true);
+        CreateReceptionProviderOptions(includeP2p: true, includeWolfx: true, includeJma: true);
+
+    public IReadOnlyList<ReceptionProviderOption> SpecialEarthquakeProviderOptions { get; } =
+        CreateReceptionProviderOptions(includeP2p: false, includeWolfx: true, includeJma: true);
 
     public IReadOnlyList<ReceptionProviderOption> CommercialProviderOptions { get; } =
         CreateReceptionProviderOptions(includeP2p: false, includeWolfx: false, includeJma: true);
-
-    public bool HasCommercialProviderOptions => CommercialProviderOptions.Any(
-        static option => option.Value != ReceptionProvider.Disabled);
 
     public IReadOnlyList<DmdataAuthenticationMode> DmdataAuthenticationModes { get; } =
         [EEWTelop.Application.Configuration.DmdataAuthenticationMode.ApiKey,
@@ -574,7 +573,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public ReceptionProvider NankaiTroughProvider
     {
         get => _nankaiTroughProvider;
-        set => SetRouteProvider(ref _nankaiTroughProvider, value, CommercialProviderOptions);
+        set => SetRouteProvider(ref _nankaiTroughProvider, value, SpecialEarthquakeProviderOptions);
     }
 
     public bool AutoConnectOnStartup
@@ -1753,8 +1752,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
             ReceptionProvider.Axis when BuildFeatures.AxisProviderEnabled =>
                 ReceptionProvider.Axis,
             ReceptionProvider.Wolfx => ReceptionProvider.Wolfx,
-            ReceptionProvider.Ydits => ReceptionProvider.Ydits,
-            ReceptionProvider.YditsTest => ReceptionProvider.YditsTest,
+            ReceptionProvider.Ydits or ReceptionProvider.YditsTest =>
+                BuildFeatures.YditsProviderEnabled ? provider : ReceptionProvider.Disabled,
             ReceptionProvider.ObsEarthquakeBridge => ReceptionProvider.Disabled,
             ReceptionProvider.JmaXml when BuildFeatures.DmdataProviderEnabled => ReceptionProvider.JmaXml,
             _ => ReceptionProvider.P2pQuake,

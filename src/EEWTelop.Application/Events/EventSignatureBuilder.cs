@@ -99,6 +99,17 @@ public sealed class EventSignatureBuilder : IEventSignatureBuilder
     private static void WriteTsunami(Utf8JsonWriter writer, TsunamiEvent tsunami)
     {
         WriteIssue(writer, tsunami.Issue);
+        if (tsunami.SourceReportId is not null)
+            writer.WriteString("reportId", tsunami.SourceReportId);
+        if (tsunami.SnapshotObservations is { } observations)
+        {
+            // Provider trust renewals do not change the official telegram.
+            writer.WriteBoolean("expired", tsunami.IsExpired);
+            writer.WriteStartArray("snapshotObservations");
+            foreach (var observation in observations.OrderBy(item => item.Issue.RawType, StringComparer.Ordinal))
+                writer.WriteStringValue(observation.Signature);
+            writer.WriteEndArray();
+        }
         WriteNullableDateTime(writer, "observationAsOf", tsunami.ObservationAsOf);
         writer.WriteString("headline", tsunami.Headline);
         writer.WriteString("comment", tsunami.Comment);

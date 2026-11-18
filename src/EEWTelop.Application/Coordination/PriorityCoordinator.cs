@@ -55,6 +55,8 @@ public sealed class PriorityCoordinator : IDisplayCoordinator
             {
                 if (existing.Program.ProgramId == program.ProgramId)
                 {
+                    if (program.ExpiresAtUtc is not null)
+                        existing.Program = existing.Program with { ExpiresAtUtc = program.ExpiresAtUtc };
                     return BuildSnapshot(
                         new CoordinatorDecision(
                             CoordinatorDecisionKind.IgnoredDuplicate,
@@ -806,7 +808,7 @@ public sealed class PriorityCoordinator : IDisplayCoordinator
             Sequence = sequence;
         }
 
-        public DisplayProgram Program { get; }
+        public DisplayProgram Program { get; set; }
 
         public DateTimeOffset StartedAtUtc { get; }
 

@@ -2,6 +2,9 @@ namespace EEWTelop.Wpf;
 
 public static class BuildFeatures
 {
+    // Temporarily suspend YDITS while the public VXSE43 endpoints are unavailable.
+    internal static bool YditsProviderEnabled => false;
+
     public static bool ExtendedFeaturesEnabled
     {
         get

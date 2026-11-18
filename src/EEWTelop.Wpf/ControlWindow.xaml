@@ -369,13 +369,12 @@
                                                   DisplayMemberPath="Label" SelectedValuePath="Value"
                                                   SelectedValue="{Binding Settings.VolcanoProvider}"
                                                   Visibility="{Binding DataContext.IsExtendedFeaturesEnabled, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                        <TextBlock Grid.Row="5" Text="南海トラフ" VerticalAlignment="Center"
-                                                   Visibility="{Binding Settings.HasCommercialProviderOptions, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                        <TextBlock Grid.Row="5" Text="南海トラフ等" VerticalAlignment="Center"
+                                                   ToolTip="Wolfxでは南海トラフの臨時・解説情報と北海道・三陸沖の後発地震注意情報を受信します。" />
                                         <ComboBox x:Name="NankaiTroughSourceSelector" Grid.Row="5" Grid.Column="1"
-                                                  ItemsSource="{Binding Settings.CommercialProviderOptions}"
+                                                  ItemsSource="{Binding Settings.SpecialEarthquakeProviderOptions}"
                                                   DisplayMemberPath="Label" SelectedValuePath="Value"
-                                                  SelectedValue="{Binding Settings.NankaiTroughProvider}"
-                                                  Visibility="{Binding Settings.HasCommercialProviderOptions, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                  SelectedValue="{Binding Settings.NankaiTroughProvider}" />
                                     </Grid>
                                     <TextBlock Text="YDITSは一般向け緊急地震速報（警報・VXSE43）専用です。Sandboxでは接続しません。ベータ提供のため配信の遅延・停止があり、警報の対象地域は表示できません。"
                                                Visibility="{Binding Settings.IsYditsEewProvider, Converter={StaticResource BooleanToVisibilityConverter}}"

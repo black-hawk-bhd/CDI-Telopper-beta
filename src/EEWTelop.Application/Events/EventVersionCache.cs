@@ -82,8 +82,14 @@ public sealed class EventVersionCache : IEventVersionCache
                 decision = EewOrderingPolicy.Check(previous, orderedEew, serial);
                 if (!decision.Accepted) return decision;
             }
-            // Forecast and observation have independent report-number sequences.
-            string serialScope = disasterEvent is TsunamiEvent tsunami ? tsunami.Issue.RawType : string.Empty;
+            // Each official product has its own report-number sequence.
+            string serialScope = disasterEvent switch
+            {
+                TsunamiEvent tsunami => tsunami.Issue.RawType,
+                QuakeEvent { Issue.RawType: "VXSE51" or "VXSE52" or "VXSE53" or "VXSE61" or "VXSE62" } quake =>
+                    quake.Issue.RawType,
+                _ => string.Empty,
+            };
             if (disasterEvent is not EewEvent && serial is int reportNumber &&
                 entry.HighestSerials.TryGetValue(serialScope, out int highestSerial) &&
                 reportNumber < highestSerial)

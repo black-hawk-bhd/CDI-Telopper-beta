@@ -236,7 +236,7 @@ public sealed class Phase8PersistenceAndAudioTests
             warning.SourceMode,
             warning.Issue with { Serial = "1" },
             warning.Earthquake,
-            warning.Areas,
+            warning.Areas.Take(1).ToArray(),
             warning.IsWarning,
             isFinal: false,
             isCancelled: false,
@@ -256,6 +256,65 @@ public sealed class Phase8PersistenceAndAudioTests
         Assert.AreEqual(AudioCueId.EewCancellation, cancellation.Cue);
         Assert.AreEqual("cancellation.ogg", cancellation.FilePath);
     }
+
+    [TestMethod]
+    public void EewContinuationRequiresAChangeToTheDisplayedAreaNames()
+    {
+        var policy = new AudioPolicy();
+        AudioSettings settings = AudioSettings.Disabled with
+        {
+            EewEnabled = true, EewInitialEnabled = true, EewContinuationEnabled = true,
+            EewInitialFilePath = "initial.wav", EewContinuationFilePath = "continuation.wav",
+        };
+        EewArea tokyo = new("東京都", "東京都２３区", JmaScale.FiveLower, 50, EewWarningKind.ForecastNotArrived, Now);
+        EewArea chiba = tokyo with { Prefecture = "千葉県", Name = "千葉県北西部" };
+        EewArea saitama = tokyo with { Prefecture = "埼玉県", Name = "埼玉県南部" };
+
+        EewEvent firstWarning = ForecastWarning("3", [tokyo, chiba]);
+        policy.Observe(firstWarning);
+        Assert.AreEqual(AudioCueId.EewInitial, policy.Evaluate(firstWarning, settings).Cue);
+
+        EewArea revisedChiba = chiba with
+        {
+            Name = "千葉県北東部",
+            ScaleFrom = JmaScale.FiveUpper,
+            ArrivalTime = Now.AddSeconds(5),
+        };
+        Assert.IsFalse(policy.Evaluate(ForecastWarning("4", [revisedChiba, tokyo]), settings).ShouldPlay);
+        Assert.AreEqual(AudioCueId.EewContinuation,
+            policy.Evaluate(ForecastWarning("5", [tokyo, chiba, saitama]), settings).Cue);
+        Assert.AreEqual(AudioCueId.EewContinuation,
+            policy.Evaluate(ForecastWarning("6", [tokyo, saitama]), settings).Cue);
+        Assert.IsFalse(policy.Evaluate(ForecastWarning("7", [saitama, tokyo]), settings).ShouldPlay);
+    }
+
+    [TestMethod]
+    public void EewSilentReportsUpdateOnlyTheirOwnWarningBaseline()
+    {
+        var policy = new AudioPolicy();
+        AudioSettings settings = AudioSettings.Disabled with
+        {
+            EewEnabled = true, EewInitialEnabled = true, EewContinuationEnabled = true,
+            EewInitialFilePath = "initial.wav", EewContinuationFilePath = "continuation.wav",
+            TestUsesProductionSound = true,
+        };
+        EewArea tokyo = new("東京都", "東京都２３区", JmaScale.FiveLower, 50, EewWarningKind.ForecastNotArrived, Now);
+        EewArea chiba = tokyo with { Prefecture = "千葉県", Name = "千葉県北西部" };
+        EewEvent training = ForecastWarning("1", [tokyo], isTest: true);
+        Assert.AreEqual(AudioCueId.EewInitial, policy.Evaluate(training, settings).Cue);
+        Assert.AreEqual(AudioCueId.EewInitial, policy.Evaluate(ForecastWarning("1", [tokyo]), settings).Cue);
+
+        Assert.IsFalse(policy.Evaluate(ForecastWarning("2", [tokyo, chiba]), settings with { Muted = true }).ShouldPlay);
+        Assert.IsFalse(policy.Evaluate(ForecastWarning("3", [tokyo, chiba]), settings).ShouldPlay);
+        policy.Observe(ForecastWarning("4", [chiba]));
+        Assert.IsFalse(policy.Evaluate(ForecastWarning("5", [chiba]), settings).ShouldPlay);
+        Assert.AreEqual(AudioCueId.EewContinuation, policy.Evaluate(ForecastWarning("6", [tokyo]), settings).Cue);
+    }
+
+    private static EewEvent ForecastWarning(string serial, EewArea[] areas, bool isTest = false) =>
+        new(EventId.Create("forecast-warning"), "dmdata.jp", Now, Now, serial, SourceMode.Production,
+            new IssueInfo("気象庁", Now, "VXSE45", CorrectionType.None, serial),
+            null, areas, isWarning: true, isFinal: false, isCancelled: false, isTest);
 
     [TestMethod]
     public void WeatherAlertLevelsUseIndependentAudioFiles()

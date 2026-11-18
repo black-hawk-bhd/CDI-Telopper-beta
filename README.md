@@ -5,16 +5,18 @@
 
 Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津波・気象・火山・南海トラフに関する防災情報を受信し、OBS向け字幕として出力するWindowsアプリです。
 
-現在の公開版は **2.0.0-beta.68** です（2026年11月16日）。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
+現在の公開版は **2.0.0-beta.69** です（2026年11月18日）。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
 本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
 
-- [2.0.0-beta.68をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.68)
-- [操作マニュアル](docs/USER_GUIDE.md) / [beta.68の変更点と操作](README_CDI-Telopper_2.0.0-beta.68.txt)
+- [2.0.0-beta.69をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.69)
+- [操作マニュアル](docs/USER_GUIDE.md) / [beta.69の変更点と操作](README_CDI-Telopper_2.0.0-beta.69.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
 - [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
 - [MIT License](LICENSE) / [利用規約・免責事項](TERMS.md) / [プライバシーポリシー](PRIVACY.md)
 
 ## 主な機能
+
+beta.69では、Wolfxから津波情報、南海トラフ・北海道／三陸沖の特別地震情報、各地の震度詳細を取得できるようになりました。緊急地震速報（警報）の続報音声は対象地名が変わったときに再生します。YDITSの受信は一時停止しています。[変更内容](RELEASE_NOTES_2.0.0-beta.69.md)
 
 beta.68では、起動時の受信API自動接続と、画面・タスクトレイでの受信元別の状態表示を追加しました。本番受信中はテストを停止・無効化し、受信・過去電文の確認画面からの再掲と過去情報としての紹介を利用できます。[変更内容](RELEASE_NOTES_2.0.0-beta.68.md)
 
@@ -92,7 +94,7 @@ beta.38では、電文確認画面だけに地名のフリガナ（ルビ）を�
 beta.37では、AXISなどのXMLで届く大規模噴火の遠地情報について、不要な地震用定型3ページを省略し、噴火本文から表示するよう修正しました。潮位観測・津波到達予想は全文を保持します。配布文書からウイルス対策の除外設定に関する案内も削除しました。
 
 - EEW、地震、津波、気象、火山、南海トラフ情報の受信と字幕生成
-- 情報分類ごとにP2P地震情報、DMDATA.JP、AXIS、Wolfx、YDITS（EEW警報のみ）、気象庁XML（EEW以外）、または「受信しない」を選択
+- 情報分類ごとにP2P地震情報、DMDATA.JP、AXIS、Wolfx、気象庁XML（EEW以外）、または「受信しない」を選択
 - 選択された情報に不要なプロバイダーAPIへは接続しない構成
 - 同一イベントの続報、取消、解除、重複、古い更新報を考慮した表示制御
 - 注意報・警報解除時に対象地域と解除種別を表示
@@ -107,7 +109,7 @@ beta.37では、AXISなどのXMLで届く大規模噴火の遠地情報につい
 
 | 分類 | 主な対応内容 |
 | --- | --- |
-| EEW | P2P EEW、VXSE43（DMDATA.JP・YDITS）、警報を含むVXSE45、AXIS `eew`、Wolfx JMA EEW |
+| EEW | P2P EEW、VXSE43（DMDATA.JP）、警報を含むVXSE45、AXIS `eew`、Wolfx JMA EEW |
 | 地震 | VXSE51、VXSE52、VXSE53、VXSE62、VYSE60、P2P地震情報、Wolfx JMA地震情報 |
 | 津波 | VTSE41、VTSE51、VTSE52、P2P津波情報 |
 | 気象 | VPWW55～61、VPWS50、VPBS50・51、VPHW50・51、VXKO50～89（受信元による） |
@@ -180,21 +182,20 @@ https://axis.prioris.jp/
 
 ### Wolfx
 
-認証不要の公開WebSocket APIです。EEWと地震情報の受信元として選択できます。EEWでは警報・取消のみを字幕対象とし、予報のみの更新は表示しません。
+認証不要の公開WebSocket APIです。「受信」→「受信元」で、EEW・地震情報・津波情報・「南海トラフ等」にWolfxを選択できます。EEWでは警報・取消を字幕に表示します。
 
-**注意：Wolfxの地震情報は、現在はVXSE53相当の「震源・震度情報」のみです。** 震度速報（VXSE51）、震源に関する情報（VXSE52）、長周期地震動に関する観測情報（VXSE62）などはWolfxから取得できません。地震情報は配信された一覧の最新項目を取り込み、既存のイベントID重複判定を適用します。
+- 津波情報は、警報・注意報・予報（VTSE41）と観測（VTSE51・VTSE52）を扱います。Wolfxが示す信頼期限まで表示し、観測報の取消を警報解除と区別します。
+- 「南海トラフ等」は、南海トラフ地震臨時情報・解説情報（VYSE50・51・52）と北海道・三陸沖後発地震注意情報（VYSE60）を扱います。接続時に取得した既報は「受信済み電文」で確認できます。
+
+地震情報はWebSocketの地震概要に加え、地震詳細APIを30秒以上の間隔で取得します。VXSE51・52・53・61・62の発表時刻、震源、各地の震度・観測点、長周期地震動階級を電文に応じて取り込みます。詳細が取得できた地震には公式イベントIDで照合し、同じ地震の概要で詳細を上書きしません。接続時の既報は電文確認から参照できます。
 
 Wolfx APIは政府機関・気象機関が運営する公式APIではありません。本ソフトだけを防災判断の根拠にせず、気象庁などの公式情報を併用してください。利用規約、接続数、再配信条件は提供元で確認してください。
 
 https://wolfx.jp/docs/open-api/
 
-### YDITS（一般向け緊急地震速報・警報）
+### YDITS（受信を一時停止中）
 
-「受信」→「受信元」→「EEW」で「YDITS（一般向け警報・ベータ）」を選択します。認証情報は不要です。ProductionモードでVXSE43を1秒以上の間隔で取得し、接続障害時はYDITSの公開サーバーを優先順に切り替えます。訓練・テスト報、古い報、同じ報の再取得は新着として扱いません。
-
-震央地名と最大予測震度など、公開仕様で形式を確認できる項目を取り込みます。警報対象地域の表示と、照合情報のない取消報の反映には対応していません。ベータ提供のため配信に遅延・停止があり得ます。気象庁などの公式情報も併用してください。[YDITS VXSE43仕様](https://www.ydits.net/api/vxse43/)
-
-「YDITS（テストモード）」を選ぶと、公式のテスト電文を1秒以上の間隔で取得します。サンプルの発表時刻が過去でも訓練として取り込み、ブラウザーモニターの「受信済み電文の個別確認」に表示します。OBSへの字幕・音声の自動送出は行いません。テスト先の取得失敗時は、同じテスト先で再試行します。
+YDITSの本番・テスト受信は一時停止中です。以前の設定やプロファイルでYDITSを選択していた場合は、EEWの受信元を「受信しない」として扱います。EEWを受信するには「受信」→「受信元」→「EEW」で別の受信元を選択してください。
 
 DMDATA.JPとAXISの認証情報はWindows DPAPI CurrentUserで暗号化して保存します。認証情報をソース、配布ZIP、ログ、診断ZIPへ平文で含めない設計です。
 
@@ -256,10 +257,10 @@ powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 配布物を作成する場合は次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.68
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.69
 ```
 
-フォルダー版、単一EXE版、`version.json`、`SHA256SUMS.txt`は `artifacts\release\2.0.0-beta.68\win-x64` に生成されます。[ソースビルドの詳細](SOURCE_BUILD.md)
+フォルダー版、単一EXE版、`version.json`、`SHA256SUMS.txt`は `artifacts\release\2.0.0-beta.69\win-x64` に生成されます。[ソースビルドの詳細](SOURCE_BUILD.md)
 
 ## 開発者向け資料
 

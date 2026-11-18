@@ -8,9 +8,11 @@ using EEWTelop.Application.Configuration;
 using EEWTelop.Application.Coordination;
 using EEWTelop.Application.Display;
 using EEWTelop.Application.Events;
+using EEWTelop.Application.Logging;
 using EEWTelop.Domain.Events;
 using EEWTelop.Infrastructure.Settings;
 using EEWTelop.Infrastructure.Ydits;
+using EEWTelop.Wpf.Bootstrap;
 using EEWTelop.Wpf.Obs;
 using EEWTelop.Wpf.ViewModels;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -40,28 +42,43 @@ public sealed class YditsEewTests
         """;
 
     [TestMethod]
-    public void YditsIsOnlyOfferedForEewAndSelectionSurvivesSettingsNormalization()
+    [DataRow(ReceptionProvider.Ydits)]
+    [DataRow(ReceptionProvider.YditsTest)]
+    public async Task YditsAvailabilityAppliesToOptionsAndSavedRoutes(ReceptionProvider provider)
     {
         AppSettings defaults = AppSettings.CreateDefault();
-        var editor = new SettingsEditorViewModel(defaults) { EewProvider = ReceptionProvider.Ydits };
-        Assert.IsTrue(editor.IsYditsEewProvider);
-        Assert.IsTrue(editor.EewAndQuakeProviderOptions.Any(x => x.Value == ReceptionProvider.Ydits));
-        Assert.IsFalse(editor.EarthquakeProviderOptions.Any(x => x.Value == ReceptionProvider.Ydits));
-        Assert.IsFalse(editor.TsunamiProviderOptions.Any(x => x.Value == ReceptionProvider.Ydits));
-        Assert.IsFalse(editor.CommercialProviderOptions.Any(x => x.Value == ReceptionProvider.Ydits));
-        AppSettings saved = JsonSettingsStore.NormalizeDocument(editor.ToSettings(defaults));
-        Assert.AreEqual(ReceptionProvider.Ydits, saved.Provider.Routing.Eew);
-        Assert.AreEqual(defaults.Provider.Routing.Quake, saved.Provider.Routing.Quake);
+        var routing = defaults.Provider.Routing with { Eew = provider, Quake = ReceptionProvider.Wolfx };
+        bool enabled = BuildFeatures.YditsProviderEnabled;
+        ProviderRoutingSettings availableRouting = enabled ? routing : routing with { Eew = ReceptionProvider.Disabled };
+        var previous = defaults with
+        {
+            Provider = defaults.Provider with { Routing = routing, ReceptionProvider = routing.GetCompatibilityProvider() },
+        };
+        var editor = new SettingsEditorViewModel(previous);
+        Assert.AreEqual(enabled, editor.ReceptionProviders.Contains(provider));
+        Assert.AreEqual(enabled, editor.EewAndQuakeProviderOptions.Any(option => option.Value == provider));
+        editor.EewProvider = provider;
+        Assert.AreEqual(availableRouting.Eew, editor.EewProvider);
+        Assert.AreEqual(availableRouting, editor.ToSettings(defaults).Provider.Routing);
 
-        editor.EewProvider = ReceptionProvider.YditsTest;
-        Assert.IsTrue(editor.IsYditsTestProvider);
-        Assert.IsTrue(editor.EewAndQuakeProviderOptions.Any(x => x.Value == ReceptionProvider.YditsTest));
-        Assert.IsFalse(editor.EarthquakeProviderOptions.Any(x => x.Value == ReceptionProvider.YditsTest));
-        Assert.IsFalse(editor.TsunamiProviderOptions.Any(x => x.Value == ReceptionProvider.YditsTest));
-        Assert.IsFalse(editor.CommercialProviderOptions.Any(x => x.Value == ReceptionProvider.YditsTest));
-        saved = JsonSettingsStore.NormalizeDocument(editor.ToSettings(defaults));
-        Assert.AreEqual(ReceptionProvider.YditsTest, saved.Provider.Routing.Eew);
-        Assert.AreEqual(defaults.Provider.Routing.Quake, saved.Provider.Routing.Quake);
+        string directory = Path.Combine(Path.GetTempPath(), $"cdi-suspended-ydits-{Guid.NewGuid():N}");
+        try
+        {
+            var store = new JsonSettingsStore(Path.Combine(directory, "settings.json"), new UiLogBuffer());
+            await store.SaveAsync(previous);
+            await using AppServices services = AppComposition.CreateDefault(directory);
+            Assert.AreEqual(availableRouting, services.InitialSettings.Provider.Routing);
+            Assert.AreEqual(!enabled, services.UiLogs.GetSnapshot().Any(entry =>
+                entry.EventName == "YditsReceptionSuspended"));
+            var source = Assert.IsInstanceOfType<RoutedProviderEventSource>(services.EventSource);
+            Assert.AreEqual(enabled && provider == ReceptionProvider.Ydits, source.GetDataConnection(EventKind.Eew).Configured);
+            Assert.IsTrue(source.GetDataConnection(EventKind.Quake).Configured);
+            Assert.AreEqual(provider, (await store.LoadAsync()).Provider.Routing.Eew);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
     }
 
     [TestMethod]

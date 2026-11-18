@@ -79,6 +79,15 @@ public sealed class ExternalApiState
 
         lock (_gate)
         {
+            if (tsunami.SnapshotObservations is { } observations)
+            {
+                _forecast = tsunami;
+                _observation = observations.MaxBy(static item => item.IssuedAt);
+                _forecastOrigin = _training ? "rehearsal" : "live";
+                _forecastRevision++;
+                _revision++;
+                return;
+            }
             bool observation = tsunami.Issue.RawType is "VTSE51" or "VTSE52";
             TsunamiEvent? previous = observation ? _observation : _forecast;
             if (previous is not null && tsunami.IssuedAt < previous.IssuedAt) return;

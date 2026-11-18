@@ -48,10 +48,9 @@ public sealed class ProviderSelectionEventNormalizer :
             return result;
         }
 
-        bool isNankaiTrough = result.Event is QuakeEvent
-        {
-            IssueType: QuakeIssueType.NankaiTroughTemporaryInformation,
-        };
+        bool isNankaiTrough = result.Event is QuakeEvent quake &&
+            (quake.IssueType is QuakeIssueType.NankaiTroughTemporaryInformation or QuakeIssueType.NankaiTroughCommentary ||
+             actualProvider == ReceptionProvider.Wolfx && quake.IssueType == QuakeIssueType.SubsequentEarthquakeAdvisory);
         ReceptionProvider selectedProvider = (FallbackRouting?.GetRouting() ?? Volatile.Read(ref _routing))
             .GetProvider(result.Event.Kind, isNankaiTrough);
         if (selectedProvider != actualProvider) return NormalizeResult.Ignored();

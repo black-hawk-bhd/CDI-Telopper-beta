@@ -54,6 +54,13 @@ public static class AppComposition
             Path.Combine(applicationDataDirectory, "settings.json"),
             logWriter);
         AppSettings settings = settingsStore.LoadAsync().AsTask().GetAwaiter().GetResult();
+        if (!BuildFeatures.YditsProviderEnabled &&
+            settings.Provider.Routing.Eew is ReceptionProvider.Ydits or ReceptionProvider.YditsTest)
+        {
+            uiLogs.WriteAsync(new AppLogEntry(clock.UtcNow, AppLogLevel.Warning,
+                "YditsReceptionSuspended", "YDITSの受信は一時停止中です。EEWの受信元を「受信しない」として起動しました。"))
+                .AsTask().GetAwaiter().GetResult();
+        }
         ProviderSettings availableProviderSettings = NormalizeProviderAvailability(
             settings.Provider);
         if (availableProviderSettings != settings.Provider)
@@ -74,14 +81,17 @@ public static class AppComposition
         ProviderOptions provider = ProviderOptions.FromSettings(settings.Provider);
         var signatureBuilder = new EventSignatureBuilder();
         var p2pNormalizer = new P2pEventNormalizer(signatureBuilder);
-        var yditsNormalizer = new YditsEventNormalizer(signatureBuilder);
         var liveNormalizers = new List<KeyValuePair<string, IEventNormalizer>>
         {
             new("p2pquake", p2pNormalizer),
             new(WolfxProviderOptions.ProviderName, new WolfxEventNormalizer(signatureBuilder)),
-            new(YditsEventNormalizer.ProviderName, yditsNormalizer),
-            new(YditsEventNormalizer.TestProviderName, yditsNormalizer),
         };
+        if (BuildFeatures.YditsProviderEnabled)
+        {
+            var yditsNormalizer = new YditsEventNormalizer(signatureBuilder);
+            liveNormalizers.Add(new(YditsEventNormalizer.ProviderName, yditsNormalizer));
+            liveNormalizers.Add(new(YditsEventNormalizer.TestProviderName, yditsNormalizer));
+        }
 #if QTELOPPER_DMDATA_PROVIDER
         // AXIS jmx-* and DMDATA.JP both carry JMA XML-derived telegrams.
         // Normalize them into the same domain events before any display logic runs.
@@ -150,18 +160,21 @@ public static class AppComposition
                 .AsTask().GetAwaiter().GetResult();
         }
         var p2pEventSource = new P2pEventSource(provider, clock, logWriter);
-        var yditsEventSource = new YditsEventSource(clock);
-        yditsEventSource.ConfigureProvider(settings.Provider);
         var eventSources = new Dictionary<ReceptionProvider, IEventSource>
         {
             [ReceptionProvider.P2pQuake] = p2pEventSource,
-            [ReceptionProvider.Ydits] = yditsEventSource,
-            [ReceptionProvider.YditsTest] = yditsEventSource,
             [ReceptionProvider.Wolfx] = new WolfxEventSource(
                 WolfxProviderOptions.FromSettings(settings.Provider),
                 clock,
                 logWriter),
         };
+        if (BuildFeatures.YditsProviderEnabled)
+        {
+            var yditsEventSource = new YditsEventSource(clock);
+            yditsEventSource.ConfigureProvider(settings.Provider);
+            eventSources[ReceptionProvider.Ydits] = yditsEventSource;
+            eventSources[ReceptionProvider.YditsTest] = yditsEventSource;
+        }
         #if QTELOPPER_DMDATA_PROVIDER
         eventSources[ReceptionProvider.JmaXml] = new JmaPullEventSource(settings.Provider, clock)
             { FallbackRouting = fallbackRouting };
@@ -276,8 +289,8 @@ public static class AppComposition
                 ReceptionProvider.Dmdata,
             ReceptionProvider.P2pQuake => ReceptionProvider.P2pQuake,
             ReceptionProvider.Wolfx => ReceptionProvider.Wolfx,
-            ReceptionProvider.Ydits => ReceptionProvider.Ydits,
-            ReceptionProvider.YditsTest => ReceptionProvider.YditsTest,
+            ReceptionProvider.Ydits or ReceptionProvider.YditsTest =>
+                BuildFeatures.YditsProviderEnabled ? selected : ReceptionProvider.Disabled,
             ReceptionProvider.ObsEarthquakeBridge => ReceptionProvider.Disabled,
             ReceptionProvider.JmaXml when BuildFeatures.DmdataProviderEnabled => ReceptionProvider.JmaXml,
             _ => ReceptionProvider.P2pQuake,

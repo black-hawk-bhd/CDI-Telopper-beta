@@ -212,6 +212,9 @@ public sealed partial class ControlWindowViewModel
             if (profile.MigrationIssues.Count > 0)
                 differences = "移行・適用上の注意:\n- " +
                     string.Join("\n- ", profile.MigrationIssues) + "\n\n" + differences;
+            if (!BuildFeatures.YditsProviderEnabled &&
+                profile.Settings.Provider.Routing.Eew is ReceptionProvider.Ydits or ReceptionProvider.YditsTest)
+                differences = "YDITSの受信は一時停止中です。EEWの受信元は「受信しない」になります。\n\n" + differences;
             Task? saveTask = null;
             _dispatcher.Invoke(() =>
             {

@@ -1,5 +1,7 @@
 using System.Globalization;
 using EEWTelop.Application.Configuration;
+using EEWTelop.Application.Display;
+using EEWTelop.Application.Events;
 using EEWTelop.Domain.Events;
 
 namespace EEWTelop.Application.Audio;
@@ -49,13 +51,20 @@ public sealed class AudioPolicy : IAudioPolicy
 {
     private readonly object _gate = new();
     private readonly HashSet<string> _played = new(StringComparer.Ordinal);
-    private readonly HashSet<string> _seenEewEvents = new(StringComparer.Ordinal);
+    private readonly Dictionary<(SourceMode Mode, bool IsTest, EventId Id), EewAudioReport> _eewReports = [];
+    private readonly Queue<(SourceMode Mode, bool IsTest, EventId Id)> _eewReportOrder = [];
     private readonly NewAnnouncementTracker _announcements = new();
 
     public void Observe(DisasterEvent disasterEvent)
     {
         ArgumentNullException.ThrowIfNull(disasterEvent);
-        lock (_gate) _announcements.Observe(disasterEvent);
+        lock (_gate)
+        {
+            if (disasterEvent is EewEvent eew)
+                ObserveEew(eew);
+            else
+                _announcements.Observe(disasterEvent);
+        }
     }
 
     public AudioDecision Evaluate(DisasterEvent disasterEvent, AudioSettings settings)
@@ -64,6 +73,7 @@ public sealed class AudioPolicy : IAudioPolicy
         ArgumentNullException.ThrowIfNull(settings);
         lock (_gate)
         {
+            AudioCueId? eewCue = disasterEvent is EewEvent eew ? ObserveEew(eew) : null;
             AnnouncementChange change = _announcements.Take(disasterEvent);
             AudioAnnouncementMode mode = settings.GetAnnouncementMode(disasterEvent.Kind);
             if (settings.Muted)
@@ -84,7 +94,7 @@ public sealed class AudioPolicy : IAudioPolicy
                 return Skip("The report is not a new announcement eligible for the selected audio timing.");
             }
             (AudioCueId Cue, string FilePath)? selected = mode == AudioAnnouncementMode.Legacy
-                ? SelectCue(disasterEvent, settings)
+                ? SelectCue(disasterEvent, settings, eewCue)
                 : disasterEvent switch
                 {
                     // Region additions hidden by the display filter must not
@@ -96,7 +106,7 @@ public sealed class AudioPolicy : IAudioPolicy
                     TsunamiEvent tsunami => SelectTsunamiCue(tsunami, settings, tsunami.Areas
                         .Where(area => area.Role == TsunamiInformationRole.ForecastArea &&
                             change.AreaKeys.Contains(NewAnnouncementTracker.AreaKey(area)))),
-                    _ => SelectCue(disasterEvent, settings),
+                    _ => SelectCue(disasterEvent, settings, eewCue),
                 };
             if (selected is null || string.IsNullOrWhiteSpace(selected.Value.FilePath))
             {
@@ -114,7 +124,7 @@ public sealed class AudioPolicy : IAudioPolicy
 
             string baseKey = $"{disasterEvent.Id.Value}:{selected.Value.Cue}";
             string key = mode == AudioAnnouncementMode.Legacy
-                ? BuildPlaybackKey(disasterEvent, selected.Value.Cue, baseKey)
+                ? BuildPlaybackKey(disasterEvent, baseKey)
                 : $"{disasterEvent.SourceMode}:{disasterEvent.Kind}:{baseKey}:{disasterEvent.IssuedAt.UtcTicks}:{disasterEvent.Signature}";
             if (!_played.Add(key))
             {
@@ -150,13 +160,14 @@ public sealed class AudioPolicy : IAudioPolicy
         }
     }
 
-    private (AudioCueId Cue, string FilePath)? SelectCue(
+    private static (AudioCueId Cue, string FilePath)? SelectCue(
         DisasterEvent disasterEvent,
-        AudioSettings settings) => disasterEvent switch
+        AudioSettings settings,
+        AudioCueId? eewCue) => disasterEvent switch
     {
         QuakeEvent quake => SelectQuakeCue(quake, settings),
         TsunamiEvent tsunami => SelectTsunamiCue(tsunami, settings),
-        EewEvent eew => SelectEewCue(eew, settings),
+        EewEvent => SelectEewCue(eewCue, settings),
         WeatherWarningEvent weather => SelectWeatherCue(weather, settings),
         _ => null,
     };
@@ -255,13 +266,11 @@ public sealed class AudioPolicy : IAudioPolicy
 
     private static string BuildPlaybackKey(
         DisasterEvent disasterEvent,
-        AudioCueId cue,
         string baseKey)
     {
-        if (disasterEvent is EewEvent eew &&
-            cue is AudioCueId.EewContinuation or AudioCueId.EewCancellation)
+        if (disasterEvent is EewEvent eew)
         {
-            return $"{baseKey}:{GetReportIdentity(eew.Issue.Serial, eew.Signature)}";
+            return $"{eew.SourceMode}:{eew.IsTest}:{baseKey}:{GetReportIdentity(eew.Issue.Serial, eew.Signature)}";
         }
 
         if (disasterEvent is WeatherWarningEvent weather &&
@@ -291,45 +300,59 @@ public sealed class AudioPolicy : IAudioPolicy
             value.Contains("移行", StringComparison.Ordinal);
     }
 
-    private (AudioCueId Cue, string FilePath)? SelectEewCue(
-        EewEvent eew,
-        AudioSettings settings)
+    private AudioCueId? ObserveEew(EewEvent eew)
     {
-        if (!settings.EewEnabled)
+        if (eew.IsExpired || (!eew.IsWarning && !eew.IsCancelled)) return null;
+
+        var key = (eew.SourceMode, eew.IsTest, eew.Id);
+        _eewReports.TryGetValue(key, out EewAudioReport? previous);
+        if (eew.SourceMessageTime < previous?.SourceMessageTime) return null;
+
+        // Live reception observes each report before it evaluates audio.
+        if (previous is not null && previous.SourceMessageTime == eew.SourceMessageTime &&
+            previous.IssuedAt == eew.IssuedAt &&
+            previous.Serial == eew.Issue.Serial && previous.Signature == eew.Signature)
+            return previous.Cue;
+
+        HashSet<string>? areaLabels = null;
+        AudioCueId? cue = AudioCueId.EewCancellation;
+        if (!eew.IsCancelled)
         {
-            return null;
+            areaLabels = EewAreaLabelFormatter.Format(eew.Areas).ToHashSet(StringComparer.Ordinal);
+            if (previous?.AreaLabels is null ||
+                (eew.SourceMode == SourceMode.ManualTest &&
+                 int.TryParse(eew.Issue.Serial, NumberStyles.Integer, CultureInfo.InvariantCulture, out int serial) &&
+                 serial <= 1))
+                cue = AudioCueId.EewInitial;
+            else
+                cue = areaLabels.SetEquals(previous.AreaLabels) ? null : AudioCueId.EewContinuation;
         }
 
-        if (eew.IsCancelled)
+        if (previous is null)
         {
-            return settings.EewCancellationEnabled
-                ? (AudioCueId.EewCancellation, settings.EewCancellationFilePath)
-                : null;
+            _eewReportOrder.Enqueue(key);
+            if (_eewReportOrder.Count > EventVersionCache.DefaultKeyLimit)
+                _eewReports.Remove(_eewReportOrder.Dequeue());
         }
-
-        if (IsInitialReport(eew))
-        {
-            return settings.EewInitialEnabled
-                ? (AudioCueId.EewInitial, settings.EewInitialFilePath)
-                : null;
-        }
-
-        return settings.EewContinuationEnabled
-            ? (AudioCueId.EewContinuation, settings.EewContinuationFilePath)
-            : null;
+        _eewReports[key] = new(eew.SourceMessageTime, eew.IssuedAt, eew.Issue.Serial, eew.Signature, areaLabels, cue);
+        return cue;
     }
 
-    private bool IsInitialReport(EewEvent eew)
-    {
-        bool firstSeen = _seenEewEvents.Add(eew.Id.Value);
-        return int.TryParse(
-            eew.Issue.Serial,
-            NumberStyles.Integer,
-            CultureInfo.InvariantCulture,
-            out int serial)
-                ? serial <= 1
-                : firstSeen;
-    }
+    private static (AudioCueId Cue, string FilePath)? SelectEewCue(AudioCueId? cue, AudioSettings settings) =>
+        !settings.EewEnabled ? null : cue switch
+        {
+            AudioCueId.EewInitial when settings.EewInitialEnabled =>
+                (AudioCueId.EewInitial, settings.EewInitialFilePath),
+            AudioCueId.EewContinuation when settings.EewContinuationEnabled =>
+                (AudioCueId.EewContinuation, settings.EewContinuationFilePath),
+            AudioCueId.EewCancellation when settings.EewCancellationEnabled =>
+                (AudioCueId.EewCancellation, settings.EewCancellationFilePath),
+            _ => null,
+        };
+
+    private sealed record EewAudioReport(
+        DateTimeOffset? SourceMessageTime, DateTimeOffset IssuedAt, string? Serial, string Signature,
+        HashSet<string>? AreaLabels, AudioCueId? Cue);
 
     private static bool HasIntensityAtLeast(QuakeEvent quake, JmaScale minimumScale)
     {

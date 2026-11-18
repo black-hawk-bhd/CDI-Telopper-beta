@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
+using System.Net.Http;
 using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -13,15 +15,18 @@ using EEWTelop.Application.Events;
 using EEWTelop.Application.Logging;
 using EEWTelop.Domain.Events;
 using EEWTelop.Infrastructure.Wolfx.Configuration;
+using EEWTelop.Infrastructure.Wolfx.Normalization;
 
 namespace EEWTelop.Infrastructure.Wolfx.Transport;
 
 public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventSource
 {
     private const int MaximumMessageBytes = 4 * 1024 * 1024;
+    private static readonly TimeSpan DetailPollInterval = TimeSpan.FromSeconds(30);
     private readonly object _gate = new();
     private readonly IClock _clock;
     private readonly IAppLogWriter _log;
+    private readonly HttpClient _detailHttp = new(new HttpClientHandler { AllowAutoRedirect = false });
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private CancellationTokenSource _reconnectCancellation = new();
     private CancellationTokenSource? _readerCancellation;
@@ -114,7 +119,8 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
             readerCancellation.Token);
         ResetReconnectSignalIfCancelled();
         var channel = new ProviderMessageBuffer();
-        var branches = new List<Task>(2);
+        using var quakeDetails = options.ReceiveQuake ? new WolfxEventNormalizer.EarthquakeDetailReports(_clock.UtcNow) : null;
+        var branches = new List<Task>(5);
         if (options.ReceiveEew)
         {
             branches.Add(RunBranchAsync(
@@ -132,7 +138,21 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
                 options.QuakeWebSocketUri,
                 "jma_eqlist",
                 channel,
-                runCancellation.Token));
+                runCancellation.Token,
+                quakeDetails: quakeDetails));
+            branches.Add(RunEarthquakeDetailAsync(quakeDetails!, channel, runCancellation.Token));
+        }
+
+        if (options.ReceiveTsunami)
+        {
+            branches.Add(RunBranchAsync("津波情報", WolfxProviderOptions.TsunamiWebSocketUri,
+                "jma_tsunami", channel, runCancellation.Token, "query_jmatsunami"));
+        }
+
+        if (options.ReceiveSpecialEarthquake)
+        {
+            branches.Add(RunBranchAsync("特別地震情報", WolfxProviderOptions.SpecialEarthquakeWebSocketUri,
+                "jma_special_eq", channel, runCancellation.Token, "query_jmaspecialeq"));
         }
 
         Task completion = CompleteWhenFinishedAsync(branches, channel);
@@ -206,6 +226,7 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
         }
 
         _lifetimeCancellation.Dispose();
+        _detailHttp.Dispose();
     }
 
     private async Task RunBranchAsync(
@@ -213,9 +234,12 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
         Uri endpoint,
         string expectedType,
         ProviderMessageBuffer writer,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? initialQuery = null,
+        WolfxEventNormalizer.EarthquakeDetailReports? quakeDetails = null)
     {
         int retry = 0;
+        var specialReports = expectedType == "jma_special_eq" ? new WolfxEventNormalizer.SpecialEarthquakeReports() : null;
         while (!cancellationToken.IsCancellationRequested)
         {
             CancellationToken reconnectToken = GetReconnectToken();
@@ -232,8 +256,14 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
                     $"Wolfx {label}");
                 await socket.ConnectAsync(endpoint, attemptCancellation.Token)
                     .ConfigureAwait(false);
+                DateTimeOffset connectedAt = _clock.UtcNow;
                 retry = 0;
                 Transition(ProviderConnectionState.Connected, $"Wolfx {label} connected");
+                if (initialQuery is not null)
+                {
+                    await SendCommandAsync(socket, initialQuery, attemptCancellation.Token).ConfigureAwait(false);
+                }
+                bool initialFrame = true;
 
                 while (!attemptCancellation.IsCancellationRequested &&
                        socket.State == WebSocketState.Open)
@@ -246,10 +276,10 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
                         break;
                     }
 
-                    string type = ReadType(payload);
+                    (string type, string status) = ReadEnvelope(payload);
                     if (type.Equals("heartbeat", StringComparison.OrdinalIgnoreCase))
                     {
-                        await SendPingAsync(socket, attemptCancellation.Token)
+                        await SendCommandAsync(socket, "ping", attemptCancellation.Token)
                             .ConfigureAwait(false);
                         continue;
                     }
@@ -276,13 +306,29 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
                         ProviderConnectionState.Connected,
                         $"Wolfx {label} message received",
                         receivedAt);
-                    await writer.WriteAsync(
-                        new RawProviderMessage(
-                            WolfxProviderOptions.ProviderName,
-                            payload,
-                            SourceMode.Production,
-                            receivedAt),
-                        cancellationToken).ConfigureAwait(false);
+                    var raw = new RawProviderMessage(WolfxProviderOptions.ProviderName,
+                        payload, SourceMode.Production, receivedAt);
+                    if (specialReports is not null)
+                    {
+                        foreach (RawProviderMessage report in specialReports.Read(raw, initialFrame, connectedAt))
+                        {
+                            await writer.WriteAsync(report, cancellationToken).ConfigureAwait(false);
+                        }
+                    }
+                    else if (quakeDetails is not null)
+                    {
+                        await quakeDetails.PublishSummaryAsync(raw, writer, cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await writer.WriteAsync(raw with
+                        {
+                            IsStateSnapshot = initialFrame && expectedType == "jma_tsunami" &&
+                                status is not ("active" or "forecast_only"),
+                        },
+                            cancellationToken).ConfigureAwait(false);
+                    }
+                    initialFrame = false;
                 }
             }
             catch (OperationCanceledException) when (attemptCancellation.IsCancellationRequested)
@@ -321,6 +367,45 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
         }
     }
 
+    private async Task RunEarthquakeDetailAsync(WolfxEventNormalizer.EarthquakeDetailReports reports,
+        ProviderMessageBuffer writer, CancellationToken cancellationToken)
+    {
+        bool failed = false;
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            TimeSpan delay = DetailPollInterval;
+            try
+            {
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeout.CancelAfter(TimeSpan.FromSeconds(10));
+                using var response = await _detailHttp.GetAsync(WolfxProviderOptions.EarthquakeDetailUri,
+                    HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
+                if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)
+                {
+                    TimeSpan? retryAfter = response.Headers.RetryAfter?.Delta ?? response.Headers.RetryAfter?.Date - _clock.UtcNow;
+                    if (retryAfter > delay) delay = retryAfter.Value;
+                }
+                response.EnsureSuccessStatusCode();
+                await response.Content.LoadIntoBufferAsync(MaximumMessageBytes, timeout.Token).ConfigureAwait(false);
+                string payload = await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
+                await reports.PublishDetailsAsync(new RawProviderMessage(WolfxProviderOptions.ProviderName,
+                    payload, SourceMode.Production, _clock.UtcNow), writer, cancellationToken).ConfigureAwait(false);
+                failed = false;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return; }
+            catch (Exception exception) when (exception is HttpRequestException or IOException or JsonException or
+                OperationCanceledException or InvalidOperationException)
+            {
+                if (!failed)
+                    await LogAsync(AppLogLevel.Warning, "WolfxEarthquakeDetailFailed",
+                        "Wolfxの地震詳細を取得できません。WebSocketの地震概要は引き続き受信します。",
+                        exception, cancellationToken).ConfigureAwait(false);
+                failed = true;
+            }
+            await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
     private static async Task<string?> ReceiveTextAsync(
         ClientWebSocket socket,
         CancellationToken cancellationToken)
@@ -355,35 +440,34 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
         }
     }
 
-    private static async Task SendPingAsync(
+    private static async Task SendCommandAsync(
         ClientWebSocket socket,
+        string command,
         CancellationToken cancellationToken)
     {
-        byte[] ping = Encoding.UTF8.GetBytes("ping");
         await socket.SendAsync(
-            new ArraySegment<byte>(ping),
+            new ArraySegment<byte>(Encoding.UTF8.GetBytes(command)),
             WebSocketMessageType.Text,
             true,
             cancellationToken).ConfigureAwait(false);
     }
 
-    private static string ReadType(string payload)
+    private static (string Type, string Status) ReadEnvelope(string payload)
     {
         try
         {
             using JsonDocument document = JsonDocument.Parse(payload);
-            if (document.RootElement.ValueKind == JsonValueKind.Object &&
-                document.RootElement.TryGetProperty("type", out JsonElement type) &&
-                type.ValueKind == JsonValueKind.String)
-            {
-                return type.GetString() ?? string.Empty;
-            }
+            return (ReadString(document.RootElement, "type"), ReadString(document.RootElement, "status"));
         }
         catch (JsonException)
         {
         }
 
-        return string.Empty;
+        return (string.Empty, string.Empty);
+
+        static string ReadString(JsonElement root, string key) =>
+            root.ValueKind == JsonValueKind.Object && root.TryGetProperty(key, out var value) &&
+            value.ValueKind == JsonValueKind.String ? value.GetString() ?? string.Empty : string.Empty;
     }
 
     private static async Task CompleteWhenFinishedAsync(

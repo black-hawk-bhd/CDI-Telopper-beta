@@ -2,7 +2,7 @@
 
 [日本語](USER_GUIDE.md) | English
 
-This guide covers **2.0.0-beta.68** for Windows x64. Menu names appear as they do in the Japanese interface. [Download](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.68) / [Release notes in Japanese](../RELEASE_NOTES_2.0.0-beta.68.md)
+This guide covers **2.0.0-beta.69** for Windows x64. Menu names appear as they do in the Japanese interface. [Download](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.69) / [Release notes in Japanese](../RELEASE_NOTES_2.0.0-beta.69.md)
 
 ## Install or update
 
@@ -23,7 +23,7 @@ Enable **起動時に受信APIへ自動接続** (Connect to reception APIs on st
 
 With multiple sources, the window header shows the connection state of each source. The **接続** (Connection) panel and system tray also show how many times each source has entered the reconnect wait state since the app started. If the tray tooltip is too long, right-click the icon and open **API別の状態と再接続回数** (Status and reconnect count by API).
 
-JMA XML polls at intervals of at least 60 seconds and carries no EEW in this app. If automatic fallback is enabled and an eligible DMDATA.JP, P2PQuake or AXIS connection is faulted or reconnecting for at least 30 seconds, CDI-Telopper can temporarily use JMA XML for supported non-EEW categories. It returns to the selected provider after reconnection. YDITS supports public EEW warnings (VXSE43). **YDITS（テストモード）** (Test mode) displays messages in the browser preview review list without automatically sending them to OBS. YDITS warning-area display and cancellations without enough information to match a warning are unsupported. [Data sources](data-sources.md) / [YDITS VXSE43 documentation](https://www.ydits.net/api/vxse43/)
+JMA XML polls at intervals of at least 60 seconds and carries no EEW in this app. If automatic fallback is enabled and an eligible DMDATA.JP, P2PQuake or AXIS connection is faulted or reconnecting for at least 30 seconds, CDI-Telopper can temporarily use JMA XML for supported non-EEW categories. It returns to the selected provider after reconnection. YDITS production and test reception are temporarily suspended. A previous YDITS selection is treated as **受信しない** (Do not receive) for EEW. [Data sources](data-sources.md)
 
 ## Connect OBS and preview
 

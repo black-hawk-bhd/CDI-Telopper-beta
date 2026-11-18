@@ -45,6 +45,21 @@ public sealed partial class WolfxEventNormalizer : IEventNormalizer
                 return NormalizeResult.Ignored();
             }
 
+            if (type == "jma_tsunami" || type.Length == 0 && HasProperty(root, "trusted"))
+            {
+                return NormalizeTsunamiSnapshot(root, raw);
+            }
+
+            if (type == "jma_special_eq" || type.Length == 0 && HasProperty(root, "reports"))
+            {
+                return NormalizeSpecialEarthquake(root, raw);
+            }
+
+            if (type == "jma_earthquake_detail")
+            {
+                return NormalizeEarthquakeDetail(root, raw);
+            }
+
             if (type.Equals("jma_eew", StringComparison.OrdinalIgnoreCase) ||
                 HasProperty(root, "WarnArea"))
             {

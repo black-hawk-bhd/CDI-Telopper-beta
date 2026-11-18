@@ -24,13 +24,15 @@ beta.51 adds per-domain upstream health, a separately authenticated rehearsal AP
 
 beta.50 improves unreported-intensity normalization and labeling, removes trailing full-width station markers only from display text, and preserves observed and unreported entries at the same place. Simulator decoding and additive external API fields are improved while training/live separation remains enforced.
 
-The current public release is **2.0.0-beta.68** (November 16, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.69** (November 18, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.68](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.68)
-- [English user guide](docs/USER_GUIDE_EN.md) / [Japanese beta.68 release guide](README_CDI-Telopper_2.0.0-beta.68.txt)
+- [Download 2.0.0-beta.69](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.69)
+- [English user guide](docs/USER_GUIDE_EN.md) / [Japanese beta.69 release guide](README_CDI-Telopper_2.0.0-beta.69.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
+
+beta.69 adds Wolfx support for tsunami information, special earthquake information for the Nankai Trough and the Hokkaido and Sanriku offshore regions, and detailed seismic intensity reports. Earthquake Early Warning follow-up audio plays when the displayed area names change. YDITS reception is temporarily suspended. [Japanese release notes](RELEASE_NOTES_2.0.0-beta.69.md)
 
 beta.68 adds optional reception API connections at startup and per-provider status in the main window and notification area. Starting live reception stops running tests and blocks new tests. Operators can still redisplay past or previously received messages from the review window. [Japanese release notes](RELEASE_NOTES_2.0.0-beta.68.md)
 
@@ -91,7 +93,7 @@ Beta.38 adds place-name furigana only to the telegram review window and fixes en
 Beta.37 removes the three generic earthquake pages from large-scale eruption reports received as VXSE53 XML through AXIS and other XML sources. Captions begin with the eruption narrative and retain the full tide observations and tsunami arrival estimates. Antivirus exclusion instructions have also been removed from the distribution documentation.
 
 - Receives and generates captions for EEW, earthquake, tsunami, weather, volcano, and Nankai Trough information
-- Selects P2PQuake, DMDATA.JP, AXIS, Wolfx, JMA XML (non-EEW), YDITS (public EEW warnings), or “Do not receive” separately for each supported information category
+- Selects P2PQuake, DMDATA.JP, AXIS, Wolfx, JMA XML (non-EEW), or “Do not receive” separately for each supported information category
 - Does not connect to a provider API when none of the selected categories require it
 - Handles updates, cancellations, lifted warnings and advisories, duplicates, and superseded reports for the same event
 - Shows the affected area and warning or advisory type when a warning is cleared
@@ -106,7 +108,7 @@ Beta.37 removes the three generic earthquake pages from large-scale eruption rep
 
 | Category | Main supported data |
 | --- | --- |
-| EEW | P2P EEW, VXSE43 (including YDITS), VXSE45 containing a warning, AXIS `eew`, Wolfx JMA EEW |
+| EEW | P2P EEW, VXSE43 (DMDATA.JP), VXSE45 containing a warning, AXIS `eew`, Wolfx JMA EEW |
 | Earthquake | VXSE51, VXSE52, VXSE53, VXSE62, VYSE60, P2P and Wolfx JMA earthquake information |
 | Tsunami | VTSE41, VTSE51, VTSE52, P2P tsunami information |
 | Weather | VPWW55–61, VPWS50, VPBS50/51, VPHW50/51, VXKO50–89 (provider-dependent) |
@@ -161,17 +163,18 @@ AXIS is treated as an experimental provider. You must provide a valid access tok
 
 ### Wolfx
 
-Wolfx provides public WebSocket endpoints that require no authentication. It can be selected for EEW and earthquake information. CDI-Telopper accepts warning-level EEW messages and cancellations and ignores forecast-only EEW updates. Wolfx is not an official API operated by a government or meteorological agency; use official information alongside it and follow the provider's terms and connection limits.
+Wolfx provides public WebSocket endpoints that require no authentication. Select it under **受信** (Reception) → **受信元** (Sources) for EEW, earthquake information, tsunami information, or **南海トラフ等** (special earthquake information).
 
-**Important: Wolfx earthquake information currently contains only “Hypocenter and seismic intensity information,” equivalent to VXSE53.** It does not provide VXSE51 seismic intensity prompt reports, VXSE52 hypocenter reports, VXSE62 long-period ground motion reports, or the other earthquake telegram types supported through other providers. CDI-Telopper normalizes the latest item in each Wolfx earthquake-list update. Wolfx is an unofficial source; use official JMA information alongside it and confirm the provider's current terms and connection limits.
+- Tsunami reception covers VTSE41 warnings, advisories and forecasts, plus VTSE51 and VTSE52 observations. The tsunami display honors the source's trust deadline and handles observation cancellations independently of the warning.
+- Special earthquake reception covers Nankai Trough reports VYSE50, VYSE51 and VYSE52, plus the Hokkaido and Sanriku subsequent earthquake advisory VYSE60. Reports already published at connection time are available in telegram review.
+
+Earthquake reception uses WebSocket summaries and polls the Earthquake Detail API at intervals of at least 30 seconds. Reports VXSE51, VXSE52, VXSE53, VXSE61 and VXSE62 can supply official publication times, hypocenters, regional and station intensities, or long-period ground motion classes. The official event ID links summaries and details. Reports already published at connection time are available in telegram review.
 
 https://wolfx.jp/docs/open-api/
 
-### YDITS
+### YDITS (temporarily suspended)
 
-In **受信** (Reception) → **受信元** (Sources) → **EEW**, select **YDITS（一般向け警報・ベータ）** for public EEW warnings (VXSE43). No credentials are required. Production mode polls at intervals of at least one second and tries the provider's alternate servers on connection failure. CDI-Telopper can display the epicenter name and maximum estimated intensity. It cannot display YDITS warning areas or apply cancellations without enough information to match the event.
-
-**YDITS（テストモード）** fetches the official test telegram and shows it as training in the browser preview's individual review list. It does not automatically send OBS captions or audio or update the production External API. The provider describes its service as beta and cautions that delivery can be delayed or interrupted. [YDITS VXSE43 documentation](https://www.ydits.net/api/vxse43/)
+YDITS production and test reception are temporarily suspended. Settings and profiles that previously selected YDITS use **受信しない** (Do not receive) for EEW. To receive EEW, select another source under **受信** (Reception) → **受信元** (Sources) → **EEW**.
 
 DMDATA.JP and AXIS credentials are encrypted using Windows DPAPI CurrentUser. The application is designed not to include plaintext credentials in source files, release packages, logs, or diagnostic ZIP files.
 
@@ -231,10 +234,10 @@ The script restores dependencies, builds every project in the Release configurat
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.68
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.69
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.68\win-x64`. [Source build details](SOURCE_BUILD.md)
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.69\win-x64`. [Source build details](SOURCE_BUILD.md)
 
 ## External API integration: terms and disclaimer
 
