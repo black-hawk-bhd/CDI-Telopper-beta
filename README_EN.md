@@ -24,13 +24,15 @@ beta.51 adds per-domain upstream health, a separately authenticated rehearsal AP
 
 beta.50 improves unreported-intensity normalization and labeling, removes trailing full-width station markers only from display text, and preserves observed and unreported entries at the same place. Simulator decoding and additive external API fields are improved while training/live separation remains enforced.
 
-The current public release is **2.0.0-beta.69** (November 18, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.70** (November 18, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.69](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.69)
-- [English user guide](docs/USER_GUIDE_EN.md) / [Japanese beta.69 release guide](README_CDI-Telopper_2.0.0-beta.69.txt)
+- [Download 2.0.0-beta.70](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.70)
+- [English user guide](docs/USER_GUIDE_EN.md) / [Japanese beta.70 release guide](README_CDI-Telopper_2.0.0-beta.70.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
+
+beta.70 corrects the Wolfx settings help to list the supported reception categories and explain how earthquake details are retrieved. [Japanese release notes](RELEASE_NOTES_2.0.0-beta.70.md)
 
 beta.69 adds Wolfx support for tsunami information, special earthquake information for the Nankai Trough and the Hokkaido and Sanriku offshore regions, and detailed seismic intensity reports. Earthquake Early Warning follow-up audio plays when the displayed area names change. YDITS reception is temporarily suspended. [Japanese release notes](RELEASE_NOTES_2.0.0-beta.69.md)
 
@@ -163,7 +165,7 @@ AXIS is treated as an experimental provider. You must provide a valid access tok
 
 ### Wolfx
 
-Wolfx provides public WebSocket endpoints that require no authentication. Select it under **受信** (Reception) → **受信元** (Sources) for EEW, earthquake information, tsunami information, or **南海トラフ等** (special earthquake information).
+The Wolfx public APIs used here require no authentication. Select Wolfx under **受信** (Reception) → **受信元** (Sources) for EEW, earthquake information, tsunami information, or **南海トラフ等** (special earthquake information).
 
 - Tsunami reception covers VTSE41 warnings, advisories and forecasts, plus VTSE51 and VTSE52 observations. The tsunami display honors the source's trust deadline and handles observation cancellations independently of the warning.
 - Special earthquake reception covers Nankai Trough reports VYSE50, VYSE51 and VYSE52, plus the Hokkaido and Sanriku subsequent earthquake advisory VYSE60. Reports already published at connection time are available in telegram review.
@@ -234,10 +236,10 @@ The script restores dependencies, builds every project in the Release configurat
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.69
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.70
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.69\win-x64`. [Source build details](SOURCE_BUILD.md)
+The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.70\win-x64`. [Source build details](SOURCE_BUILD.md)
 
 ## External API integration: terms and disclaimer
 

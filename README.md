@@ -5,16 +5,18 @@
 
 Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津波・気象・火山・南海トラフに関する防災情報を受信し、OBS向け字幕として出力するWindowsアプリです。
 
-現在の公開版は **2.0.0-beta.69** です（2026年11月18日）。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
+現在の公開版は **2.0.0-beta.70** です（2026年11月18日）。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
 本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
 
-- [2.0.0-beta.69をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.69)
-- [操作マニュアル](docs/USER_GUIDE.md) / [beta.69の変更点と操作](README_CDI-Telopper_2.0.0-beta.69.txt)
+- [2.0.0-beta.70をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.70)
+- [操作マニュアル](docs/USER_GUIDE.md) / [beta.70の変更点と操作](README_CDI-Telopper_2.0.0-beta.70.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
 - [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
 - [MIT License](LICENSE) / [利用規約・免責事項](TERMS.md) / [プライバシーポリシー](PRIVACY.md)
 
 ## 主な機能
+
+beta.70では、Wolfx設定欄に表示する対応種別と地震詳細APIの案内を修正しました。[変更内容](RELEASE_NOTES_2.0.0-beta.70.md)
 
 beta.69では、Wolfxから津波情報、南海トラフ・北海道／三陸沖の特別地震情報、各地の震度詳細を取得できるようになりました。緊急地震速報（警報）の続報音声は対象地名が変わったときに再生します。YDITSの受信は一時停止しています。[変更内容](RELEASE_NOTES_2.0.0-beta.69.md)
 
@@ -182,7 +184,7 @@ https://axis.prioris.jp/
 
 ### Wolfx
 
-認証不要の公開WebSocket APIです。「受信」→「受信元」で、EEW・地震情報・津波情報・「南海トラフ等」にWolfxを選択できます。EEWでは警報・取消を字幕に表示します。
+認証不要の公開APIです。「受信」→「受信元」で、EEW・地震情報・津波情報・「南海トラフ等」にWolfxを選択できます。EEWでは警報・取消を字幕に表示します。
 
 - 津波情報は、警報・注意報・予報（VTSE41）と観測（VTSE51・VTSE52）を扱います。Wolfxが示す信頼期限まで表示し、観測報の取消を警報解除と区別します。
 - 「南海トラフ等」は、南海トラフ地震臨時情報・解説情報（VYSE50・51・52）と北海道・三陸沖後発地震注意情報（VYSE60）を扱います。接続時に取得した既報は「受信済み電文」で確認できます。
@@ -257,10 +259,10 @@ powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 配布物を作成する場合は次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.69
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.70
 ```
 
-フォルダー版、単一EXE版、`version.json`、`SHA256SUMS.txt`は `artifacts\release\2.0.0-beta.69\win-x64` に生成されます。[ソースビルドの詳細](SOURCE_BUILD.md)
+フォルダー版、単一EXE版、`version.json`、`SHA256SUMS.txt`は `artifacts\release\2.0.0-beta.70\win-x64` に生成されます。[ソースビルドの詳細](SOURCE_BUILD.md)
 
 ## 開発者向け資料
 

@@ -41,6 +41,24 @@ public sealed class SettingsTabLayoutTests
     }
 
     [TestMethod]
+    public void WolfxReceptionSettingsDescribeCurrentCategoriesAndEarthquakeDetails()
+    {
+        XElement panel = LoadControlWindow().Descendants(Presentation + "TextBlock")
+            .Single(item => (string?)item.Attribute("Text") == "Wolfx（公開API）").Parent!;
+        Assert.AreEqual("受信", ParentTab(panel));
+        string help = string.Join("\n", panel.Descendants(Presentation + "TextBlock")
+            .Attributes("Text").Select(attribute => attribute.Value));
+        StringAssert.Contains(help, "EEW（警報・取消）、地震情報、津波情報、南海トラフ等");
+        StringAssert.Contains(help, "地震詳細APIから震度速報・震源情報・各地の震度・長周期地震動階級");
+        foreach (string product in new[] { "VXSE51", "VXSE52", "VXSE53", "VXSE61", "VXSE62" })
+        {
+            StringAssert.Contains(help, product);
+        }
+        Assert.IsFalse(help.Contains("VXSE53相当", StringComparison.Ordinal));
+        Assert.IsFalse(help.Contains("EEW・地震情報だけ", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void WeatherTwoRowSettingDescribesAllStatusesAndRetainsItsBinding()
     {
         XElement control = LoadControlWindow().Descendants(Presentation + "CheckBox")

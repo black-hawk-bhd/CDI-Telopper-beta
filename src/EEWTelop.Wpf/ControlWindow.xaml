@@ -501,18 +501,15 @@
                                     </StackPanel>
                                     <StackPanel Visibility="{Binding Settings.IsWolfxProvider, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <TextBlock Text="Wolfx（公開API）" FontWeight="Bold" />
-                                        <Border Background="#FF4A2D12" BorderBrush="#FFFFA726" BorderThickness="1"
-                                                CornerRadius="5" Padding="9" Margin="0,4,0,7"
-                                                Visibility="{Binding Settings.IsWolfxQuakeProvider, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <TextBlock Foreground="#FFFFC66D" FontWeight="Bold" TextWrapping="Wrap"
-                                                       Text="注意：Wolfxの地震情報は、現在はVXSE53相当の「震源・震度情報」のみです。震度速報（VXSE51）や震源に関する情報（VXSE52）などは、この受信元からは取得できません。" />
-                                        </Border>
+                                        <TextBlock Text="「受信元」でWolfxを選んだ項目を受信します。対応する項目はEEW（警報・取消）、地震情報、津波情報、南海トラフ等です。認証情報は不要です。"
+                                                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,7" />
                                         <TextBlock Text="EEW WebSocket URL" Foreground="{StaticResource MutedBrush}" />
                                         <TextBox Text="{Binding Settings.WolfxEewWebSocketUrl, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBlock Text="地震情報 WebSocket URL" Foreground="{StaticResource MutedBrush}" />
+                                        <TextBlock Text="地震概要 WebSocket URL" Foreground="{StaticResource MutedBrush}" />
                                         <TextBox Text="{Binding Settings.WolfxQuakeWebSocketUrl, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBlock Text="Wolfxを選択したEEW・地震情報だけを受信します。認証情報は不要です。EEWは警報・取消を採用し、予報のみの更新は表示しません。"
-                                                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                                        <TextBlock Text="地震情報をWolfxにすると、WebSocketの概要に加えて、地震詳細APIから震度速報・震源情報・各地の震度・長周期地震動階級などを取得します（VXSE51、VXSE52、VXSE53、VXSE61、VXSE62）。"
+                                                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"
+                                                   Visibility="{Binding Settings.IsWolfxQuakeProvider, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                         <TextBlock Text="Wolfx APIは政府機関・気象機関が運営する公式APIではありません。気象庁などの公式情報と併用し、提供元の利用規約と接続制限を守って使用してください。"
                                                    Foreground="#FFFFC66D" TextWrapping="Wrap" Margin="0,5,0,0" />
                                     </StackPanel>
