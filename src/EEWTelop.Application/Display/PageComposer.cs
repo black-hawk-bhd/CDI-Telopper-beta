@@ -5,14 +5,15 @@ namespace EEWTelop.Application.Display;
 
 public sealed class PageComposer : IPageComposer
 {
-    public DisplayProgram Compose(DisasterEvent disasterEvent, DisplaySettings settings)
+    public DisplayProgram Compose(
+        DisasterEvent disasterEvent, DisplaySettings settings, bool omitScalePromptTsunamiCaution = false)
     {
         ArgumentNullException.ThrowIfNull(disasterEvent);
         ArgumentNullException.ThrowIfNull(settings);
 
         DisplayProgram program = disasterEvent switch
         {
-            QuakeEvent quake => QuakePageComposer.Compose(quake, settings) with
+            QuakeEvent quake => QuakePageComposer.Compose(quake, settings, omitScalePromptTsunamiCaution) with
             {
                 IsRoutineNankaiCommentary = quake.IsRoutineNankaiCommentary,
             },

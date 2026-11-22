@@ -36,6 +36,23 @@ public sealed class IntensityPageSettingsTests
     }
 
     [TestMethod]
+    public void OmitTsunamiCautionDefaultsOffAndPersistsThroughTheEditor()
+    {
+        var settings = AppSettings.CreateDefault();
+        var oldDisplay = JsonNode.Parse(JsonSerializer.Serialize(settings.Display))!.AsObject();
+        oldDisplay.Remove(nameof(DisplaySettings.OmitScalePromptCautionWhenTsunamiWarningActive));
+        Assert.IsFalse(JsonSerializer.Deserialize<DisplaySettings>(oldDisplay.ToJsonString())!
+            .OmitScalePromptCautionWhenTsunamiWarningActive);
+
+        var editor = new SettingsEditorViewModel(settings) { OmitScalePromptCautionWhenTsunamiWarningActive = true };
+        var saved = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(editor.ToSettings(settings)))!;
+        var loaded = new SettingsEditorViewModel(saved);
+        Assert.IsTrue(loaded.OmitScalePromptCautionWhenTsunamiWarningActive);
+        loaded.ResetDisplaySettings();
+        Assert.IsFalse(loaded.ToSettings(saved).Display.OmitScalePromptCautionWhenTsunamiWarningActive);
+    }
+
+    [TestMethod]
     public void WeatherAreaRowsSettingDefaultsToTwoAndPersistsThreeRowChoice()
     {
         var settings = AppSettings.CreateDefault();

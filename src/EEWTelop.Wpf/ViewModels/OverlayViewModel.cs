@@ -235,6 +235,7 @@ public sealed class OverlayViewModel : ObservableObject
                 HideBadge = hideInformationBadges,
                 SharesCaptionColumn = alignsCaption,
                 SubtitleBodyText = subtitleBody,
+                EewAreaLabels = block.StyleToken == DisplayStyleTokens.EewAreas ? block.EewAreaLabels : null,
             });
         }
     }
@@ -299,6 +300,7 @@ public sealed record OverlayBlockViewModel(
     public bool HideBadge { get; init; }
     public bool SharesCaptionColumn { get; init; }
     public string? SubtitleBodyText { get; init; }
+    public IReadOnlyList<EewAreaLabel>? EewAreaLabels { get; init; }
     public string? CaptionColumnGroup => SharesCaptionColumn ? "CaptionLabel" : null;
     public bool HasLabelColumn => HasBadgeColumn || SharesCaptionColumn;
     public string SubtitleLabel => SubtitleBodyText is null ? string.Empty : Badge;

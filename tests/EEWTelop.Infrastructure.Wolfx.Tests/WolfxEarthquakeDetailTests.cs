@@ -27,7 +27,9 @@ public sealed class WolfxEarthquakeDetailTests
                "areas":[{"code":"430","name":"岐阜県飛騨","int":"5-","pref":0}],
                "cities":[{"code":"2120300","name":"高山市","area":0,"condition":"震度５弱以上　未入電",
                           "stations":[{"code":"2120321","name":"高山市奥飛騨温泉郷栃尾＊","int":"5-"}]}]},
-             "comments":{"forecast":"この地震による津波の心配はありません。"}}
+             "comments":{"forecast":"この地震による津波の心配はありません。",
+                         "warning":"今後の地震情報に注意してください。",
+                         "note":"＊は気象庁以外の観測点です。"}}
           ]}]}
         """;
 
@@ -46,20 +48,35 @@ public sealed class WolfxEarthquakeDetailTests
         Assert.AreEqual("岐阜県飛騨地方", quake.Earthquake.Hypocenter!.Name);
         Assert.AreEqual(10, quake.Earthquake.Hypocenter.DepthKilometers);
         Assert.AreEqual(DomesticTsunami.None, quake.Earthquake.DomesticTsunami);
-        Assert.AreEqual("この地震による津波の心配はありません。", quake.FreeFormComment);
+        Assert.AreEqual(
+            "この地震による津波の心配はありません。\n今後の地震情報に注意してください。\n＊は気象庁以外の観測点です。",
+            quake.FreeFormComment);
         QuakePoint station = quake.Points.Single(static point => point.StationCode.Length > 0);
         Assert.AreEqual("2120321", station.StationCode);
         Assert.AreEqual("430", station.SeismicAreaCode);
         Assert.AreEqual("2120300", station.MunicipalityCode);
         Assert.AreEqual("岐阜県", station.Prefecture);
         Assert.AreEqual("高山市奥飛騨温泉郷栃尾＊", station.Address);
+        Assert.IsTrue(station.IsNonJmaIntensityStation);
         Assert.AreEqual(JmaScale.FiveLowerOrMore, quake.Points.Single(point => point.Address == "高山市").Scale);
         DisplayProgram program = new PageComposer().Compose(quake, AppSettings.CreateDefault().Display);
         string captions = string.Join('\n', program.Pages.Select(static page => page.AccessibleText));
         StringAssert.Contains(captions, "岐阜県高山市");
         StringAssert.Contains(captions, "震度5弱以上 未入電");
+        Assert.IsTrue(program.Pages.SelectMany(page => page.Blocks).Any(block =>
+            block.StyleToken == DisplayStyleTokens.Intensity && block.Badge == "震度5弱"));
         Assert.AreEqual(1, program.Pages.Count(static page =>
             page.AccessibleText.Contains("津波の心配はありません", StringComparison.Ordinal)));
+        Assert.AreEqual("今後の地震情報に注意してください。", program.Pages[^1].AccessibleText);
+        Assert.DoesNotContain("気象庁以外の観測点", captions);
+
+        DisplaySettings filtered = AppSettings.CreateDefault().Display with { HideNonJmaIntensityStations = true };
+        DisplayProgram filteredProgram = new PageComposer().Compose(quake, filtered);
+        string filteredCaptions = string.Join('\n', filteredProgram.Pages.Select(page => page.AccessibleText));
+        Assert.IsFalse(filteredProgram.Pages.SelectMany(page => page.Blocks).Any(block =>
+            block.StyleToken == DisplayStyleTokens.Intensity && block.Badge == "震度5弱"));
+        Assert.Contains("岐阜県高山市", filteredCaptions);
+        Assert.Contains("震度5弱以上 未入電", filteredCaptions);
     }
 
     [TestMethod]

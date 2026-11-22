@@ -177,7 +177,10 @@ public sealed partial class WolfxEventNormalizer
             JoinText(forecast, ReadString(comments, "warning"), ReadString(comments, "note"),
                 ReadString(comments, "text"), ReadString(report, "text")),
             product == "VXSE62" ? ReadDetailLongPeriod(observation, prefs, areas) : null,
-            isCancelled: status == "cancelled", headline: ReadString(report, "title"));
+            isCancelled: status == "cancelled", headline: ReadString(report, "title"))
+        {
+            JmaEarthquakeId = kind == QuakeIssueType.ScalePrompt ? EventId.FromJmaEarthquakeId(eventId) : null,
+        };
         return SuccessWithSignature(quake);
     }
 
@@ -234,6 +237,7 @@ public sealed partial class WolfxEventNormalizer
             MunicipalityCode = ReadValue(city, "code"),
             MunicipalityName = ReadString(city, "name"),
             StationCode = isStation ? ReadValue(item, "code") : string.Empty,
+            IsNonJmaIntensityStation = isStation && name.EndsWith('＊'),
         });
     }
 

@@ -10,6 +10,90 @@ namespace EEWTelop.Application.Tests;
 [TestClass]
 public sealed class EventIngestionPipelineTests
 {
+    private const string LinkedQuakeId = "20260731205810";
+    private const string ProvisionalTsunamiCaution = "念のため津波に注意してください。";
+
+    [TestMethod]
+    [DataRow(true, true, true, false, SourceMode.Production, TsunamiGrade.Watch, true)]
+    [DataRow(true, true, true, false, SourceMode.Production, TsunamiGrade.Warning, true)]
+    [DataRow(true, true, true, false, SourceMode.Production, TsunamiGrade.MajorWarning, true)]
+    [DataRow(false, true, true, false, SourceMode.Production, TsunamiGrade.Watch, false)]
+    [DataRow(true, false, true, false, SourceMode.Production, TsunamiGrade.Watch, false)]
+    [DataRow(true, true, false, false, SourceMode.Production, TsunamiGrade.Watch, false)]
+    [DataRow(true, true, true, true, SourceMode.Production, TsunamiGrade.Watch, false)]
+    [DataRow(true, true, true, false, SourceMode.Sandbox, TsunamiGrade.Watch, false)]
+    [DataRow(true, true, true, false, SourceMode.Production, TsunamiGrade.Forecast, false)]
+    public void ScalePromptOmitsOnlyProvisionalCautionWhenLinkedWarningIsActive(
+        bool enabled, bool showTsunami, bool matchingId, bool expires, SourceMode warningMode, TsunamiGrade grade, bool omitted)
+    {
+        var clock = new FakeClock();
+        TsunamiEvent warning = CreateTsunamiReport(clock.UtcNow, grade, warningMode,
+            expireAt: expires ? clock.UtcNow.AddSeconds(1) : null);
+        const string otherComment = "今後の地震情報に注意してください。";
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(QuakeIssueType.ScalePrompt,
+            [DisplayEventFactory.Point(1, JmaScale.Four)], DomesticTsunami.Checking,
+            comment: ProvisionalTsunamiCaution + otherComment) with
+        {
+            JmaEarthquakeId = EventId.Create(matchingId ? LinkedQuakeId : "20260731205811"),
+        };
+        var settings = DisplayEventFactory.Settings with { OmitScalePromptCautionWhenTsunamiWarningActive = enabled };
+        var pipeline = new EventIngestionPipeline(new QueueNormalizer(warning, quake), new EventVersionCache(),
+            new PageComposer(), new PriorityCoordinator(clock, settings), settings, new FilterSettings(true, true, showTsunami));
+
+        pipeline.Process(CreateRaw(clock, "tsunami"));
+        clock.Advance(TimeSpan.FromSeconds(1));
+        EventIngestionResult result = pipeline.Process(CreateRaw(clock, "quake"));
+
+        Assert.AreSame(quake, result.Event);
+        string captions = GetCaptions(result);
+        Assert.AreEqual(!omitted, captions.Contains(ProvisionalTsunamiCaution, StringComparison.Ordinal));
+        Assert.Contains("震度4", captions);
+        Assert.Contains(otherComment, captions);
+    }
+
+    [TestMethod]
+    [DataRow("VTSE41", TsunamiGrade.Watch, true, false)]
+    [DataRow("VTSE41", TsunamiGrade.Forecast, false, false)]
+    [DataRow("VTSE51", TsunamiGrade.Watch, true, true)]
+    public void WarningReleaseAndDowngradeRestoreCautionButObservationCancellationDoesNot(
+        string rawType, TsunamiGrade grade, bool cancelled, bool omit)
+    {
+        var clock = new FakeClock();
+        TsunamiEvent warning = CreateTsunamiReport(clock.UtcNow, TsunamiGrade.Watch, SourceMode.Production);
+        var update = CreateTsunamiReport(clock.UtcNow.AddSeconds(1), grade, SourceMode.Production, rawType, cancelled);
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(QuakeIssueType.ScalePrompt,
+            [DisplayEventFactory.Point(1, JmaScale.Four)], DomesticTsunami.Unknown) with
+        {
+            JmaEarthquakeId = EventId.Create(LinkedQuakeId),
+        };
+        var settings = DisplayEventFactory.Settings with { OmitScalePromptCautionWhenTsunamiWarningActive = true };
+        var pipeline = new EventIngestionPipeline(new QueueNormalizer(warning, update, quake), new EventVersionCache(),
+            new PageComposer(), new PriorityCoordinator(clock, settings), settings);
+
+        pipeline.Process(CreateRaw(clock, "warning"));
+        clock.Advance(TimeSpan.FromSeconds(1));
+        pipeline.Process(CreateRaw(clock, "update"));
+        clock.Advance(TimeSpan.FromSeconds(1));
+
+        string captions = GetCaptions(pipeline.Process(CreateRaw(clock, "quake")));
+        Assert.AreEqual(!omit, captions.Contains(ProvisionalTsunamiCaution, StringComparison.Ordinal));
+    }
+
+    private static TsunamiEvent CreateTsunamiReport(DateTimeOffset time, TsunamiGrade grade, SourceMode mode,
+        string rawType = "VTSE41", bool cancelled = false, DateTimeOffset? expireAt = null) =>
+        new(EventId.Create("tsunami-report"), "dmdata.jp", time, time, $"{rawType}:{time:O}", mode,
+            new IssueInfo("気象庁", time, rawType, CorrectionType.None),
+            [DisplayEventFactory.TsunamiArea(1, grade)], cancelled, expireAt)
+        {
+            JmaEarthquakeIds = [EventId.Create("20260731205000"), EventId.Create(LinkedQuakeId)],
+        };
+
+    private static string GetCaptions(EventIngestionResult result)
+    {
+        Assert.IsNotNull(result.Program);
+        return string.Join('\n', result.Program.Pages.Select(static page => page.AccessibleText));
+    }
+
     [TestMethod]
     [DataRow(false, false, true, false)]
     [DataRow(false, true, true, false)]

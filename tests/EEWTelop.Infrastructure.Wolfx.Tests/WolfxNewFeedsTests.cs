@@ -22,7 +22,7 @@ public sealed class WolfxNewFeedsTests
         {
           "type":"jma_tsunami","status":"active","trusted":true,"validUntil":"2026-11-18T04:02:00Z",
           "report":{"id":"warning-1","product":"VTSE41","time":"2026-11-18T04:00:00Z","status":"issued",
-                    "eventIds":["20261118130000"]},
+                    "eventIds":["20261118130000","20261118125900"]},
           "areas":[{"code":"200","name":"岩手県","level":"warning","kind":"51",
                     "firstWave":{"text":"ただちに津波来襲と予測"},"maxWave":{"height":10,"text":"10m超"},
                     "stations":[{"code":"201","name":"宮古","highTide":"2026-11-18T06:00:00Z"}]}],
@@ -41,6 +41,7 @@ public sealed class WolfxNewFeedsTests
     {
         var item = Assert.IsInstanceOfType<TsunamiEvent>(_normalizer.Normalize(Raw(Tsunami)).Event);
         Assert.AreEqual("20261118130000", item.Id.Value);
+        Assert.AreEqual("20261118130000,20261118125900", string.Join(',', item.JmaEarthquakeIds));
         Assert.AreEqual(Now.AddMinutes(2), item.ExpireAt);
         TsunamiArea forecast = item.Areas.Single(static area => area.Role == TsunamiInformationRole.ForecastArea);
         Assert.AreEqual(TsunamiGrade.Warning, forecast.Grade);
@@ -54,6 +55,35 @@ public sealed class WolfxNewFeedsTests
         Assert.HasCount(2, item.SnapshotObservations!);
         Assert.IsTrue(item.SnapshotObservations!.Single(static report => report.Issue.RawType == "VTSE52").IsCancelled);
         Assert.IsFalse(item.IsCancelled);
+    }
+
+    [TestMethod]
+    public void TsunamiSnapshotLinksLaterEarthquakeInItsIdListAndClearsThatLinkWhenUntrusted()
+    {
+        const string detail = """
+            {"type":"jma_earthquake_detail","eventId":"20261118125900",
+             "report":{"id":"intensity-1","product":"VXSE51","time":"2026-11-18T04:00:10Z","status":"issued",
+                       "observation":{"maxIntensity":"4","prefs":[{"name":"岩手県","int":"4"}]}}}
+            """;
+        var clock = new TestClock();
+        DisplaySettings settings = AppSettings.CreateDefault().Display with { OmitScalePromptCautionWhenTsunamiWarningActive = true };
+        var pipeline = new EventIngestionPipeline(_normalizer, new EventVersionCache(), new PageComposer(),
+            new PriorityCoordinator(clock, settings), settings);
+        Assert.IsNotNull(pipeline.Process(Raw(Tsunami)).Program);
+
+        clock.UtcNow = Now.AddSeconds(10);
+        EventIngestionResult first = pipeline.Process(Raw(detail, clock.UtcNow));
+        Assert.IsNotNull(first.Program);
+        Assert.IsFalse(first.Program.Pages.Any(page => page.AccessibleText.Contains("念のため津波に注意", StringComparison.Ordinal)));
+
+        clock.UtcNow = Now.AddSeconds(20);
+        var untrusted = Tsunami.Replace("\"trusted\":true", "\"trusted\":false", StringComparison.Ordinal);
+        Assert.IsTrue(pipeline.Process(Raw(untrusted, clock.UtcNow)).ClearTsunamiDisplay);
+        string followUp = detail.Replace("intensity-1", "intensity-2", StringComparison.Ordinal)
+            .Replace("04:00:10Z", "04:00:20Z", StringComparison.Ordinal);
+        EventIngestionResult second = pipeline.Process(Raw(followUp, clock.UtcNow));
+        Assert.IsNotNull(second.Program);
+        Assert.IsTrue(second.Program.Pages.Any(page => page.AccessibleText.Contains("念のため津波に注意", StringComparison.Ordinal)));
     }
 
     [TestMethod]

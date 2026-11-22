@@ -331,6 +331,7 @@ public sealed record DisplaySettings(
 {
     // Opt-in presentation only. Forecasts retain the existing horizontal layout.
     public bool UseVerticalEewWarningLayout { get; init; }
+    public bool HighlightEewAreaChanges { get; init; }
 
     // False preserves the existing right-aligned vertical warning layout.
     public bool AlignVerticalEewWarningsLeft { get; init; }
@@ -341,6 +342,7 @@ public sealed record DisplaySettings(
     public bool HideNormalInformationBadges { get; init; }
 
     public bool ShowLowIntensityPointsInStrongQuakes { get; init; }
+    public bool HideNonJmaIntensityStations { get; init; }
 
     // Fixed phrases can be customized before telegrams are received. Keys are
     // stable catalog IDs; unknown keys are ignored by the display composer.
@@ -359,6 +361,7 @@ public sealed record DisplaySettings(
 
     // The 0.2 m class is normally omitted so warnings and watches remain prominent.
     public bool ShowTsunamiForecast { get; init; }
+    public bool OmitScalePromptCautionWhenTsunamiWarningActive { get; init; }
 
     public bool SeparateIntensityPagesByScale { get; init; } = true;
 

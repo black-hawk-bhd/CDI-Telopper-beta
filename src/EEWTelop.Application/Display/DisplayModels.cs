@@ -71,7 +71,10 @@ public sealed record DisplayBlock(
 
     // Structured presentation data avoids splitting hypocenter/area names in the browser.
     public EewWarningCard? EewCard { get; init; }
+    public IReadOnlyList<EewAreaLabel>? EewAreaLabels { get; init; }
 }
+
+public sealed record EewAreaLabel(string Name, bool IsChanged);
 
 public sealed record EewWarningCard(
     string Title,

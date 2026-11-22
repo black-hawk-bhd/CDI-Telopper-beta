@@ -841,6 +841,43 @@ public sealed class JmaXmlEventNormalizerTests
     }
 
     [TestMethod]
+    [DataRow("jma-xml")]
+    [DataRow("dmdata.jp")]
+    public void DetailedIntensityUsesOnlyTheFullWidthTrailingStationMarker(string provider)
+    {
+        const string xml = """
+            <Report><Control><Title>震源・震度に関する情報</Title><Status>通常</Status></Control>
+            <Head><ReportDateTime>2026-11-19T08:00:00+09:00</ReportDateTime><EventID>station-marker</EventID></Head>
+            <Body><Intensity><Observation><MaxInt>4</MaxInt><Pref><Name>石川県</Name><Area><Name>石川県能登</Name>
+            <City><Name>輪島市</Name><IntensityStation><Name>輪島市門前町走出＊</Name><Code>1720431</Code><Int>4</Int></IntensityStation></City>
+            <City><Name>珠洲市</Name><IntensityStation><Name>珠洲市三崎町</Name><Code>1720503</Code><Int>3</Int></IntensityStation></City>
+            <City><Name>能登町</Name><IntensityStation><Name>能登町半角*</Name><Code>1746301</Code><Int>3</Int></IntensityStation></City>
+            <City><Name>穴水町</Name><IntensityStation><Name>穴水町＊中間</Name><Code>1746101</Code><Int>3</Int></IntensityStation></City>
+            </Area></Pref></Observation></Intensity></Body></Report>
+            """;
+        var normalizer = new JmaXmlEventNormalizer(new EventSignatureBuilder());
+        var raw = new RawProviderMessage(provider, xml, SourceMode.Production, DateTimeOffset.UtcNow)
+        {
+            ContentFormat = RawProviderContentFormat.JmaXml,
+        };
+        var quake = Assert.IsInstanceOfType<QuakeEvent>(normalizer.Normalize(raw).Event);
+        QuakePoint marked = quake.Points.Single(point => point.IsNonJmaIntensityStation);
+        Assert.AreEqual("輪島市門前町走出＊", marked.Address);
+        Assert.AreEqual("1720431", marked.StationCode);
+
+        var composer = new PageComposer();
+        DisplaySettings display = AppSettings.CreateDefault().Display;
+        Assert.IsTrue(composer.Compose(quake, display).Pages.Any(page =>
+            page.AccessibleText.Contains("石川県輪島市", StringComparison.Ordinal)));
+        var program = composer.Compose(quake, display with { HideNonJmaIntensityStations = true });
+        string text = string.Join('\n', program.Pages.Select(page => page.AccessibleText));
+        Assert.DoesNotContain("石川県輪島市", text);
+        Assert.Contains("石川県珠洲市", text);
+        Assert.Contains("石川県能登町", text);
+        Assert.Contains("石川県穴水町", text);
+    }
+
+    [TestMethod]
     public void Vxse52DisplaysMagnitudeDescriptionWhenMagnitudeIsUnknown()
     {
         const string xml = """
@@ -1097,6 +1134,7 @@ public sealed class JmaXmlEventNormalizerTests
 
         QuakeEvent quake = Assert.IsInstanceOfType<QuakeEvent>(result.Event);
         Assert.AreEqual(QuakeIssueType.ScalePrompt, quake.IssueType);
+        Assert.AreEqual(EventId.Create("20251202234457"), quake.JmaEarthquakeId);
         Assert.AreEqual(
             DateTimeOffset.Parse("2025-12-02T23:44:00+09:00", CultureInfo.InvariantCulture),
             quake.Earthquake.OriginTime);
@@ -1919,7 +1957,7 @@ public sealed class JmaXmlEventNormalizerTests
               </Control>
               <Head>
                 <ReportDateTime>2026-08-11T01:00:00+09:00</ReportDateTime>
-                <EventID>20260811010000</EventID>
+                <EventID>20260811010000 20260811005900</EventID>
                 <InfoType>発表</InfoType>
                 <Headline><Text>津波注意報を解除しました。</Text></Headline>
               </Head>
@@ -1953,6 +1991,8 @@ public sealed class JmaXmlEventNormalizerTests
         TsunamiEvent tsunami = Assert.IsInstanceOfType<TsunamiEvent>(result.Event);
         Assert.IsTrue(tsunami.IsCancelled);
         Assert.HasCount(0, tsunami.Areas);
+        Assert.AreEqual("20260811010000 20260811005900", tsunami.Id.Value);
+        Assert.AreEqual("20260811010000,20260811005900", string.Join(',', tsunami.JmaEarthquakeIds));
     }
 
     [TestMethod]

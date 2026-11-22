@@ -103,6 +103,9 @@ public sealed record QuakeEvent : DisasterEvent
 
     public bool IsRoutineNankaiCommentary { get; init; }
 
+    [System.Text.Json.Serialization.JsonIgnore]
+    public EventId? JmaEarthquakeId { get; init; }
+
     public QuakeEvent WithDisplayObservations(
         IReadOnlyList<QuakePoint> points,
         LongPeriodIntensityInfo? longPeriodIntensity) => this with
@@ -176,6 +179,9 @@ public sealed record TsunamiEvent : DisasterEvent
     // telegrams keep their own timestamps and cancellation states.
     public IReadOnlyList<TsunamiEvent>? SnapshotObservations { get; init; }
     public string? SourceReportId { get; init; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IReadOnlyList<EventId> JmaEarthquakeIds { get; init; } = [];
 }
 
 public sealed record EewEvent : DisasterEvent

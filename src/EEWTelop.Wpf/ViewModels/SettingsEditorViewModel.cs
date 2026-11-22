@@ -64,12 +64,15 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private bool _showQuakeWithEewNoStrongShakingComment;
     private bool _showRoutineNankaiCommentary;
     private bool _showLowIntensityPointsInStrongQuakes;
+    private bool _hideNonJmaIntensityStations;
     private double _pageDurationSeconds;
     private bool _showPageIndicator;
     private bool _showTsunamiForecast;
+    private bool _omitScalePromptCautionWhenTsunamiWarningActive;
     private bool _separateIntensityPagesByScale;
     private bool _limitActiveWeatherAreaRowsToTwo;
     private bool _useVerticalEewWarningLayout;
+    private bool _highlightEewAreaChanges;
     private bool _alignVerticalEewWarningsLeft;
     private double _outputScale;
     private double _outputOffsetX;
@@ -241,12 +244,15 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _showQuakeWithEewNoStrongShakingComment = settings.Filter.ShowQuakeWithEewNoStrongShakingComment;
         _showRoutineNankaiCommentary = settings.Filter.ShowRoutineNankaiCommentary;
         _showLowIntensityPointsInStrongQuakes = settings.Display.ShowLowIntensityPointsInStrongQuakes;
+        _hideNonJmaIntensityStations = settings.Display.HideNonJmaIntensityStations;
         _pageDurationSeconds = settings.Display.PageDurationSeconds;
         _showPageIndicator = settings.Display.ShowPageIndicator;
         _showTsunamiForecast = settings.Display.ShowTsunamiForecast;
+        _omitScalePromptCautionWhenTsunamiWarningActive = settings.Display.OmitScalePromptCautionWhenTsunamiWarningActive;
         _separateIntensityPagesByScale = settings.Display.SeparateIntensityPagesByScale;
         _limitActiveWeatherAreaRowsToTwo = settings.Display.LimitActiveWeatherAreaRowsToTwo;
         _useVerticalEewWarningLayout = settings.Display.UseVerticalEewWarningLayout;
+        _highlightEewAreaChanges = settings.Display.HighlightEewAreaChanges;
         _alignVerticalEewWarningsLeft = settings.Display.AlignVerticalEewWarningsLeft;
         _outputScale = OutputTransformSettings.Default.Scale;
         _outputOffsetX = OutputTransformSettings.Default.OffsetX;
@@ -719,12 +725,19 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public bool ShowQuakeWithEewNoStrongShakingComment { get => _showQuakeWithEewNoStrongShakingComment; set => SetProperty(ref _showQuakeWithEewNoStrongShakingComment, value); }
     public bool ShowRoutineNankaiCommentary { get => _showRoutineNankaiCommentary; set => SetProperty(ref _showRoutineNankaiCommentary, value); }
     public bool ShowLowIntensityPointsInStrongQuakes { get => _showLowIntensityPointsInStrongQuakes; set => SetProperty(ref _showLowIntensityPointsInStrongQuakes, value); }
+    public bool HideNonJmaIntensityStations { get => _hideNonJmaIntensityStations; set => SetProperty(ref _hideNonJmaIntensityStations, value); }
     public double PageDurationSeconds { get => _pageDurationSeconds; set => SetProperty(ref _pageDurationSeconds, value); }
     public bool ShowPageIndicator { get => _showPageIndicator; set => SetProperty(ref _showPageIndicator, value); }
     public bool ShowTsunamiForecast { get => _showTsunamiForecast; set => SetProperty(ref _showTsunamiForecast, value); }
+    public bool OmitScalePromptCautionWhenTsunamiWarningActive
+    {
+        get => _omitScalePromptCautionWhenTsunamiWarningActive;
+        set => SetProperty(ref _omitScalePromptCautionWhenTsunamiWarningActive, value);
+    }
     public bool SeparateIntensityPagesByScale { get => _separateIntensityPagesByScale; set => SetProperty(ref _separateIntensityPagesByScale, value); }
     public bool LimitActiveWeatherAreaRowsToTwo { get => _limitActiveWeatherAreaRowsToTwo; set => SetProperty(ref _limitActiveWeatherAreaRowsToTwo, value); }
     public bool UseVerticalEewWarningLayout { get => _useVerticalEewWarningLayout; set => SetProperty(ref _useVerticalEewWarningLayout, value); }
+    public bool HighlightEewAreaChanges { get => _highlightEewAreaChanges; set => SetProperty(ref _highlightEewAreaChanges, value); }
     public bool AlignVerticalEewWarningsLeft { get => _alignVerticalEewWarningsLeft; set => SetProperty(ref _alignVerticalEewWarningsLeft, value); }
     public double OutputScale { get => _outputScale; set => SetProperty(ref _outputScale, OutputTransformSettings.Default.Scale); }
     public double OutputOffsetX { get => _outputOffsetX; set => SetProperty(ref _outputOffsetX, OutputTransformSettings.Default.OffsetX); }
@@ -977,10 +990,13 @@ public sealed class SettingsEditorViewModel : ObservableObject
                     0,
                     3600),
                 ShowTsunamiForecast = ShowTsunamiForecast,
+                OmitScalePromptCautionWhenTsunamiWarningActive = OmitScalePromptCautionWhenTsunamiWarningActive,
                 ShowLowIntensityPointsInStrongQuakes = ShowLowIntensityPointsInStrongQuakes,
+                HideNonJmaIntensityStations = HideNonJmaIntensityStations,
                 SeparateIntensityPagesByScale = SeparateIntensityPagesByScale,
                 LimitActiveWeatherAreaRowsToTwo = LimitActiveWeatherAreaRowsToTwo,
                 UseVerticalEewWarningLayout = UseVerticalEewWarningLayout,
+                HighlightEewAreaChanges = HighlightEewAreaChanges,
                 AlignVerticalEewWarningsLeft = AlignVerticalEewWarningsLeft,
                 SubtitlePhraseOverrides = new Dictionary<string, string>(
                     _subtitlePhraseOverrides,
@@ -1416,6 +1432,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         ShowQuakeWithEewNoStrongShakingComment = defaults.ShowQuakeWithEewNoStrongShakingComment;
         ShowRoutineNankaiCommentary = defaults.ShowRoutineNankaiCommentary;
         ShowLowIntensityPointsInStrongQuakes = AppSettings.CreateDefault().Display.ShowLowIntensityPointsInStrongQuakes;
+        HideNonJmaIntensityStations = AppSettings.CreateDefault().Display.HideNonJmaIntensityStations;
         SetWeatherPrefectureCodes(defaults.WeatherPrefectureCodes);
         FilterWeatherSpecialWarnings = defaults.WeatherSpecialWarnings;
         FilterWeatherWarnings = defaults.WeatherWarnings;
@@ -1441,10 +1458,13 @@ public sealed class SettingsEditorViewModel : ObservableObject
         HideNormalModeBanner = defaults.HideNormalModeBanner;
         HideNormalInformationBadges = defaults.HideNormalInformationBadges;
         ShowTsunamiForecast = defaults.ShowTsunamiForecast;
+        OmitScalePromptCautionWhenTsunamiWarningActive = defaults.OmitScalePromptCautionWhenTsunamiWarningActive;
         ShowLowIntensityPointsInStrongQuakes = defaults.ShowLowIntensityPointsInStrongQuakes;
+        HideNonJmaIntensityStations = defaults.HideNonJmaIntensityStations;
         SeparateIntensityPagesByScale = defaults.SeparateIntensityPagesByScale;
         LimitActiveWeatherAreaRowsToTwo = defaults.LimitActiveWeatherAreaRowsToTwo;
         UseVerticalEewWarningLayout = defaults.UseVerticalEewWarningLayout;
+        HighlightEewAreaChanges = defaults.HighlightEewAreaChanges;
         AlignVerticalEewWarningsLeft = defaults.AlignVerticalEewWarningsLeft;
         LetterSpacingEm = defaults.LetterSpacingEm;
         LineSpacing = defaults.LineSpacing;

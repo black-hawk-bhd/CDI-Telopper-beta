@@ -51,16 +51,22 @@ public sealed class SharedExternalApiContractTests
         var original = (QuakeEvent)DisasterSimulatorDecoder.Decode("earthquake",
             fixture.RootElement.GetProperty("earthquakeItem"), DateTimeOffset.UtcNow);
         var point = original.Points[0] with
-        { Address = "輪島市観測点＊", DisplayName = "輪島市観測点＊", Scale = JmaScale.FiveLowerOrMore };
+        {
+            Address = "輪島市観測点＊", DisplayName = "輪島市観測点＊", Scale = JmaScale.FiveLowerOrMore,
+            IsNonJmaIntensityStation = true,
+        };
         var quake = new QuakeEvent(original.Id, "contract-fixture", original.IssuedAt,
             original.ReceivedAt, "", SourceMode.Production, original.Issue, QuakeIssueType.DetailScale,
             original.Earthquake, [point], "");
         string signature = new EventSignatureBuilder().Build(quake);
-        var program = new EEWTelop.Application.Display.PageComposer().Compose(quake,
-            EEWTelop.Application.Configuration.AppSettings.CreateDefault().Display);
+        var composer = new EEWTelop.Application.Display.PageComposer();
+        var settings = EEWTelop.Application.Configuration.AppSettings.CreateDefault().Display;
+        var program = composer.Compose(quake, settings);
         string display = string.Join("\n", program.Pages.Select(p => p.AccessibleText));
         StringAssert.Contains(display, "輪島市観測点");
         Assert.DoesNotContain("輪島市観測点＊", display);
+        var filtered = composer.Compose(quake, settings with { HideNonJmaIntensityStations = true });
+        Assert.DoesNotContain("輪島市観測点", string.Join("\n", filtered.Pages.Select(p => p.AccessibleText)));
         Assert.AreEqual(signature, new EventSignatureBuilder().Build(quake));
         var state = new ExternalEarthquakeState();
         state.Observe(new EventIngestionResult(EventIngestionStatus.Accepted, quake, null, null, []));

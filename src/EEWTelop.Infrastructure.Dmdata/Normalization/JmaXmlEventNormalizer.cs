@@ -425,7 +425,11 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
                     ReadCommentText(Descendant(document, "FreeFormComment"))),
             longPeriodIntensity,
             cancelled,
-            headline);
+            headline)
+        {
+            JmaEarthquakeId = telegramType == "VXSE51"
+                ? EventId.FromJmaEarthquakeId(Text(Child(reportHead, "EventID"))) : null,
+        };
         disasterEvent = disasterEvent with
         {
             Signature = _signatureBuilder.Build(disasterEvent),
@@ -556,6 +560,10 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
         {
             WarningStateChanged = telegramType == "VTSE41" &&
                 HasTsunamiWarningStateChange(document),
+            JmaEarthquakeIds = telegramType == "VTSE41"
+                ? Text(Child(reportHead, "EventID")).Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(EventId.FromJmaEarthquakeId).OfType<EventId>().ToArray()
+                : [],
         };
         disasterEvent = disasterEvent with
         {
@@ -969,6 +977,7 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
         QuakePoint[] explicitPoints = candidates
             .Select(element =>
             {
+                bool isStation = element.Name.LocalName == "IntensityStation";
                 bool isArea = element.Name.LocalName == "Area";
                 XElement? city = element.AncestorsAndSelf().FirstOrDefault(a => a.Name.LocalName == "City");
                 string address = Text(Descendant(element, "Name"));
@@ -993,7 +1002,8 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
                     SeismicAreaName = Text(element.AncestorsAndSelf().FirstOrDefault(a => a.Name.LocalName == "Area")?.Elements().FirstOrDefault(a => a.Name.LocalName == "Name")),
                     MunicipalityCode = Text(city?.Elements().FirstOrDefault(a => a.Name.LocalName == "Code")),
                     MunicipalityName = Text(city?.Elements().FirstOrDefault(a => a.Name.LocalName == "Name")),
-                    StationCode = element.Name.LocalName == "IntensityStation" ? Text(Child(element, "Code")) : string.Empty,
+                    StationCode = isStation ? Text(Child(element, "Code")) : string.Empty,
+                    IsNonJmaIntensityStation = isStation && address.EndsWith('＊'),
                 };
             })
             .Where(static point => !string.IsNullOrWhiteSpace(point.Address) &&

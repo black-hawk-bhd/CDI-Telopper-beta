@@ -274,6 +274,30 @@ public sealed class QuakePageComposerTests
     }
 
     [TestMethod]
+    [DataRow(QuakeIssueType.DetailScale, "＊印は気象庁以外の震度観測点についての情報です。", "")]
+    [DataRow(QuakeIssueType.DetailScale, "今後の情報に注意してください。なお、＊印は気象庁以外の震度観測点についての情報です。", "今後の情報に注意してください。")]
+    [DataRow(QuakeIssueType.DetailScale, "（＊印は気象庁以外の震度観測点です。）\r\n引き続き、津波に注意してください。", "引き続き、津波に注意してください。")]
+    [DataRow(QuakeIssueType.ScaleAndDestination, "＊は気象庁以外の観測点です", "")]
+    [DataRow(QuakeIssueType.ScalePrompt, "＊は気象庁以外の観測点です", "＊は気象庁以外の観測点です")]
+    public void StationFilterHidesOnlyTheStationNoteInDetailedIntensityCaptions(
+        QuakeIssueType issue, string comment, string remaining)
+    {
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(issue,
+            [DisplayEventFactory.Point(1, JmaScale.Four)], comment: comment);
+        DisplayProgram unfiltered = Compose(quake);
+        Assert.IsTrue(unfiltered.Pages.SelectMany(ContentBlocks).Any(block =>
+            block.StyleToken == DisplayStyleTokens.Comment &&
+            block.PrimaryText.Contains("気象庁以外", StringComparison.Ordinal)));
+
+        DisplayProgram filtered = _composer.Compose(quake,
+            DisplayEventFactory.Settings with { HideNonJmaIntensityStations = true });
+        Assert.AreEqual(remaining, string.Concat(filtered.Pages.SelectMany(ContentBlocks)
+            .Where(block => block.StyleToken == DisplayStyleTokens.Comment)
+            .Select(block => block.PrimaryText)));
+        Assert.AreEqual(comment, quake.FreeFormComment);
+    }
+
+    [TestMethod]
     public void ACommentWithoutASeparateNoTsunamiAdvisoryRemainsVisible()
     {
         const string comment = "この地震による津波の心配はありません。";
@@ -505,6 +529,50 @@ public sealed class QuakePageComposerTests
         // Display formatting must not mutate the source event data.
         Assert.AreEqual("糸魚川市大野＊", marked.DisplayName);
         Assert.AreEqual("糸魚川市大野＊", marked.Address);
+    }
+
+    [TestMethod]
+    [DataRow(QuakeIssueType.DetailScale, true)]
+    [DataRow(QuakeIssueType.ScaleAndDestination, true)]
+    [DataRow(QuakeIssueType.ScalePrompt, false)]
+    public void NonJmaStationFilterAppliesToDetailedIntensityRows(QuakeIssueType issue, bool hidesMarkedStation)
+    {
+        var marked = new QuakePoint("石川県", "輪島市観測点＊", false, JmaScale.FiveUpper, "輪島市観測点＊")
+        {
+            StationCode = "1720431",
+            IsNonJmaIntensityStation = true,
+        };
+        var jma = new QuakePoint("石川県", "輪島市鳳至町", false, JmaScale.Four, "輪島市鳳至町")
+        {
+            StationCode = "1720402",
+        };
+        var city = new QuakePoint("石川県", "能登町", false, JmaScale.FiveLowerOrMore, "能登町")
+        {
+            MunicipalityCode = "1746300",
+        };
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(issue, [marked, jma, city]);
+        DisplayProgram original = Compose(quake);
+        DisplayProgram filtered = _composer.Compose(quake, DisplayEventFactory.Settings with { HideNonJmaIntensityStations = true });
+        string text = string.Join('\n', filtered.Pages.Select(page => page.AccessibleText));
+
+        StringAssert.Contains(string.Join('\n', original.Pages.Select(page => page.AccessibleText)), "輪島市観測点");
+        Assert.AreEqual(!hidesMarkedStation, text.Contains("輪島市観測点", StringComparison.Ordinal));
+        StringAssert.Contains(text, "輪島市鳳至町");
+        StringAssert.Contains(text, "能登町");
+        StringAssert.Contains(text, "震度5弱以上 未入電");
+        Assert.AreEqual(original.Pages[0].AccessibleText, filtered.Pages[0].AccessibleText);
+        Assert.AreEqual("輪島市観測点＊", quake.Points[0].Address);
+    }
+
+    [TestMethod]
+    public void AllHiddenStationsGetADisplayFilterMessage()
+    {
+        QuakePoint point = DisplayEventFactory.Point(1, JmaScale.Four) with { IsNonJmaIntensityStation = true };
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(QuakeIssueType.DetailScale, [point]);
+
+        DisplayProgram program = _composer.Compose(quake, DisplayEventFactory.Settings with { HideNonJmaIntensityStations = true });
+
+        Assert.AreEqual("表示対象の震度観測点はありません", ContentBlocks(program.Pages[^1]).Single().PrimaryText);
     }
 
     [TestMethod]

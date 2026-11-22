@@ -78,6 +78,50 @@ public sealed class AxisEnvelopeDecoderTests
     }
 
     [TestMethod]
+    public void Vxse53AxisFrameWithoutTelegramCodeUsesStationFilter()
+    {
+        const string json = """
+            {"channel":"jmx-seismology","message":{
+              "uuid_":"61c1c5cf-f8e2-3bbd-8f30-b5bad6d5c8a6",
+              "Control":{"Title":"震源・震度に関する情報","Status":"通常"},
+              "Head":{"EventID":"20261118183600","ReportDateTime":"2026-11-18T18:40:00+09:00","InfoType":"発表"},
+              "Body":{"Intensity":{"Observation":{"MaxInt":"4","Pref":[{
+                "Name":"石川県","Area":[{"Name":"石川県能登","City":[
+                  {"Name":"輪島市","IntensityStation":[{"Name":"輪島市門前町走出＊","Code":"1720431","Int":"4"}]},
+                  {"Name":"珠洲市","IntensityStation":[{"Name":"珠洲市三崎町","Code":"1720503","Int":"3"}]}
+                ]}]
+              }]}}}
+            }}
+            """;
+
+        AxisDecodedFrame frame = AxisEnvelopeDecoder.Decode(json, AxisProviderOptions.SeismologyChannel);
+        Assert.AreEqual(AxisFrameKind.Data, frame.Kind);
+        Assert.AreEqual("VXSE53", frame.TelegramType);
+        Assert.IsTrue(AxisWeatherTelegramPolicy.IsAssignedToAxis(frame.Channel, frame.TelegramType));
+
+        var signatureBuilder = new EventSignatureBuilder();
+        var normalizer = new AxisEventNormalizer(new JmaXmlEventNormalizer(signatureBuilder), signatureBuilder);
+        NormalizeResult result = normalizer.Normalize(new RawProviderMessage(
+            AxisProviderOptions.ProviderName, frame.ProviderPayload!, SourceMode.Production, DateTimeOffset.UtcNow)
+        {
+            ContentFormat = frame.ContentFormat,
+        });
+        var quake = Assert.IsInstanceOfType<QuakeEvent>(result.Event);
+        QuakePoint marked = quake.Points.Single(point => point.IsNonJmaIntensityStation);
+        Assert.AreEqual("輪島市門前町走出＊", marked.Address);
+        Assert.AreEqual("1720431", marked.StationCode);
+        Assert.AreEqual(JmaScale.Four, quake.Earthquake.MaximumScale);
+
+        var composer = new PageComposer();
+        DisplaySettings settings = AppSettings.CreateDefault().Display;
+        DisplayProgram unfiltered = composer.Compose(quake, settings);
+        DisplayProgram filtered = composer.Compose(quake, settings with { HideNonJmaIntensityStations = true });
+        Assert.IsTrue(unfiltered.Pages.Any(page => page.AccessibleText.Contains("石川県輪島市", StringComparison.Ordinal)));
+        Assert.IsFalse(filtered.Pages.Any(page => page.AccessibleText.Contains("石川県輪島市", StringComparison.Ordinal)));
+        Assert.IsTrue(filtered.Pages.Any(page => page.AccessibleText.Contains("石川県珠洲市", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
     public void Vxse45AxisFrameNormalizesOnlyWarningAreas()
     {
         const string json = """

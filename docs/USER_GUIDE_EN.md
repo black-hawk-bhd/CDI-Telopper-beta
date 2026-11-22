@@ -2,7 +2,7 @@
 
 [日本語](USER_GUIDE.md) | English
 
-This guide covers **2.0.0-beta.72** for Windows x64. Menu names appear as they do in the Japanese interface. [Download](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.72) / [Release notes in Japanese](../RELEASE_NOTES_2.0.0-beta.72.md)
+This guide covers **2.0.0-beta.73** for Windows x64. Menu names appear as they do in the Japanese interface. [Download](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.73) / [Release notes in Japanese](../RELEASE_NOTES_2.0.0-beta.73.md)
 
 ## Install or update
 
@@ -24,6 +24,12 @@ Enable **起動時に受信APIへ自動接続** (Connect to reception APIs on st
 With multiple sources, the window header shows the connection state of each source. The **接続** (Connection) panel and system tray also show how many times each source has entered the reconnect wait state since the app started. If the tray tooltip is too long, right-click the icon and open **API別の状態と再接続回数** (Status and reconnect count by API).
 
 JMA XML polls at intervals of at least 60 seconds and carries no EEW in this app. If automatic fallback is enabled and an eligible DMDATA.JP, P2PQuake or AXIS connection is faulted or reconnecting for at least 30 seconds, CDI-Telopper can temporarily use JMA XML for supported non-EEW categories. It returns to the selected provider after reconnection. YDITS production and test reception are temporarily suspended. A previous YDITS selection is treated as **受信しない** (Do not receive) for EEW. [Data sources](data-sources.md)
+
+Under **フィルター** (Filters) → **表示フィルター** (Display filters), enable **気象庁以外の震度観測点を非表示** (Hide non-JMA intensity stations) to omit stations whose names end in a full-width `＊` from detailed intensity captions received from Wolfx, JMA XML, DMDATA.JP or AXIS JMA telegrams (`jmx-seismology`). The option is off by default. P2PQuake stations are outside the scope of this option. The summary uses the reported maximum intensity. The telegram review window lists all received stations under **震度観測点（電文）**. [JMA station notation](https://www.data.jma.go.jp/suishin/oshirase/pdf/20250703.pdf)
+
+In **表示** (Display), **緊急地震速報の継続報で追加・更新された地域名をオレンジ色にする** highlights newly added and updated areas in EEW follow-up reports. It applies to horizontal and vertical OBS layouts and the in-app preview. The option is off by default.
+
+In **表示** (Display), **津波注意報以上の発表中は震度速報の定型注意文を省く** omits the provisional tsunami caution sentence from a seismic intensity bulletin when tsunami captions are enabled and an active advisory or warning has already been received for the same earthquake. If the earthquake IDs cannot be matched, the caution still appears. The option is off by default.
 
 Under **フィルター** (Filters) → **表示フィルター** (Display filters), **南海トラフの定例解説をテロップに表示** (Show routine Nankai Trough commentary on the overlay) is off by default. Check it and save to enable captions. Turning it off clears any routine commentary on screen. Received reports are available in message review.
 

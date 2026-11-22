@@ -13,10 +13,46 @@ public sealed class TsunamiEventStateAccumulator
     private readonly IEventSignatureBuilder _signatureBuilder;
     private readonly Dictionary<string, StateEntry> _states = new(StringComparer.Ordinal);
     private readonly LinkedList<string> _recentKeys = [];
+    private readonly Dictionary<SourceMode, TsunamiEvent> _latestWarningReports = [];
 
     public TsunamiEventStateAccumulator(IEventSignatureBuilder? signatureBuilder = null)
     {
         _signatureBuilder = signatureBuilder ?? new EventSignatureBuilder();
+    }
+
+    internal void ObserveWarningReport(TsunamiEvent tsunami)
+    {
+        // Observation reports can carry the current grade, but cannot replace or release a warning.
+        if (tsunami.Issue.RawType is "VTSE51" or "VTSE52") return;
+
+        lock (_gate)
+        {
+            if (tsunami.SnapshotObservations is null &&
+                _latestWarningReports.TryGetValue(tsunami.SourceMode, out TsunamiEvent? previous) &&
+                string.Equals(previous.Provider, tsunami.Provider, StringComparison.OrdinalIgnoreCase) &&
+                tsunami.IssuedAt < previous.IssuedAt)
+            {
+                return;
+            }
+
+            // A forecast downgrade, release, or cleared snapshot replaces the prior state as well.
+            _latestWarningReports[tsunami.SourceMode] = tsunami;
+        }
+    }
+
+    internal bool HasActiveWarningFor(QuakeEvent quake, DateTimeOffset now)
+    {
+        if (quake.JmaEarthquakeId is not { } id) return false;
+
+        lock (_gate)
+        {
+            return _latestWarningReports.TryGetValue(quake.SourceMode, out TsunamiEvent? warning) &&
+                !warning.IsCancelled && !warning.IsExpired &&
+                (warning.ExpireAt is null || warning.ExpireAt > now) &&
+                warning.JmaEarthquakeIds.Contains(id) && warning.Areas.Any(static area =>
+                    area.Role == TsunamiInformationRole.ForecastArea &&
+                    area.Grade is TsunamiGrade.Watch or TsunamiGrade.Warning or TsunamiGrade.MajorWarning);
+        }
     }
 
     public TsunamiEvent Merge(TsunamiEvent incoming)
@@ -83,6 +119,7 @@ public sealed class TsunamiEventStateAccumulator
                 // Do not retain it for later VTSE51/VTSE52 observation updates.
                 WarningStateChanged = incoming.WarningStateChanged,
                 IsExpired = incoming.IsExpired,
+                JmaEarthquakeIds = incoming.JmaEarthquakeIds,
             };
             return merged with { Signature = _signatureBuilder.Build(merged) };
         }
@@ -94,6 +131,7 @@ public sealed class TsunamiEventStateAccumulator
         {
             _states.Clear();
             _recentKeys.Clear();
+            _latestWarningReports.Clear();
         }
     }
 

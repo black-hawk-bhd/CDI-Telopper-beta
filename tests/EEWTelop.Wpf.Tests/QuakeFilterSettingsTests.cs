@@ -21,6 +21,7 @@ public sealed class QuakeFilterSettingsTests
         Assert.AreEqual("震度6強", editor.QuakeIntensityFilters[^1].Label);
         Assert.AreEqual("全国", editor.QuakePrefectureSelectionSummary);
         Assert.IsFalse(editor.ShowLowIntensityPointsInStrongQuakes);
+        Assert.IsFalse(editor.HideNonJmaIntensityStations);
         Assert.IsFalse(editor.ShowQuakeWithEewNoStrongShakingComment);
         Assert.IsFalse(editor.ShowRoutineNankaiCommentary);
     }
@@ -36,6 +37,7 @@ public sealed class QuakeFilterSettingsTests
         editor.SetWeatherPrefectureCodes(["01"]);
         editor.QuakePrefectureMode = QuakePrefectureFilterMode.PointsOnly;
         editor.ShowLowIntensityPointsInStrongQuakes = true;
+        editor.HideNonJmaIntensityStations = true;
         editor.ShowQuakeWithEewNoStrongShakingComment = true;
         editor.ShowRoutineNankaiCommentary = true;
         AppSettings saved = editor.ToSettings(defaults);
@@ -45,9 +47,11 @@ public sealed class QuakeFilterSettingsTests
         Assert.AreEqual("01", saved.Filter.WeatherPrefectureCodes.Single());
         Assert.AreEqual(QuakePrefectureFilterMode.PointsOnly, saved.Filter.QuakePrefectureMode);
         Assert.IsTrue(saved.Display.ShowLowIntensityPointsInStrongQuakes);
+        Assert.IsTrue(saved.Display.HideNonJmaIntensityStations);
         Assert.IsTrue(saved.Filter.ShowQuakeWithEewNoStrongShakingComment);
         Assert.IsTrue(saved.Filter.ShowRoutineNankaiCommentary);
         var restored = new SettingsEditorViewModel(saved);
+        Assert.IsTrue(restored.HideNonJmaIntensityStations);
         Assert.IsTrue(restored.ShowQuakeWithEewNoStrongShakingComment);
         Assert.IsTrue(restored.ShowRoutineNankaiCommentary);
         Assert.AreEqual(2, restored.QuakeIntensityFilters.Count(option => option.IsExcluded));
@@ -56,6 +60,7 @@ public sealed class QuakeFilterSettingsTests
         Assert.HasCount(0, restored.QuakePrefectureCodes);
         Assert.AreEqual(QuakePrefectureFilterMode.EventAndPoints, restored.QuakePrefectureMode);
         Assert.IsFalse(restored.ShowLowIntensityPointsInStrongQuakes);
+        Assert.IsFalse(restored.HideNonJmaIntensityStations);
         Assert.IsFalse(restored.ShowQuakeWithEewNoStrongShakingComment);
         Assert.IsFalse(restored.ShowRoutineNankaiCommentary);
     }
@@ -123,16 +128,19 @@ public sealed class QuakeFilterSettingsTests
                     ShowQuakeWithEewNoStrongShakingComment = true,
                     ShowRoutineNankaiCommentary = true,
                 },
+                Display = defaults.Display with { HideNonJmaIntensityStations = true },
             });
             JsonNode document = JsonNode.Parse(await File.ReadAllTextAsync(path))!;
             JsonObject filter = document["filter"]!.AsObject();
             Assert.IsTrue(filter.Remove("showQuakeWithEewNoStrongShakingComment"));
             Assert.IsTrue(filter.Remove("showRoutineNankaiCommentary"));
+            Assert.IsTrue(document["display"]!.AsObject().Remove("hideNonJmaIntensityStations"));
             await File.WriteAllTextAsync(path, document.ToJsonString());
 
             AppSettings loaded = await store.LoadAsync();
             Assert.IsFalse(loaded.Filter.ShowQuakeWithEewNoStrongShakingComment);
             Assert.IsFalse(loaded.Filter.ShowRoutineNankaiCommentary);
+            Assert.IsFalse(loaded.Display.HideNonJmaIntensityStations);
             Assert.HasCount(2, loaded.Filter.ExcludedQuakeMaximumScales!);
         }
         finally
@@ -162,7 +170,11 @@ public sealed class QuakeFilterSettingsTests
                     ShowQuakeWithEewNoStrongShakingComment = true,
                     ShowRoutineNankaiCommentary = true,
                 },
-                Display = defaults.Display with { ShowLowIntensityPointsInStrongQuakes = true },
+                Display = defaults.Display with
+                {
+                    ShowLowIntensityPointsInStrongQuakes = true,
+                    HideNonJmaIntensityStations = true,
+                },
             });
             AppSettings actual = await store.LoadAsync();
             Assert.HasCount(2, actual.Filter.ExcludedQuakeMaximumScales!);
@@ -171,6 +183,7 @@ public sealed class QuakeFilterSettingsTests
             Assert.IsTrue(actual.Filter.ShowQuakeWithEewNoStrongShakingComment);
             Assert.IsTrue(actual.Filter.ShowRoutineNankaiCommentary);
             Assert.IsTrue(actual.Display.ShowLowIntensityPointsInStrongQuakes);
+            Assert.IsTrue(actual.Display.HideNonJmaIntensityStations);
         }
         finally
         {

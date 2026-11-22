@@ -1,4 +1,5 @@
 using EEWTelop.Application.Configuration;
+using EEWTelop.Application.Events;
 using EEWTelop.Domain.Events;
 
 namespace EEWTelop.Application.Display;
@@ -12,6 +13,8 @@ public sealed class ConcurrentEewProgramComposer
     private const int MaximumVisibleWarnings = 2;
     private readonly object _gate = new();
     private readonly Dictionary<ActiveEewKey, ActiveEew> _activeWarnings = [];
+    private readonly Dictionary<(SourceMode Mode, bool IsTest, EventId Id), EewEvent> _previousReports = [];
+    private readonly Queue<(SourceMode Mode, bool IsTest, EventId Id)> _reportOrder = [];
 
     public DisplayProgram Compose(
         EewEvent eew,
@@ -25,6 +28,13 @@ public sealed class ConcurrentEewProgramComposer
         lock (_gate)
         {
             PurgeExpired(eew.ReceivedAt, settings.EffectiveEewAutoHideSeconds);
+
+            if (eew.IsWarning || eew.IsCancelled)
+            {
+                EewEvent? previous = RememberReport(eew);
+                if (settings.HighlightEewAreaChanges && !eew.IsCancelled && previous is { IsCancelled: false })
+                    singleProgram = HighlightAreaChanges(singleProgram, previous.Areas, eew.Areas);
+            }
 
             var key = new ActiveEewKey(eew.SourceMode, eew.Id.Value);
             if (eew.IsCancelled)
@@ -60,7 +70,42 @@ public sealed class ConcurrentEewProgramComposer
         lock (_gate)
         {
             _activeWarnings.Clear();
+            _previousReports.Clear();
+            _reportOrder.Clear();
         }
+    }
+
+    private EewEvent? RememberReport(EewEvent eew)
+    {
+        var key = (eew.SourceMode, eew.IsTest, eew.Id);
+        if (!_previousReports.TryGetValue(key, out EewEvent? previous))
+        {
+            _reportOrder.Enqueue(key);
+            if (_reportOrder.Count > EventVersionCache.DefaultKeyLimit)
+                _previousReports.Remove(_reportOrder.Dequeue());
+        }
+
+        _previousReports[key] = eew;
+        return previous;
+    }
+
+    private static DisplayProgram HighlightAreaChanges(
+        DisplayProgram program, IReadOnlyList<EewArea> previous, IReadOnlyList<EewArea> current)
+    {
+        IReadOnlyList<EewAreaLabel> labels = EewAreaLabelFormatter.MarkChanges(previous, current);
+        if (!labels.Any(static label => label.IsChanged))
+            return program;
+
+        return program with
+        {
+            Pages = program.Pages.Select(page => page with
+            {
+                Blocks = page.Blocks.Select(block => block.StyleToken == DisplayStyleTokens.EewAreas ||
+                    block.EewCard is { IsCancelled: false }
+                    ? block with { EewAreaLabels = labels }
+                    : block).ToArray(),
+            }).ToArray(),
+        };
     }
 
     private void PurgeExpired(DateTimeOffset receivedAt, int autoHideSeconds)

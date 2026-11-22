@@ -71,6 +71,26 @@ run('single vertical warning', () => {
   assert(document.querySelectorAll('.vertical-eew-area').length === 4, 'Missing regions');
   assert(getComputedStyle(document.querySelector('.vertical-eew-areas')).writingMode === 'vertical-rl', 'Not vertical writing');
 });
+run('changed warning areas are orange in both layouts', () => {
+  const labels = first.areas.map(name => ({ name, isChanged: name === '新潟' || name === '長野' }));
+  const reported = warning(first).map(block => block.eewCard || block.styleToken === 'eew-areas'
+    ? { ...block, eewAreaLabels: labels } : block);
+  for (const vertical of [false, true]) {
+    applySnapshot({ ...base, useVerticalEewWarningLayout: vertical, blocks: reported });
+    if (vertical) checkFit();
+    const areas = [...blocks.querySelectorAll(vertical ? '.vertical-eew-area' : '.eew-areas .primary span')];
+    assert(JSON.stringify(areas.map(area => area.textContent)) === JSON.stringify(first.areas), 'Region names or order changed');
+    for (const [index, area] of areas.entries()) {
+      const expected = labels[index].isChanged ? 'rgb(255, 165, 0)' : horizontalStyle.foreground;
+      assert(getComputedStyle(area).color === expected, 'Unexpected color for ' + area.textContent);
+    }
+    if (!vertical) assert(blocks.querySelector('.eew-areas .primary').textContent === first.areas.join('　'), 'Horizontal spacing changed');
+  }
+  reported[2].primaryText = '手動で編集した地域名';
+  applySnapshot({ ...base, useVerticalEewWarningLayout: false, blocks: reported });
+  assert(blocks.querySelector('.eew-areas .primary').textContent === reported[2].primaryText &&
+    !blocks.querySelector('.eew-area-changed'), 'Highlight replaced edited text');
+});
 run('vertical appearance follows existing telop palette and font', () => {
   applySnapshot(base);
   const panel = getComputedStyle(document.querySelector('.vertical-eew-card'));

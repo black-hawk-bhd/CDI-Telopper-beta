@@ -150,9 +150,12 @@ public sealed class EventIngestionPipeline
             };
         }
 
-        DisasterEvent disasterEvent = !completeTsunami && receivedEvent is TsunamiEvent tsunami
-            ? _tsunamiStateAccumulator.Merge(tsunami)
-            : receivedEvent;
+        DisasterEvent disasterEvent = receivedEvent;
+        if (receivedEvent is TsunamiEvent tsunami)
+        {
+            _tsunamiStateAccumulator.ObserveWarningReport(tsunami);
+            if (!completeTsunami) disasterEvent = _tsunamiStateAccumulator.Merge(tsunami);
+        }
 
         DisasterEvent? displayEvent = EventDisplayFilter.Apply(_filter, disasterEvent);
         if (disasterEvent is TsunamiEvent { SnapshotObservations: not null } snapshotTsunami &&
@@ -187,7 +190,11 @@ public sealed class EventIngestionPipeline
             };
         }
 
-        DisplayProgram program = _pageComposer.Compose(displayEvent, _settings);
+        DisplaySettings settings = _settings;
+        bool omitScalePromptTsunamiCaution = settings.OmitScalePromptCautionWhenTsunamiWarningActive &&
+            _filter.Tsunami && displayEvent is QuakeEvent { IssueType: QuakeIssueType.ScalePrompt } quake &&
+            _tsunamiStateAccumulator.HasActiveWarningFor(quake, raw.ReceivedAt);
+        DisplayProgram program = _pageComposer.Compose(displayEvent, settings, omitScalePromptTsunamiCaution);
         if (completeTsunami && program.Pages.Count == 0)
             return ClearTsunamiSnapshot(raw, (TsunamiEvent)disasterEvent, normalized.Issues);
         if (revalidatedTsunami)

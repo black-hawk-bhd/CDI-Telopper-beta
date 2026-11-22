@@ -130,7 +130,19 @@ function renderBlock(item, previousBadge, alignsCaption) {
   texts.className = "texts";
   const primaryText = alignsCaption && item.subtitleBodyText != null ? item.subtitleBodyText
     : hasWeatherContext && !explicitHeading ? item.primaryText.slice(contextEnd + 1) : item.primaryText;
-  texts.appendChild(textNode("primary", primaryText));
+  const primary = textNode("primary", primaryText);
+  const labels = item.eewAreaLabels;
+  if (style === "eew-areas" && labels?.map(label => label.name).join("　") === primaryText) {
+    primary.replaceChildren();
+    for (const [index, label] of labels.entries()) {
+      if (index > 0) primary.append("　");
+      const area = document.createElement("span");
+      if (label.isChanged) area.className = "eew-area-changed";
+      area.textContent = label.name;
+      primary.appendChild(area);
+    }
+  }
+  texts.appendChild(primary);
   if (item.secondaryText) {
     texts.appendChild(textNode("secondary", item.secondaryText));
   }
@@ -138,16 +150,18 @@ function renderBlock(item, previousBadge, alignsCaption) {
   return block;
 }
 
-function renderVerticalEewCard(card) {
+function renderVerticalEewCard(card, areaLabels) {
   const panel = document.createElement("article");
   panel.className = `vertical-eew-card${card.isCancelled ? " cancelled" : ""}`;
   const areas = document.createElement("div");
   areas.className = "vertical-eew-areas";
   // Keep each declared display label intact; never split a name at spaces or punctuation.
   const labels = card.isCancelled ? [card.message] : card.areas;
+  const changed = new Set(areaLabels?.filter(label => label.isChanged).map(label => label.name));
   for (const label of labels ?? []) {
     const area = document.createElement("span");
     area.className = "vertical-eew-area";
+    if (!card.isCancelled && changed.has(label)) area.classList.add("eew-area-changed");
     area.textContent = label;
     areas.appendChild(area);
   }
@@ -197,13 +211,13 @@ function applySnapshot(state) {
     const style = String(item.styleToken ?? "");
     return style === "eew-header" || style === "eew-header-cancel" || style === "eew-header-test";
   }).length;
-  const cards = items.filter(item => item.eewCard).map(item => item.eewCard);
+  const cards = items.filter(item => item.eewCard);
   const vertical = isEew && state.useVerticalEewWarningLayout === true &&
     cards.length > 0 && cards.length === eewHeaderCount;
   const alignLeft = vertical && state.alignVerticalEewWarningsLeft === true;
   content.className = `${isEew ? "eew" : "subtitle"}${eewHeaderCount > 1 ? " concurrent" : ""}${vertical ? " vertical" : ""}${alignLeft ? " left-aligned" : ""}${state.rehearsalLabel ? " has-banner" : ""}`;
   if (vertical) {
-    for (const card of cards) blocks.appendChild(renderVerticalEewCard(card));
+    for (const item of cards) blocks.appendChild(renderVerticalEewCard(item.eewCard, item.eewAreaLabels));
     fitVerticalEew();
   } else {
     let previousBadge = "";

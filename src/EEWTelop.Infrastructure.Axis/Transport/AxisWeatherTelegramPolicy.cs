@@ -117,7 +117,13 @@ internal static class AxisWeatherTelegramPolicy
             }
         }
 
-        return string.Empty;
+        // AXIS can send a UUID without a telegram code. The official Control
+        // title still identifies a detailed-intensity report.
+        string? controlTitle = document.Descendants()
+            .FirstOrDefault(static element =>
+                element.Name.LocalName == "Title" && element.Parent?.Name.LocalName == "Control")
+            ?.Value.Trim();
+        return controlTitle == "震源・震度に関する情報" ? "VXSE53" : string.Empty;
     }
 
     private static IEnumerable<XElement> GetElementsIncludingRoot(

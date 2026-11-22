@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Windows.Documents;
 using EEWTelop.Application.Abstractions;
 using EEWTelop.Application.Configuration;
 using EEWTelop.Application.Coordination;
@@ -7,6 +8,7 @@ using EEWTelop.Application.Display;
 using EEWTelop.Application.Testing;
 using EEWTelop.Domain.Events;
 using EEWTelop.Infrastructure.Settings;
+using EEWTelop.Wpf.Controls;
 using EEWTelop.Wpf.Obs;
 using EEWTelop.Wpf.ViewModels;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -24,14 +26,25 @@ public sealed class EewVerticalSettingsTests
         var defaults = AppSettings.CreateDefault();
         var json = JsonNode.Parse(JsonSerializer.Serialize(defaults.Display))!.AsObject();
         json.Remove(nameof(DisplaySettings.UseVerticalEewWarningLayout));
-        Assert.IsFalse(JsonSerializer.Deserialize<DisplaySettings>(json.ToJsonString())!.UseVerticalEewWarningLayout);
-        var editor = new SettingsEditorViewModel(defaults) { UseVerticalEewWarningLayout = true };
+        json.Remove(nameof(DisplaySettings.HighlightEewAreaChanges));
+        var legacy = JsonSerializer.Deserialize<DisplaySettings>(json.ToJsonString())!;
+        Assert.IsFalse(legacy.UseVerticalEewWarningLayout);
+        Assert.IsFalse(legacy.HighlightEewAreaChanges);
+        var editor = new SettingsEditorViewModel(defaults)
+        {
+            UseVerticalEewWarningLayout = true,
+            HighlightEewAreaChanges = true,
+        };
         var saved = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(editor.ToSettings(defaults)))!;
         Assert.IsTrue(JsonSettingsStore.NormalizeDocument(saved).Display.UseVerticalEewWarningLayout);
+        Assert.IsTrue(JsonSettingsStore.NormalizeDocument(saved).Display.HighlightEewAreaChanges);
         var reloaded = new SettingsEditorViewModel(saved);
         Assert.IsTrue(reloaded.UseVerticalEewWarningLayout);
+        Assert.IsTrue(reloaded.HighlightEewAreaChanges);
         reloaded.ResetDisplaySettings();
-        Assert.IsFalse(reloaded.ToSettings(saved).Display.UseVerticalEewWarningLayout);
+        DisplaySettings reset = reloaded.ToSettings(saved).Display;
+        Assert.IsFalse(reset.UseVerticalEewWarningLayout);
+        Assert.IsFalse(reset.HighlightEewAreaChanges);
     }
 
     [TestMethod]
@@ -67,6 +80,38 @@ public sealed class EewVerticalSettingsTests
         Assert.IsTrue(document.RootElement.GetProperty("useVerticalEewWarningLayout").GetBoolean());
         Assert.AreEqual(left, document.RootElement.GetProperty("alignVerticalEewWarningsLeft").GetBoolean());
         Assert.IsTrue(document.RootElement.GetProperty("blocks")[0].GetProperty("eewCard").GetProperty("areas").GetArrayLength() > 0);
+    }
+
+    [STATestMethod]
+    public void HighlightedAreasReachObsAndRenderAsOrangeTextInWpf()
+    {
+        var settings = AppSettings.CreateDefault().Display with { HighlightEewAreaChanges = true };
+        var scenario = TestScenarioCatalog.Create(Now).Single(item => item.Id == "eew-expanding-15");
+        var first = (EewEvent)scenario.Steps[0].Event;
+        var continued = (EewEvent)scenario.Steps[1].Event;
+        var composer = new PageComposer();
+        var concurrent = new ConcurrentEewProgramComposer();
+        concurrent.Compose(first, composer.Compose(first, settings), settings);
+        var program = concurrent.Compose(continued, composer.Compose(continued, settings), settings);
+        var snapshot = new PriorityCoordinator(new Clock(), settings).Apply(program);
+        var obs = new ObsSnapshotStore(settings, Now).Publish(snapshot, settings, Now);
+        var serialized = JsonSerializer.Serialize(obs, ObsJsonContext.Default.ObsViewSnapshot);
+        using var document = JsonDocument.Parse(serialized);
+        var areas = document.RootElement.GetProperty("blocks").EnumerateArray()
+            .Single(block => block.GetProperty("styleToken").GetString() == DisplayStyleTokens.EewAreas);
+        var changed = areas.GetProperty("eewAreaLabels").EnumerateArray()
+            .Where(label => label.GetProperty("isChanged").GetBoolean())
+            .Select(label => label.GetProperty("name").GetString()).ToArray();
+        Assert.IsNotEmpty(changed);
+
+        var overlay = new OverlayViewModel();
+        overlay.Apply(snapshot, settings);
+        var areaBlock = overlay.Blocks.Single(block => block.StyleToken == DisplayStyleTokens.EewAreas);
+        var caption = new EewCaptionText { SourceText = areaBlock.PrimaryText, AreaLabels = areaBlock.EewAreaLabels };
+        string[] orange = caption.Inlines.OfType<Run>()
+            .Where(run => run.Foreground == System.Windows.Media.Brushes.Orange).Select(run => run.Text).ToArray();
+        CollectionAssert.AreEqual(changed, orange);
+        Assert.AreEqual(areaBlock.PrimaryText, caption.Text);
     }
 
     [TestMethod]

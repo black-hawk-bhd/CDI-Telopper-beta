@@ -51,81 +51,52 @@ public static class EewAreaLabelFormatter
     /// <summary>
     /// 表示用の地域名を受信順で返します。
     /// </summary>
-    public static IReadOnlyList<string> Format(IReadOnlyList<EewArea> areas)
+    public static IReadOnlyList<string> Format(IReadOnlyList<EewArea> areas) =>
+        GroupByDisplayLabel(areas).Select(static group => group.Key).ToArray();
+
+    internal static IReadOnlyList<EewAreaLabel> MarkChanges(
+        IReadOnlyList<EewArea> previous, IReadOnlyList<EewArea> current)
+    {
+        var previousByLabel = GroupByDisplayLabel(previous).ToDictionary(
+            static group => group.Key, static group => group.ToHashSet(), StringComparer.Ordinal);
+        return GroupByDisplayLabel(current).Select(group => new EewAreaLabel(
+            group.Key, !previousByLabel.TryGetValue(group.Key, out var oldAreas) || !oldAreas.SetEquals(group))).ToArray();
+    }
+
+    private static IEnumerable<IGrouping<string, EewArea>> GroupByDisplayLabel(IReadOnlyList<EewArea> areas)
     {
         ArgumentNullException.ThrowIfNull(areas);
 
-        ForecastDistrict[] districts = areas
-            .Select(ResolveForecastDistrict)
-            .Where(static district => district is not null)
-            .Select(static district => district!)
+        var resolved = areas.Select(static area => (Area: area, District: ResolveForecastDistrict(area)))
+            .Where(static item => item.District is not null).ToArray();
+        ForecastDistrict[] districts = resolved.Select(static item => item.District!)
             .DistinctBy(static district => district.Key, StringComparer.Ordinal)
             .ToArray();
 
-        if (districts.Length < RegionalAggregationThreshold)
+        var aggregateRegions = new HashSet<string>(StringComparer.Ordinal);
+        if (districts.Length >= RegionalAggregationThreshold)
         {
-            return CollapseHokkaidoLabels(districts.Select(static district => district.Label).ToArray());
-        }
-
-        Dictionary<string, ForecastDistrict[]> districtsByRegion = districts
-            .Where(static district => district.Region is not null)
-            .GroupBy(static district => district.Region!.Name, StringComparer.Ordinal)
-            .ToDictionary(
-                static group => group.Key,
-                static group => group.ToArray(),
-                StringComparer.Ordinal);
-
-        bool useWideAreaRule = districtsByRegion.Count >= WideAreaRegionThreshold;
-        HashSet<string> aggregateRegions = districtsByRegion
-            .Where(pair => ShouldAggregate(pair.Value.Length, pair.Value[0].Region!, useWideAreaRule))
-            .Select(static pair => pair.Key)
-            .ToHashSet(StringComparer.Ordinal);
-
-        var result = new List<string>(districts.Length);
-        var emittedRegions = new HashSet<string>(StringComparer.Ordinal);
-        foreach (ForecastDistrict district in districts)
-        {
-            RegionDefinition? region = district.Region;
-            if (region is null || !aggregateRegions.Contains(region.Name))
+            var districtsByRegion = districts.Where(static district => district.Region is not null)
+                .GroupBy(static district => district.Region!).ToArray();
+            bool useWideAreaRule = districtsByRegion.Length >= WideAreaRegionThreshold;
+            foreach (var group in districtsByRegion)
             {
-                result.Add(district.Label);
-                continue;
-            }
-
-            if (emittedRegions.Add(region.Name))
-            {
-                result.Add(region.Name);
+                if (ShouldAggregate(group.Count(), group.Key, useWideAreaRule))
+                    aggregateRegions.Add(group.Key.Name);
             }
         }
 
-        return CollapseHokkaidoLabels(result);
-    }
-
-    private static IReadOnlyList<string> CollapseHokkaidoLabels(IReadOnlyList<string> labels)
-    {
-        // Apply after the existing regional rules so Hokkaido's reduction does not
-        // change the thresholds/aggregation of Kanto, Tohoku or other regions.
-        if (labels.Count(IsHokkaidoLabel) < 2)
+        var labels = districts.ToDictionary(static district => district.Key,
+            district => district.Region is { } region && aggregateRegions.Contains(region.Name)
+                ? region.Name : district.Label, StringComparer.Ordinal);
+        // Collapse Hokkaido after applying the nationwide aggregation rules.
+        if (labels.Values.Distinct(StringComparer.Ordinal).Count(IsHokkaidoLabel) >= 2)
         {
-            return labels;
+            foreach (string key in labels.Where(static pair => IsHokkaidoLabel(pair.Value)).Select(static pair => pair.Key).ToArray())
+                labels[key] = "北海道";
         }
 
-        var result = new List<string>(labels.Count);
-        bool emittedHokkaido = false;
-        foreach (string label in labels)
-        {
-            if (!IsHokkaidoLabel(label))
-            {
-                result.Add(label);
-            }
-            else if (!emittedHokkaido)
-            {
-                result.Add("北海道");
-                emittedHokkaido = true;
-            }
-        }
-
-        return result;
+        return resolved.GroupBy(item => labels[item.District!.Key], static item => item.Area, StringComparer.Ordinal);
     }
 
     private static bool IsHokkaidoLabel(string label)

@@ -5,16 +5,18 @@
 
 Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津波・気象・火山・南海トラフに関する防災情報を受信し、OBS向け字幕として出力するWindowsアプリです。
 
-現在の公開版は **2.0.0-beta.72** です（2026年11月18日）。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
+現在の公開版は **2.0.0-beta.73** です（2026年11月22日）。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
 本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
 
-- [2.0.0-beta.72をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.72)
-- [操作マニュアル](docs/USER_GUIDE.md) / [beta.72の変更点と操作](README_CDI-Telopper_2.0.0-beta.72.txt)
+- [2.0.0-beta.73をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.73)
+- [操作マニュアル](docs/USER_GUIDE.md) / [beta.73の変更点と操作](README_CDI-Telopper_2.0.0-beta.73.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
 - [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
 - [MIT License](LICENSE) / [利用規約・免責事項](TERMS.md) / [プライバシーポリシー](PRIVACY.md)
 
 ## 主な機能
+
+beta.73では、EEW継続報の追加・更新地域をオレンジ色で表示する設定、同じ地震の津波注意報以上を受信済みの場合に震度速報の定型注意文を省く設定、気象庁以外の震度観測点を非表示にする設定を追加しました。[変更内容](RELEASE_NOTES_2.0.0-beta.73.md)
 
 beta.72では、震度バッジに地名の1行目の高さを揃え、地震情報で同じ津波案内や補足の一文が繰り返し表示される問題を修正しました。[変更内容](RELEASE_NOTES_2.0.0-beta.72.md)
 
@@ -263,10 +265,10 @@ powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 配布物を作成する場合は次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.72
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.73
 ```
 
-フォルダー版、単一EXE版、`version.json`、`SHA256SUMS.txt`は `artifacts\release\2.0.0-beta.72\win-x64` に生成されます。[ソースビルドの詳細](SOURCE_BUILD.md)
+フォルダー版、単一EXE版、`version.json`、`SHA256SUMS.txt`は `artifacts\release\2.0.0-beta.73\win-x64` に生成されます。[ソースビルドの詳細](SOURCE_BUILD.md)
 
 ## 開発者向け資料
 

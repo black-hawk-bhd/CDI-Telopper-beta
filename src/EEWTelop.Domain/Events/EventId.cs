@@ -15,6 +15,9 @@ public readonly record struct EventId
         return new EventId(value.Trim());
     }
 
+    public static EventId? FromJmaEarthquakeId(string? value) =>
+        value is { Length: 14 } && value.All(char.IsAsciiDigit) ? new EventId(value) : null;
+
     public override string ToString() => Value;
 }
 

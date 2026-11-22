@@ -41,6 +41,7 @@ public sealed record QuakePoint(
     public string MunicipalityCode { get; init; } = string.Empty;
     public string MunicipalityName { get; init; } = string.Empty;
     public string StationCode { get; init; } = string.Empty;
+    public bool IsNonJmaIntensityStation { get; init; }
     public double? Latitude { get; init; }
     public double? Longitude { get; init; }
 }

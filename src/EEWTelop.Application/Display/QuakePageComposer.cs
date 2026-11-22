@@ -1,16 +1,18 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using EEWTelop.Application.Configuration;
 using EEWTelop.Application.Formatting;
 using EEWTelop.Domain.Events;
 
 namespace EEWTelop.Application.Display;
 
-internal static class QuakePageComposer
+internal static partial class QuakePageComposer
 {
     private const int IntensityRowsPerPage = 2;
     private const int NamesPerRow = 3;
+    private const string ScalePromptTsunamiCaution = "念のため津波に注意してください";
 
-    public static DisplayProgram Compose(QuakeEvent quake, DisplaySettings settings)
+    public static DisplayProgram Compose(QuakeEvent quake, DisplaySettings settings, bool omitScalePromptTsunamiCaution)
     {
         if (quake.IsCancelled)
         {
@@ -31,18 +33,22 @@ internal static class QuakePageComposer
                 ])]);
         }
 
+        bool hideNonJmaStations = settings.HideNonJmaIntensityStations &&
+            quake.IssueType is QuakeIssueType.DetailScale or QuakeIssueType.ScaleAndDestination;
+        string displayComment = hideNonJmaStations || string.Equals(quake.Provider, "wolfx", StringComparison.OrdinalIgnoreCase)
+            ? NonJmaStationNote().Replace(quake.FreeFormComment, string.Empty)
+            : quake.FreeFormComment;
         IReadOnlyList<IntensityRow> intensityRows = BuildIntensityRows(
-            quake.Points, quake.Earthquake.MaximumScale, settings.ShowLowIntensityPointsInStrongQuakes);
+            quake.Points, quake.Earthquake.MaximumScale, settings.ShowLowIntensityPointsInStrongQuakes, hideNonJmaStations);
         IReadOnlyList<PageDraft> pages = quake.IssueType switch
         {
-            QuakeIssueType.ScalePrompt => ComposeScalePrompt(quake, intensityRows, settings),
-            QuakeIssueType.DetailScale => ComposeDetailed(quake, intensityRows, includeIntensity: true, settings),
-            QuakeIssueType.ScaleAndDestination =>
-                ComposeDetailed(quake, intensityRows, includeIntensity: true, settings),
+            QuakeIssueType.ScalePrompt => ComposeScalePrompt(quake, intensityRows, displayComment, settings, omitScalePromptTsunamiCaution),
+            QuakeIssueType.DetailScale or QuakeIssueType.ScaleAndDestination =>
+                ComposeDetailed(quake, intensityRows, displayComment, includeIntensity: true, settings),
             QuakeIssueType.Destination =>
-                ComposeDetailed(quake, intensityRows, includeIntensity: false, settings),
-            QuakeIssueType.Foreign => ComposeForeign(quake),
-            QuakeIssueType.Other => ComposeOther(quake, settings),
+                ComposeDetailed(quake, intensityRows, displayComment, includeIntensity: false, settings),
+            QuakeIssueType.Foreign => ComposeForeign(quake, displayComment),
+            QuakeIssueType.Other => ComposeOther(quake, displayComment, settings),
             QuakeIssueType.LongPeriodObservation => ComposeLongPeriodObservation(quake),
             QuakeIssueType.NankaiTroughTemporaryInformation =>
                 ComposeNankaiTroughInformation(quake, "南海トラフ地震臨時情報"),
@@ -50,7 +56,7 @@ internal static class QuakePageComposer
                 ComposeNankaiTroughInformation(quake, PageComposerSupport.GetQuakeCancellationSubject(quake)),
             QuakeIssueType.SubsequentEarthquakeAdvisory =>
                 ComposeSubsequentEarthquakeAdvisory(quake),
-            _ => ComposeUnknown(quake),
+            _ => ComposeUnknown(quake, displayComment),
         };
 
         return PageComposerSupport.CreateProgram(
@@ -64,7 +70,9 @@ internal static class QuakePageComposer
     private static List<PageDraft> ComposeScalePrompt(
         QuakeEvent quake,
         IReadOnlyList<IntensityRow> intensityRows,
-        DisplaySettings settings)
+        string displayComment,
+        DisplaySettings settings,
+        bool omitScalePromptTsunamiCaution)
     {
         string time = FormatOriginTime(quake.Earthquake);
         var pages = new List<PageDraft>
@@ -76,23 +84,25 @@ internal static class QuakePageComposer
         };
 
         // 震度速報（VXSE51）には震源・津波判定がまだ含まれず、DMDATAの
-        // JMA XMLではDomesticTsunamiがUnknownになる。判定前も注意文を省略しない。
+        // JMA XMLではDomesticTsunamiがUnknownになる。同じ地震の津波注意報以上を
+        // 確認済みで省略設定が有効な場合だけ、暫定の注意文を外す。
         string tsunamiText = quake.Earthquake.DomesticTsunami is
             DomesticTsunami.Checking or DomesticTsunami.Unknown
-            ? "念のため津波に注意してください。"
+            ? (omitScalePromptTsunamiCaution ? string.Empty : ScalePromptTsunamiCaution + "。")
             : PageComposerSupport.GetDomesticTsunamiText(quake.Earthquake.DomesticTsunami);
         AddAdvisoryPage(pages, tsunamiText);
         AddIntensityPages(
             pages,
             intensityRows,
             "震度速報の対象地域情報はありません", settings.SeparateIntensityPagesByScale);
-        AddCommentPage(pages, GetSupplementaryComment(quake.FreeFormComment, tsunamiText, settings));
+        AddCommentPage(pages, GetSupplementaryComment(displayComment, tsunamiText, settings, omitScalePromptTsunamiCaution));
         return pages;
     }
 
     private static List<PageDraft> ComposeDetailed(
         QuakeEvent quake,
         IReadOnlyList<IntensityRow> intensityRows,
+        string displayComment,
         bool includeIntensity,
         DisplaySettings settings)
     {
@@ -101,7 +111,7 @@ internal static class QuakePageComposer
         if (IsLargeScaleEruptionInformation(quake))
         {
             var eruptionPages = new List<PageDraft>();
-            AddCommentPage(eruptionPages, quake.FreeFormComment);
+            AddCommentPage(eruptionPages, displayComment);
             if (quake.IsCorrection && eruptionPages.Count > 0)
             {
                 eruptionPages[0] = new PageDraft(
@@ -122,13 +132,16 @@ internal static class QuakePageComposer
         if (includeIntensity &&
             (intensityRows.Count > 0 || !IsEewNoStrongShakingComment(quake.FreeFormComment)))
         {
+            string emptyMessage = intensityRows.Count == 0 && settings.HideNonJmaIntensityStations &&
+                quake.Points.Any(static point => point.IsNonJmaIntensityStation)
+                ? "表示対象の震度観測点はありません" : "各地の詳しい震度情報はありません";
             AddIntensityPages(
                 pages,
                 intensityRows,
-                "各地の詳しい震度情報はありません", settings.SeparateIntensityPagesByScale);
+                emptyMessage, settings.SeparateIntensityPagesByScale);
         }
 
-        AddCommentPage(pages, GetSupplementaryComment(quake.FreeFormComment, tsunamiText, settings));
+        AddCommentPage(pages, GetSupplementaryComment(displayComment, tsunamiText, settings));
         return pages;
     }
 
@@ -140,7 +153,7 @@ internal static class QuakePageComposer
         (quake.FreeFormComment.Contains("大規模な噴火が発生しました", StringComparison.Ordinal) ||
          quake.FreeFormComment.Contains("大規模噴火が発生しました", StringComparison.Ordinal));
 
-    private static List<PageDraft> ComposeForeign(QuakeEvent quake)
+    private static List<PageDraft> ComposeForeign(QuakeEvent quake, string displayComment)
     {
         string time = FormatOriginTime(quake.Earthquake);
         string name = quake.Earthquake.Hypocenter?.Name ?? string.Empty;
@@ -158,14 +171,17 @@ internal static class QuakePageComposer
             CreateSummaryPage(quake, firstLine, remainingLines),
         };
 
-        string tsunamiInformation = string.IsNullOrWhiteSpace(quake.FreeFormComment)
+        string tsunamiInformation = string.IsNullOrWhiteSpace(displayComment)
             ? PageComposerSupport.GetForeignTsunamiText(quake.Earthquake.ForeignTsunami)
-            : quake.FreeFormComment.Trim();
+            : displayComment.Trim();
         AddAdvisoryPage(pages, tsunamiInformation);
         return pages;
     }
 
-    private static IReadOnlyList<PageDraft> ComposeOther(QuakeEvent quake, DisplaySettings settings)
+    private static IReadOnlyList<PageDraft> ComposeOther(
+        QuakeEvent quake,
+        string displayComment,
+        DisplaySettings settings)
     {
         string time = FormatOriginTime(quake.Earthquake);
         var blocks = CreateCorrectionPrefix(quake);
@@ -196,7 +212,7 @@ internal static class QuakePageComposer
                 DisplayStyleTokens.Advisory));
         }
 
-        string comment = GetSupplementaryComment(quake.FreeFormComment, tsunamiText, settings);
+        string comment = GetSupplementaryComment(displayComment, tsunamiText, settings);
         if (!string.IsNullOrWhiteSpace(comment))
         {
             blocks.Add(new DisplayBlock(
@@ -209,9 +225,9 @@ internal static class QuakePageComposer
         return [new PageDraft(blocks)];
     }
 
-    private static IReadOnlyList<PageDraft> ComposeUnknown(QuakeEvent quake)
+    private static IReadOnlyList<PageDraft> ComposeUnknown(QuakeEvent quake, string displayComment)
     {
-        if (string.IsNullOrWhiteSpace(quake.FreeFormComment))
+        if (string.IsNullOrWhiteSpace(displayComment))
         {
             return [];
         }
@@ -226,7 +242,7 @@ internal static class QuakePageComposer
                 new DisplayBlock(
                     string.Empty,
                     $"地震・火山に関する情報（{rawType}）",
-                    quake.FreeFormComment.Trim(),
+                    displayComment.Trim(),
                     DisplayStyleTokens.Comment),
             ]),
         ];
@@ -455,13 +471,14 @@ internal static class QuakePageComposer
     private static List<IntensityRow> BuildIntensityRows(
         IReadOnlyList<QuakePoint> points,
         JmaScale earthquakeMaximum,
-        bool showLowIntensityPoints)
+        bool showLowIntensityPoints,
+        bool hideNonJmaStations)
     {
         var byPlace = new Dictionary<(string DisplayName, bool IsUnreported), IndexedPoint>();
         for (int index = 0; index < points.Count; index++)
         {
             QuakePoint point = points[index];
-            if (point.Scale == JmaScale.Unknown)
+            if (point.Scale == JmaScale.Unknown || hideNonJmaStations && point.IsNonJmaIntensityStation)
             {
                 continue;
             }
@@ -582,7 +599,8 @@ internal static class QuakePageComposer
         }
     }
 
-    private static string GetSupplementaryComment(string comment, string tsunamiText, DisplaySettings settings)
+    private static string GetSupplementaryComment(
+        string comment, string tsunamiText, DisplaySettings settings, bool omitScalePromptTsunamiCaution = false)
     {
         if (string.IsNullOrWhiteSpace(comment)) return string.Empty;
 
@@ -599,6 +617,12 @@ internal static class QuakePageComposer
             int separator = source.IndexOfAny('。', '\r', '\n');
             int sentenceLength = separator < 0 ? source.Length : separator;
             int next = Math.Min(sentenceLength + 1, source.Length);
+            if (omitScalePromptTsunamiCaution && source[..sentenceLength].Trim().SequenceEqual(ScalePromptTsunamiCaution))
+            {
+                source = source[next..];
+                continue;
+            }
+
             string sentence = SubtitlePhraseCatalog.ReplaceKnownPhrases(source[..next].Trim().ToString(), replacements);
             string key = sentence.TrimEnd().TrimEnd('。').Trim();
             if (key.Length == 0 || shownSentences.Add(key))
@@ -642,6 +666,12 @@ internal static class QuakePageComposer
     private static bool IsEewNoStrongShakingComment(string comment) =>
         comment.Contains("緊急地震速報を発表しましたが", StringComparison.Ordinal) &&
         comment.Contains("強い揺れは観測されませんでした", StringComparison.Ordinal);
+
+    [GeneratedRegex(
+        @"(?:\A|(?<=[。\r\n]))[ \t　]*(?:なお、[ \t　]*)?[（(]?[ \t　]*(?:「＊」|＊)印?は[ \t　]*" +
+        @"気象庁以外の(?:震度)?観測点(?:についての情報)?です(?:。?[）)]。?|。|(?=[ \t　]*(?:[\r\n]|\z)))",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex NonJmaStationNote();
 
     private sealed record IndexedPoint(JmaScale Scale, string DisplayName, int OriginalIndex);
 

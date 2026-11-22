@@ -49,6 +49,8 @@ public sealed record ObsViewBlock(
     public string? SubtitleBodyText { get; init; }
     public bool HideBadge { get; init; }
     public EewWarningCard? EewCard { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<EewAreaLabel>? EewAreaLabels { get; init; }
 }
 
 public enum ObsViewChannel
@@ -588,6 +590,7 @@ public sealed partial class ObsSnapshotStore
             SubtitleBodyText = DisplayBadgeVisibility.GetAlignedSubtitleBody(source, block),
             HideBadge = DisplayBadgeVisibility.HideInformationBadges(program, settings),
             EewCard = block.EewCard,
+            EewAreaLabels = block.EewAreaLabels,
         };
     }
 

@@ -141,7 +141,7 @@ public sealed class SettingsTabLayoutTests
             attribute.Value.Contains("Settings.HideQuakeBelowIntensity3", StringComparison.Ordinal)));
         foreach (string binding in new[] { "{Binding Settings.QuakeIntensityFilters}",
                      "{Binding Settings.QuakePrefectureMode}", "{Binding Settings.ShowLowIntensityPointsInStrongQuakes}",
-                     "{Binding Settings.ShowQuakeWithEewNoStrongShakingComment}" })
+                     "{Binding Settings.HideNonJmaIntensityStations}", "{Binding Settings.ShowQuakeWithEewNoStrongShakingComment}" })
         {
             XElement control = document.Descendants().Single(element => element.Attributes().Any(attribute => attribute.Value == binding));
             Assert.AreEqual("フィルター", ParentTab(control));

@@ -119,11 +119,11 @@ public sealed partial class WolfxEventNormalizer
         }
 
         DateTimeOffset issuedAt = officialTime ?? DateTimeOffset.UnixEpoch;
-        string eventId = ReadArray(report, "eventIds")
+        string[] eventIds = ReadArray(report, "eventIds")
             .Where(static item => item.ValueKind == JsonValueKind.String)
-            .Select(static item => item.GetString()?.Trim())
-            .FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id)) ?? "wolfx-tsunami";
-        var id = EventId.Create(eventId);
+            .Select(static item => (item.GetString() ?? string.Empty).Trim())
+            .Where(static id => id.Length > 0).ToArray();
+        var id = EventId.Create(eventIds.FirstOrDefault() ?? "wolfx-tsunami");
         bool telegramCancellation = trusted && hasReport && reportStatus == "cancelled";
         bool cleared = trusted && hasReport && status == "cleared" && !telegramCancellation;
         var areas = new List<TsunamiArea>();
@@ -150,6 +150,7 @@ public sealed partial class WolfxEventNormalizer
             IsExpired = expired,
             SnapshotObservations = observations,
             SourceReportId = reportId,
+            JmaEarthquakeIds = eventIds.Select(EventId.FromJmaEarthquakeId).OfType<EventId>().ToArray(),
         };
         return SuccessWithSignature(tsunami);
     }
