@@ -36,6 +36,7 @@ public sealed record AppSettings(
         {
             WeatherWarning = true,
             WeatherSpecialWarnings = true,
+            WeatherDangerWarnings = true,
             WeatherWarnings = true,
             WeatherAdvisories = false,
             WeatherTornadoAdvisories = true,
@@ -56,9 +57,6 @@ public sealed record AppSettings(
             Height: 1080)
         {
             EewAutoHideSeconds = 45,
-            QuakeAutoHideSeconds = 45,
-            TsunamiAutoHideSeconds = 45,
-            WeatherWarningAutoHideSeconds = 45,
             ShowTsunamiForecast = false,
             OutputTransform = OutputTransformSettings.Default,
             ProductionReplay = ProductionReplaySettings.Default,
@@ -302,6 +300,15 @@ public sealed record FilterSettings(
 
     public bool WeatherWarnings { get; init; } = true;
 
+    private readonly bool? _weatherDangerWarnings;
+
+    // Settings saved before the split used WeatherWarnings for both warning levels.
+    public bool WeatherDangerWarnings
+    {
+        get => _weatherDangerWarnings ?? WeatherWarnings;
+        init => _weatherDangerWarnings = value;
+    }
+
     public bool WeatherAdvisories { get; init; }
 
     public bool WeatherTornadoAdvisories { get; init; } = true;
@@ -329,6 +336,18 @@ public sealed record DisplaySettings(
     int Width,
     int Height)
 {
+    public const string DefaultFontFamilyName = "BIZ UDPGothic";
+
+    public string FontFamilyName { get; init; } = DefaultFontFamilyName;
+
+    public static string NormalizeFontFamilyName(string? value)
+    {
+        string? name = value?.Trim();
+        // Accept a single family name. WPF uses commas for family lists and # for font locations.
+        return string.IsNullOrEmpty(name) || name.Contains(',') || name.Contains('#') || name.Any(char.IsControl)
+            ? DefaultFontFamilyName : name;
+    }
+
     // Opt-in presentation only. Forecasts retain the existing horizontal layout.
     public bool UseVerticalEewWarningLayout { get; init; }
     public bool HighlightEewAreaChanges { get; init; }
@@ -336,9 +355,7 @@ public sealed record DisplaySettings(
     // False preserves the existing right-aligned vertical warning layout.
     public bool AlignVerticalEewWarningsLeft { get; init; }
 
-    public bool HideNormalModeBanner { get; init; }
-
-    // Keep the serialized name for compatibility. True now replaces the badge with subtitle text.
+    // Keep the serialized name for compatibility. True replaces badges with subtitle text in every mode.
     public bool HideNormalInformationBadges { get; init; }
 
     public bool ShowLowIntensityPointsInStrongQuakes { get; init; }
@@ -348,20 +365,16 @@ public sealed record DisplaySettings(
     // stable catalog IDs; unknown keys are ignored by the display composer.
     public Dictionary<string, string> SubtitlePhraseOverrides { get; init; } = [];
 
+    public Dictionary<string, double> TelegramPageDurationSeconds { get; init; } = [];
+
     // -1 marks settings saved before the EEW-specific timer was introduced.
     // In that case EEW inherits the former common auto-hide value.
     public int EewAutoHideSeconds { get; init; } = -1;
 
-    // -1 keeps settings from older releases compatible with the former common timer.
-    public int QuakeAutoHideSeconds { get; init; } = -1;
-
-    public int TsunamiAutoHideSeconds { get; init; } = -1;
-
-    public int WeatherWarningAutoHideSeconds { get; init; } = -1;
-
     // The 0.2 m class is normally omitted so warnings and watches remain prominent.
     public bool ShowTsunamiForecast { get; init; }
     public bool OmitScalePromptCautionWhenTsunamiWarningActive { get; init; }
+    public bool SuppressScalePromptWhenTsunamiWarningActive { get; init; }
 
     public bool SeparateIntensityPagesByScale { get; init; } = true;
 
@@ -379,20 +392,6 @@ public sealed record DisplaySettings(
     [JsonIgnore]
     public int EffectiveEewAutoHideSeconds =>
         EewAutoHideSeconds >= 0 ? EewAutoHideSeconds : AutoHideSeconds;
-
-    [JsonIgnore]
-    public int EffectiveQuakeAutoHideSeconds =>
-        QuakeAutoHideSeconds >= 0 ? QuakeAutoHideSeconds : AutoHideSeconds;
-
-    [JsonIgnore]
-    public int EffectiveTsunamiAutoHideSeconds =>
-        TsunamiAutoHideSeconds >= 0 ? TsunamiAutoHideSeconds : AutoHideSeconds;
-
-    [JsonIgnore]
-    public int EffectiveWeatherWarningAutoHideSeconds =>
-        WeatherWarningAutoHideSeconds >= 0
-            ? WeatherWarningAutoHideSeconds
-            : AutoHideSeconds;
 }
 
 public sealed record ProductionReplayPolicy(

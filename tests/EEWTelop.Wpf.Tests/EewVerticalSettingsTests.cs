@@ -102,7 +102,7 @@ public sealed class EewVerticalSettingsTests
         var changed = areas.GetProperty("eewAreaLabels").EnumerateArray()
             .Where(label => label.GetProperty("isChanged").GetBoolean())
             .Select(label => label.GetProperty("name").GetString()).ToArray();
-        Assert.IsNotEmpty(changed);
+        Assert.AreEqual("千葉", changed.Single());
 
         var overlay = new OverlayViewModel();
         overlay.Apply(snapshot, settings);

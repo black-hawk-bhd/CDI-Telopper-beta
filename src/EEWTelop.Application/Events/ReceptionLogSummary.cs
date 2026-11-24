@@ -73,7 +73,10 @@ public sealed record ReceptionLogSummary(
         if (filter is null) return statuses;
         // Item-filter exclusions only; duplicates and continuation-only suppression are not item exclusions.
         var excluded = items.Where(i => !filter.WeatherWarning || !EventDisplayFilter.IsWeatherItemEnabled(filter, weather, i)).ToArray();
-        return statuses + $" 項目フィルター除外件数[特別警報={excluded.Count(i => i.Level == WeatherWarningLevel.SpecialWarning)},警報={excluded.Count(i => i.Level == WeatherWarningLevel.Warning)},注意報={excluded.Count(i => i.Level == WeatherWarningLevel.Advisory)},不明={excluded.Count(i => i.Level == WeatherWarningLevel.Unknown)}]";
+        return statuses +
+            $" 項目フィルター除外件数[特別警報={excluded.Count(i => i.Level == WeatherWarningLevel.SpecialWarning)}," +
+            $"危険警報={excluded.Count(i => i.IsDangerWarning)},警報={excluded.Count(i => i.Level == WeatherWarningLevel.Warning && !i.IsDangerWarning)}," +
+            $"注意報={excluded.Count(i => i.Level == WeatherWarningLevel.Advisory)},不明={excluded.Count(i => i.Level == WeatherWarningLevel.Unknown)}]";
     }
 
     public string ToLogMessage()

@@ -40,6 +40,8 @@ public sealed record DisplayProgram(
     public int? MaximumDisplayCycles { get; init; }
     public DateTimeOffset? ExpiresAtUtc { get; init; }
     public bool IsRoutineNankaiCommentary { get; init; }
+    public string? TelegramPageDurationKey { get; init; }
+    public EventId? ScalePromptEarthquakeId { get; init; }
 
     // Session-only presentation option. Never persisted or used to reclassify training data.
     [System.Text.Json.Serialization.JsonIgnore]

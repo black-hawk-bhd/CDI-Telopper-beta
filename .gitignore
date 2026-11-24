@@ -10,6 +10,7 @@ artifacts/
 .dotnet-sdk/
 .nuget/
 .appdata/
+/Settings/
 .tmp/
 Microsoft/
 **/Microsoft/TestingPlatform/

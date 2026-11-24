@@ -16,24 +16,27 @@ namespace EEWTelop.Wpf.Tests;
 public sealed class NormalBadgeSettingsTests
 {
     [TestMethod]
-    public void LegacyDefaultsVisibleAndEditorSavesAndResetsOnlyNormalChoices()
+    public void LegacyUpperBadgeSettingIsIgnoredAndSubtitleChoiceStillRoundTrips()
     {
         var defaults = AppSettings.CreateDefault();
         var json = JsonNode.Parse(JsonSerializer.Serialize(defaults.Display))!.AsObject();
-        json.Remove(nameof(DisplaySettings.HideNormalModeBanner));
+        const string retiredSetting = "HideNormalModeBanner";
+        json[retiredSetting] = true;
         json.Remove(nameof(DisplaySettings.HideNormalInformationBadges));
         var legacy = JsonSerializer.Deserialize<DisplaySettings>(json.ToJsonString())!;
-        Assert.IsFalse(legacy.HideNormalModeBanner || legacy.HideNormalInformationBadges);
-        var editor = new SettingsEditorViewModel(defaults)
+        Assert.IsFalse(legacy.HideNormalInformationBadges);
+        var editor = new SettingsEditorViewModel(defaults with { Display = legacy })
         {
-            HideNormalModeBanner = true, HideNormalInformationBadges = true,
+            HideNormalInformationBadges = true,
             HideReplayModeBanner = true, HideReplayInformationBadges = true,
         };
-        var saved = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(editor.ToSettings(defaults)))!;
+        string savedJson = JsonSerializer.Serialize(editor.ToSettings(defaults));
+        Assert.DoesNotContain(retiredSetting, savedJson);
+        var saved = JsonSerializer.Deserialize<AppSettings>(savedJson)!;
         var reloaded = new SettingsEditorViewModel(saved);
-        Assert.IsTrue(reloaded.HideNormalModeBanner && reloaded.HideNormalInformationBadges);
+        Assert.IsTrue(reloaded.HideNormalInformationBadges);
         reloaded.ResetDisplaySettings();
-        Assert.IsFalse(reloaded.HideNormalModeBanner || reloaded.HideNormalInformationBadges);
+        Assert.IsFalse(reloaded.HideNormalInformationBadges);
         Assert.IsTrue(reloaded.HideReplayModeBanner && reloaded.HideReplayInformationBadges);
         reloaded.HideNormalInformationBadges = true;
         reloaded.ResetHistorySettings();
@@ -84,21 +87,38 @@ public sealed class NormalBadgeSettingsTests
     }
 
     [TestMethod]
-    public void AutomaticReplayRemainsIndependentOfNormalSettingsInBothOutputs()
+    [DataRow(SourceMode.Production, true)]
+    [DataRow(SourceMode.HistoryRehearsal, false)]
+    [DataRow(SourceMode.ManualTest, false)]
+    [DataRow(SourceMode.Sandbox, false)]
+    [DataRow(SourceMode.Production, false)]
+    public void GlobalSubtitleSettingAppliesToReplayAndTrainingInBothOutputs(SourceMode mode, bool replay)
     {
         var defaults = AppSettings.CreateDefault();
-        var display = defaults.Display with { HideNormalInformationBadges = true, HideNormalModeBanner = true };
-        var source = Program();
-        var replay = ReplayPresentation.Apply(source, defaults.History, source.IssuedAt, true, true);
+        var display = defaults.Display with { HideNormalInformationBadges = true };
+        var source = Program() with
+        {
+            SourceMode = mode,
+            RehearsalLabel = replay ? "本番再掲" : "操作テスト／訓練",
+        };
+        var program = ReplayPresentation.Apply(source, defaults.History, source.IssuedAt, replay, true);
         var coordinator = new PriorityCoordinator(new Clock(), display);
-        var snapshot = coordinator.Apply(replay);
+        var snapshot = coordinator.Apply(program);
         var store = new ObsSnapshotStore(display, DateTimeOffset.UnixEpoch);
         var obs = store.Publish(snapshot, display, DateTimeOffset.UnixEpoch);
         var overlay = new OverlayViewModel();
         overlay.Apply(snapshot, display);
-        Assert.IsFalse(obs.Blocks.Single().HideBadge);
-        Assert.IsTrue(overlay.Blocks.Single().IsBadgeVisible);
-        Assert.AreEqual(SourceMode.Production, obs.SourceMode);
+        Assert.IsTrue(obs.Blocks.Single().HideBadge);
+        Assert.IsFalse(overlay.Blocks.Single().IsBadgeVisible);
+        Assert.AreEqual("大雨警報　東京都｜継続中", obs.Blocks.Single().WeatherHeading);
+        Assert.AreEqual(obs.Blocks.Single().WeatherHeading, overlay.Blocks.Single().WeatherContext);
+        Assert.AreEqual(source.RehearsalLabel, obs.RehearsalLabel);
+        Assert.AreEqual(obs.RehearsalLabel, overlay.RehearsalLabel);
+        Assert.AreEqual(mode, obs.SourceMode);
+        Assert.IsFalse(program.HideInformationBadges);
+
+        store.PublishSettings(defaults.Display, DateTimeOffset.UnixEpoch);
+        Assert.IsFalse(store.Read(ObsViewChannel.Weather, DateTimeOffset.UnixEpoch).Blocks.Single().HideBadge);
     }
 
     [TestMethod]

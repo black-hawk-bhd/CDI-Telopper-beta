@@ -43,10 +43,13 @@ namespace EEWTelop.Wpf.Bootstrap;
 
 public static class AppComposition
 {
-    public static AppServices CreateDefault(string? dataDirectory = null)
+    public static AppServices CreateDefault(string? dataDirectory = null) =>
+        CreateForStorage(ResolveDataDirectory(dataDirectory));
+
+    internal static AppServices CreateForStorage(DataDirectorySelection dataLocation)
     {
         var clock = new SystemClock();
-        string applicationDataDirectory = ResolveDataDirectory(dataDirectory);
+        string applicationDataDirectory = dataLocation.ActiveDirectory;
         var uiLogs = new UiLogBuffer();
         var fileLogs = new FileAppLogWriter(Path.Combine(applicationDataDirectory, "logs"));
         var logWriter = new CompositeAppLogWriter(uiLogs, fileLogs);
@@ -252,31 +255,26 @@ public static class AppComposition
             AudioPolicy: new AudioPolicy(),
             RawMessageArchive: rawMessageArchive,
             HistoryRehearsalLoader: historyLoader,
-            TestCaseLibrary: testCaseLibrary);
+            TestCaseLibrary: testCaseLibrary)
+        {
+            DataLocation = dataLocation,
+        };
     }
 
-    private static string ResolveDataDirectory(string? dataDirectory)
+    private static DataDirectorySelection ResolveDataDirectory(string? dataDirectory)
     {
-        if (!string.IsNullOrWhiteSpace(dataDirectory))
-        {
-            return Path.GetFullPath(dataDirectory);
-        }
-
         int versionMajor = typeof(AppComposition).Assembly.GetName().Version?.Major ?? 1;
         string dataEnvironmentVariable = versionMajor >= 2
             ? "QTELOPPER_V2_BETA_DATA_DIRECTORY"
             : "QTELOPPER_V1_DATA_DIRECTORY";
         string dataSeries = versionMajor >= 2 ? "2.x-beta" : "1.x";
-        string? environmentDataDirectory = Environment.GetEnvironmentVariable(
-            dataEnvironmentVariable);
-        if (!string.IsNullOrWhiteSpace(environmentDataDirectory))
-        {
-            return Path.GetFullPath(environmentDataDirectory);
-        }
-
+        string? overrideDirectory = string.IsNullOrWhiteSpace(dataDirectory)
+            ? Environment.GetEnvironmentVariable(dataEnvironmentVariable)
+            : dataDirectory;
         string localApplicationData = Environment.GetFolderPath(
             Environment.SpecialFolder.LocalApplicationData);
-        return Path.GetFullPath(Path.Combine(localApplicationData, "QTelopper", dataSeries));
+        return new DataDirectorySelection(Path.Combine(localApplicationData, "QTelopper", dataSeries),
+            AppContext.BaseDirectory, overrideDirectory);
     }
 
     private static ProviderSettings NormalizeProviderAvailability(ProviderSettings provider)
@@ -343,6 +341,8 @@ public sealed record AppServices(
     IDmdataOAuthService? DmdataOAuthService = null,
     IDmdataContractService? DmdataContractService = null) : IAsyncDisposable
 {
+    internal DataDirectorySelection? DataLocation { get; init; }
+
     public async ValueTask DisposeAsync()
     {
         await EventSource.DisposeAsync().ConfigureAwait(false);

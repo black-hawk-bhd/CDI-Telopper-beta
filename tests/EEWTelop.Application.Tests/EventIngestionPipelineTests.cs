@@ -14,6 +14,90 @@ public sealed class EventIngestionPipelineTests
     private const string ProvisionalTsunamiCaution = "念のため津波に注意してください。";
 
     [TestMethod]
+    [DataRow(true, true, LinkedQuakeId, SourceMode.Production, TsunamiGrade.Watch, false, QuakeIssueType.ScalePrompt, true)]
+    [DataRow(true, true, LinkedQuakeId, SourceMode.Production, TsunamiGrade.MajorWarning, false, QuakeIssueType.ScalePrompt, true)]
+    [DataRow(false, true, LinkedQuakeId, SourceMode.Production, TsunamiGrade.Watch, false, QuakeIssueType.ScalePrompt, false)]
+    [DataRow(true, false, LinkedQuakeId, SourceMode.Production, TsunamiGrade.Watch, false, QuakeIssueType.ScalePrompt, false)]
+    [DataRow(true, true, "20260731205811", SourceMode.Production, TsunamiGrade.Watch, false, QuakeIssueType.ScalePrompt, false)]
+    [DataRow(true, true, null, SourceMode.Production, TsunamiGrade.Watch, false, QuakeIssueType.ScalePrompt, false)]
+    [DataRow(true, true, LinkedQuakeId, SourceMode.Sandbox, TsunamiGrade.Watch, false, QuakeIssueType.ScalePrompt, false)]
+    [DataRow(true, true, LinkedQuakeId, SourceMode.Production, TsunamiGrade.Forecast, false, QuakeIssueType.ScalePrompt, false)]
+    [DataRow(true, true, LinkedQuakeId, SourceMode.Production, TsunamiGrade.Warning, true, QuakeIssueType.ScalePrompt, false)]
+    [DataRow(true, true, LinkedQuakeId, SourceMode.Production, TsunamiGrade.Warning, false, QuakeIssueType.DetailScale, false)]
+    public void ScalePromptIsSuppressedOnlyForALinkedActiveTsunamiWarning(
+        bool enabled, bool showTsunami, string? quakeId, SourceMode warningMode, TsunamiGrade grade,
+        bool expired, QuakeIssueType issueType, bool suppressed)
+    {
+        var clock = new FakeClock();
+        TsunamiEvent warning = CreateTsunamiReport(clock.UtcNow, grade, warningMode,
+            expireAt: clock.UtcNow.AddSeconds(expired ? 1 : 60));
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(issueType,
+            [DisplayEventFactory.Point(1, JmaScale.Four)], DomesticTsunami.Checking) with
+        {
+            JmaEarthquakeId = EventId.FromJmaEarthquakeId(quakeId),
+        };
+        var settings = DisplayEventFactory.Settings with
+        {
+            SuppressScalePromptWhenTsunamiWarningActive = enabled,
+            OmitScalePromptCautionWhenTsunamiWarningActive = true,
+        };
+        var pipeline = new EventIngestionPipeline(new QueueNormalizer(warning, quake), new EventVersionCache(),
+            new PageComposer(), new PriorityCoordinator(clock, settings), settings, new FilterSettings(true, true, showTsunami));
+        pipeline.Process(CreateRaw(clock, "warning"));
+        clock.Advance(TimeSpan.FromSeconds(2));
+
+        EventIngestionResult result = pipeline.Process(CreateRaw(clock, "quake"));
+
+        Assert.AreEqual(EventIngestionStatus.Accepted, result.Status);
+        Assert.AreSame(quake, result.Event);
+        Assert.AreEqual(suppressed, result.Program is null);
+        if (suppressed)
+        {
+            Assert.IsNull(result.Snapshot);
+            Assert.AreEqual(EventIngestionPipeline.ScalePromptSuppressionReason, result.DisplaySuppressionReason);
+            Assert.IsNotNull(result.ReviewProgram);
+            Assert.IsTrue(result.ReviewProgram.Pages.Any(page => page.AccessibleText.Contains(ProvisionalTsunamiCaution, StringComparison.Ordinal)));
+        }
+    }
+
+    [TestMethod]
+    [DataRow(false, true)]
+    [DataRow(true, true)]
+    [DataRow(true, false)]
+    public void LaterTsunamiWarningRemovesOnlyTheMatchingActiveOrQueuedScalePrompt(bool queued, bool matchingId)
+    {
+        var clock = new FakeClock();
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(QuakeIssueType.ScalePrompt) with
+        {
+            JmaEarthquakeId = EventId.Create(matchingId ? LinkedQuakeId : "20260731205811"),
+        };
+        TsunamiEvent warning = CreateTsunamiReport(clock.UtcNow, TsunamiGrade.Warning, SourceMode.Production);
+        TsunamiEvent release = CreateTsunamiReport(clock.UtcNow.AddSeconds(1), TsunamiGrade.Forecast,
+            SourceMode.Production, cancelled: true);
+        var settings = DisplayEventFactory.Settings with { SuppressScalePromptWhenTsunamiWarningActive = true };
+        var coordinator = new PriorityCoordinator(clock, settings);
+        if (queued)
+        {
+            coordinator.Apply(CoordinatorTestSupport.Program("eew", EventKind.Eew, OverlayPriority.Eew));
+        }
+        var pipeline = new EventIngestionPipeline(new QueueNormalizer(quake, warning, release,
+            quake with { Signature = "new-scale-prompt" }), new EventVersionCache(), new PageComposer(), coordinator, settings);
+
+        var first = pipeline.Process(CreateRaw(clock, "quake"));
+        Assert.IsNotNull(first.Snapshot);
+        Assert.AreEqual(queued, first.Snapshot.PendingPrograms.Any(program => program.Kind == EventKind.Quake));
+        pipeline.Process(CreateRaw(clock, "warning"));
+
+        CoordinatorSnapshot snapshot = coordinator.Evaluate();
+        Assert.AreEqual(EventKind.Tsunami, snapshot.CurrentProgram?.Kind);
+        Assert.AreEqual(!matchingId, snapshot.PendingPrograms.Any(program => program.Kind == EventKind.Quake));
+
+        clock.Advance(TimeSpan.FromSeconds(1));
+        pipeline.Process(CreateRaw(clock, "release"));
+        Assert.IsNotNull(pipeline.Process(CreateRaw(clock, "new-quake")).Program);
+    }
+
+    [TestMethod]
     [DataRow(true, true, true, false, SourceMode.Production, TsunamiGrade.Watch, true)]
     [DataRow(true, true, true, false, SourceMode.Production, TsunamiGrade.Warning, true)]
     [DataRow(true, true, true, false, SourceMode.Production, TsunamiGrade.MajorWarning, true)]
@@ -430,6 +514,45 @@ public sealed class EventIngestionPipelineTests
         Assert.HasCount(3, filtered.Items);
         Assert.IsFalse(filtered.Items.Any(static item => item.KindName == "雷注意報"));
         Assert.IsTrue(filtered.Items.Any(static item => item.KindName == "竜巻注意情報"));
+    }
+
+    [TestMethod]
+    [DataRow(true, false)]
+    [DataRow(false, true)]
+    public void RegularAndDangerWarningsCanBeFilteredIndependently(bool warnings, bool dangerWarnings)
+    {
+        const string warning = "レベル３大雨警報";
+        const string danger = "レベル４土砂災害危険警報";
+        const string releasedDanger = "高潮危険警報";
+        const string special = "レベル５大雨特別警報";
+        WeatherWarningEvent weather = CreateWeatherInformation(WeatherInformationType.WarningAndAdvisory,
+        [
+            WeatherItem("倉敷市", "3320200", warning, WeatherWarningLevel.Warning),
+            WeatherItem("岡山市", "3310000", danger, WeatherWarningLevel.Warning),
+            WeatherItem("玉野市", "3320400", releasedDanger, WeatherWarningLevel.Warning, "解除") with { IsActive = false },
+            WeatherItem("津山市", "3320300", special, WeatherWarningLevel.SpecialWarning),
+        ]);
+        var filter = AppSettings.CreateDefault().Filter with
+        {
+            WeatherWarnings = warnings,
+            WeatherDangerWarnings = dangerWarnings,
+        };
+        var clock = new FakeClock();
+        var settings = DisplayEventFactory.Settings;
+        var pipeline = new EventIngestionPipeline(new StubNormalizer(weather), new EventVersionCache(), new PageComposer(),
+            new PriorityCoordinator(clock, settings), settings, filter);
+
+        EventIngestionResult result = pipeline.Process(CreateRaw(clock, "weather"));
+
+        Assert.AreSame(weather, result.Event);
+        string captions = GetCaptions(result);
+        Assert.AreEqual(warnings, captions.Contains(warning, StringComparison.Ordinal));
+        Assert.AreEqual(dangerWarnings, captions.Contains(danger, StringComparison.Ordinal));
+        Assert.AreEqual(dangerWarnings, captions.Contains(releasedDanger, StringComparison.Ordinal));
+        Assert.Contains(special, captions);
+        Assert.IsNotNull(result.ReceptionSummary);
+        Assert.Contains(dangerWarnings ? "危険警報=0,警報=1" : "危険警報=2,警報=0",
+            result.ReceptionSummary.WeatherDiagnostics);
     }
 
     [TestMethod]
@@ -902,7 +1025,7 @@ public sealed class EventIngestionPipelineTests
             weather, EventIngestionStatus.Accepted,
             filter: new FilterSettings(true, true, true) { WeatherWarnings = true, WeatherAdvisories = false });
         Assert.Contains("発表・切替=1,継続=1,解除・なし=1,その他=0", summary.ToLogMessage());
-        Assert.Contains("特別警報=0,警報=0,注意報=1,不明=0", summary.ToLogMessage());
+        Assert.Contains("特別警報=0,危険警報=0,警報=0,注意報=1,不明=0", summary.ToLogMessage());
     }
 
     private static RawProviderMessage CreateRaw(FakeClock clock, string payload) => new(

@@ -32,6 +32,8 @@ public sealed record ObsViewSnapshot(
     string AudioCue,
     DateTimeOffset? AudioIssuedAtUtc)
 {
+    public string FontFamilyName { get; init; } = DisplaySettings.DefaultFontFamilyName;
+
     public OutputTransformSettings OutputTransform { get; init; } =
         OutputTransformSettings.Default;
 
@@ -84,11 +86,13 @@ public sealed partial class ObsSnapshotStore
     private long _audioSequence;
     private ObsAudioDiagnostics _audioDiagnostics = ObsAudioDiagnostics.Empty;
     private ObsViewSnapshot _snapshot;
+    private bool _useInformationSubtitles;
 
     public ObsSnapshotStore(DisplaySettings settings, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(settings);
         _snapshot = CreateEmpty(settings, now, sequence: 0);
+        _useInformationSubtitles = settings.HideNormalInformationBadges;
     }
 
     public ObsViewSnapshot Read()
@@ -175,12 +179,15 @@ public sealed partial class ObsSnapshotStore
         }
     }
 
-    internal void ClearRoutineNankaiCommentary(DateTimeOffset now)
+    internal void ClearRoutineNankaiCommentary(DateTimeOffset now) =>
+        ClearQuakeProgram(now, static program => program.IsRoutineNankaiCommentary);
+
+    internal void ClearQuakeProgram(DateTimeOffset now, Predicate<DisplayProgram> matches)
     {
         lock (_gate)
         {
             if (_programs.TryGetValue(ObsViewChannel.General, out ObsProgramState? state) &&
-                state.Program.IsRoutineNankaiCommentary)
+                state.Program.Kind == EventKind.Quake && matches(state.Program))
                 ClearProgram(EventKind.Quake, now, state.Program.ProgramId);
         }
     }
@@ -263,7 +270,7 @@ public sealed partial class ObsSnapshotStore
                 ProgramId: program.ProgramId,
                 Kind: program.Kind,
                 SourceMode: program.SourceMode,
-                RehearsalLabel: GetRehearsalLabel(program, settings),
+                RehearsalLabel: GetRehearsalLabel(program),
                 PageIndex: snapshot.CurrentPageIndex,
                 PageCount: program.Pages.Count,
                 PageIndicator: settings.ShowPageIndicator && program.Pages.Count > 1
@@ -279,6 +286,7 @@ public sealed partial class ObsSnapshotStore
                 AudioCue: _snapshot.AudioCue,
                 AudioIssuedAtUtc: _snapshot.AudioIssuedAtUtc)
             {
+                FontFamilyName = settings.FontFamilyName,
                 OutputTransform = settings.OutputTransform,
                 UseVerticalEewWarningLayout = settings.UseVerticalEewWarningLayout,
                 AlignVerticalEewWarningsLeft = settings.AlignVerticalEewWarningsLeft,
@@ -469,6 +477,7 @@ public sealed partial class ObsSnapshotStore
         ArgumentNullException.ThrowIfNull(settings);
         lock (_gate)
         {
+            _useInformationSubtitles = settings.HideNormalInformationBadges;
             foreach (ObsViewChannel channel in _programs.Keys.ToArray())
             {
                 _programs[channel] = _programs[channel] with { Settings = settings };
@@ -482,6 +491,7 @@ public sealed partial class ObsSnapshotStore
                 Height = settings.Height,
                 BackgroundMode = settings.BackgroundMode,
                 FontScale = settings.FontScale,
+                FontFamilyName = settings.FontFamilyName,
                 LetterSpacingEm = settings.LetterSpacingEm,
                 LineSpacing = settings.LineSpacing,
                 OutputTransform = settings.OutputTransform,
@@ -520,6 +530,7 @@ public sealed partial class ObsSnapshotStore
             AudioCue: string.Empty,
             AudioIssuedAtUtc: null)
         {
+            FontFamilyName = settings.FontFamilyName,
             OutputTransform = settings.OutputTransform,
             UseVerticalEewWarningLayout = settings.UseVerticalEewWarningLayout,
             AlignVerticalEewWarningsLeft = settings.AlignVerticalEewWarningsLeft,
@@ -535,6 +546,7 @@ public sealed partial class ObsSnapshotStore
             string.Empty, [], existing.AudioSequence, existing.AudioAction,
             existing.AudioCue, existing.AudioIssuedAtUtc)
         {
+            FontFamilyName = existing.FontFamilyName,
             OutputTransform = existing.OutputTransform,
             UseVerticalEewWarningLayout = existing.UseVerticalEewWarningLayout,
             AlignVerticalEewWarningsLeft = existing.AlignVerticalEewWarningsLeft,
@@ -560,7 +572,7 @@ public sealed partial class ObsSnapshotStore
             ProgramId: program.ProgramId,
             Kind: program.Kind,
             SourceMode: program.SourceMode,
-            RehearsalLabel: GetRehearsalLabel(program, settings),
+            RehearsalLabel: GetRehearsalLabel(program),
             PageIndex: pageIndex,
             PageCount: program.Pages.Count,
             PageIndicator: settings.ShowPageIndicator && program.Pages.Count > 1
@@ -576,6 +588,7 @@ public sealed partial class ObsSnapshotStore
             AudioCue: string.Empty,
             AudioIssuedAtUtc: null)
         {
+            FontFamilyName = settings.FontFamilyName,
             OutputTransform = settings.OutputTransform,
             UseVerticalEewWarningLayout = settings.UseVerticalEewWarningLayout,
             AlignVerticalEewWarningsLeft = settings.AlignVerticalEewWarningsLeft,
@@ -650,9 +663,9 @@ public sealed partial class ObsSnapshotStore
         }
     }
 
-    private static string GetRehearsalLabel(DisplayProgram program, DisplaySettings settings)
+    private static string GetRehearsalLabel(DisplayProgram program)
     {
-        if (DisplayBadgeVisibility.HideModeBanner(program, settings)) return string.Empty;
+        if (DisplayBadgeVisibility.HideModeBanner(program)) return string.Empty;
         if (program.HideSimulatorTrainingBanner && program.SourceMode == SourceMode.ManualTest)
             return string.Empty;
         if (!string.IsNullOrWhiteSpace(program.RehearsalLabel))

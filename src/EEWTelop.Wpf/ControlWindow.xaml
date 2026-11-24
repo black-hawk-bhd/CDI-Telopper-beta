@@ -610,6 +610,8 @@
                                             </Grid>
                                             <CheckBox Content="特別警報"
                                                       IsChecked="{Binding Settings.FilterWeatherSpecialWarnings}" />
+                                            <CheckBox Content="危険警報"
+                                                      IsChecked="{Binding Settings.FilterWeatherDangerWarnings}" />
                                             <CheckBox Content="警報"
                                                       IsChecked="{Binding Settings.FilterWeatherWarnings}" />
                                             <CheckBox Content="記録的短時間大雨情報"
@@ -645,8 +647,36 @@
                             <StackPanel>
                                 <GroupBox Header="ページと文字">
                                     <StackPanel>
+                                        <TextBlock Text="字幕フォント" Foreground="{StaticResource MutedBrush}" />
+                                        <ComboBox ItemsSource="{Binding Settings.SubtitleFontOptions}"
+                                                  SelectedValue="{Binding Settings.FontFamilyName}"
+                                                  SelectedValuePath="Name" DisplayMemberPath="DisplayName"
+                                                  AutomationProperties.Name="字幕フォント" />
                                         <TextBlock Text="ページ秒数（1.0〜30.0 / 0.5刻み）" Foreground="{StaticResource MutedBrush}" />
-                                        <TextBox Text="{Binding Settings.PageDurationSeconds}" />
+                                        <TextBox Text="{Binding Settings.PageDurationSeconds}"
+                                                 ToolTip="電文別に秒数を指定していないときに使う、1ページあたりの表示時間です。" />
+                                        <Expander Header="電文別のページ秒数" Margin="0,2,0,8">
+                                            <StackPanel Margin="0,4,0,0">
+                                                <TextBlock Text="0は共通のページ秒数を使用（1.0〜30.0秒 / 0.5秒刻み）"
+                                                           Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                                                <ItemsControl ItemsSource="{Binding Settings.TelegramPageDurations}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="76" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Text="{Binding Label}" TextWrapping="Wrap"
+                                                                           VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                                <TextBox Grid.Column="1" Text="{Binding Seconds}"
+                                                                         AutomationProperties.Name="{Binding Label, StringFormat='{}{0} のページ秒数'}" />
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Expander>
                                         <CheckBox Content="ページ番号を表示" IsChecked="{Binding Settings.ShowPageIndicator}" />
                                         <CheckBox Content="緊急地震速報（警報）を縦型で表示"
                                                   IsChecked="{Binding Settings.UseVerticalEewWarningLayout}"
@@ -655,15 +685,12 @@
                                                   IsChecked="{Binding Settings.AlignVerticalEewWarningsLeft}"
                                                   IsEnabled="{Binding Settings.UseVerticalEewWarningLayout}"
                                                   ToolTip="初期値はOFF（右揃え）です。ONでは縦型の帯を画面左側へ配置します。2件の帯の並び順・帯の中の配置・色・文字は変えません。保存して反映すると表示中の警報にも適用します。横型には影響しません。" />
-                                        <CheckBox Content="緊急地震速報の継続報で追加・更新された地域名をオレンジ色にする"
+                                        <CheckBox Content="緊急地震速報の継続報で更新された地域名をオレンジ色にする"
                                                   IsChecked="{Binding Settings.HighlightEewAreaChanges}"
-                                                  ToolTip="初期値はOFFです。同じ警報の前報と比べ、追加された地域や、予想震度・到達時刻・警報の状態が変わった地域を強調します。保存後に受信する継続報から反映します。" />
-                                        <CheckBox Content="通常モード：上部の区分バッジを非表示"
-                                                  IsChecked="{Binding Settings.HideNormalModeBanner}"
-                                                  ToolTip="初期値はOFFです。元から区分表示のない情報では見た目は変わりません。再掲・訓練・リハーサルは別設定です。" />
-                                        <CheckBox Content="通常モード：情報種別をバッジではなく字幕で表示"
+                                                  ToolTip="初期値はOFFです。同じ警報の前報にもあった地域で、予想震度・到達時刻・警報の状態が変わったものだけを強調します。保存後に受信する継続報から反映します。" />
+                                        <CheckBox Content="情報種別をバッジではなく字幕で表示"
                                                   IsChecked="{Binding Settings.HideNormalInformationBadges}"
-                                                  ToolTip="ONでは情報種別や震度を字幕の文字で残し、バッジの背景・枠を表示しません。OFFは従来のバッジ表示です。地名・状態・ページ分けは維持します。再掲・訓練・リハーサルは別設定です。保存して反映後、表示中の本番情報にも適用します。" />
+                                                  ToolTip="ONでは本番・訓練・テスト・リハーサル・再掲で情報種別や震度を字幕として表示します。OFFの場合、再掲・訓練・リハーサルには電文確認画面の設定が適用されます。［保存して反映］で適用します。" />
                                         <CheckBox Content="震度階級ごとにページを分ける"
                                                   IsChecked="{Binding Settings.SeparateIntensityPagesByScale}"
                                                   ToolTip="初期値はONです。OFFにすると異なる震度を同じページに表示します。保存して反映後、新しく生成する震度ページに適用します。" />
@@ -675,22 +702,15 @@
                                         <CheckBox Content="津波注意報以上の発表中は震度速報の定型注意文を省く"
                                                   IsChecked="{Binding Settings.OmitScalePromptCautionWhenTsunamiWarningActive}"
                                                   ToolTip="初期値はOFFです。津波情報の表示を有効にし、同じ地震の有効な津波注意報・警報を受信済みの場合に、新たな震度速報の「念のため津波に注意してください。」だけを省きます。" />
+                                        <CheckBox Content="津波注意報以上の発表中は震度速報を表示しない"
+                                                  IsChecked="{Binding Settings.SuppressScalePromptWhenTsunamiWarningActive}"
+                                                  ToolTip="初期値はOFFです。津波情報の表示が有効なとき、同じ地震の震度速報を非表示にします。表示中の震度速報も消去し、受信した内容は電文確認に残します。" />
                                         <TextBlock Text="緊急地震速報（EEW）の自動消去秒（0は消さない）" Foreground="{StaticResource MutedBrush}" />
                                         <TextBox Text="{Binding Settings.EewAutoHideSeconds}" />
-                                        <TextBlock Text="地震情報の自動消去秒（0は消さない）" Foreground="{StaticResource MutedBrush}" />
-                                        <TextBox Text="{Binding Settings.QuakeAutoHideSeconds}" />
-                                        <TextBlock Text="津波情報の自動消去秒（0は消さない）" Foreground="{StaticResource MutedBrush}" />
-                                        <TextBox Text="{Binding Settings.TsunamiAutoHideSeconds}" />
-                                        <TextBlock Text="気象警報・注意報の自動消去秒（0は消さない）" Foreground="{StaticResource MutedBrush}"
-                                                   Visibility="{Binding DataContext.IsExtendedFeaturesEnabled, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                        <TextBox Text="{Binding Settings.WeatherWarningAutoHideSeconds}"
-                                                 Visibility="{Binding DataContext.IsExtendedFeaturesEnabled, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                        <TextBlock Text="警報・注意報の継続情報は解除または更新まで保持されます。" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"
-                                                   Visibility="{Binding DataContext.IsExtendedFeaturesEnabled, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                         <Button Content="ページと文字を初期設定に戻す"
                                                 Command="{Binding ResetDisplaySettingsCommand}"
                                                 Margin="0,8,0,0"
-                                                ToolTip="ページ時間、EEW縦型表示と左右配置、通常モードのバッジ非表示、自動消去時間、震度階級別ページ分割、津波予報表示、受信前の定型文編集を初期化します。" />
+                                                ToolTip="字幕フォント、共通・電文別のページ秒数、EEWの表示と自動消去秒、情報種別の字幕表示、震度階級別ページ分割、津波の表示、受信前の定型文編集を初期化します。" />
                                     </StackPanel>
                                 </GroupBox>
                             </StackPanel>
@@ -1438,6 +1458,26 @@
                                 <TextBlock Text="本ソフトウェアは気象庁・受信サービス提供元の公式ソフトウェアではありません。情報の即時性・完全性・動作を保証するものではなく、防災判断には公式情報を併用してください。外部API連携を含む利用条件は「利用規約・免責事項」をご確認ください。"
                                            Foreground="#FFFFC66D" TextWrapping="Wrap" />
                             </Border>
+                            <GroupBox Header="保存先" Margin="0,20,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="現在の保存先" />
+                                    <TextBox x:Name="CurrentDataDirectory" IsReadOnly="True" Margin="0,4,0,8" />
+                                    <WrapPanel>
+                                        <ComboBox x:Name="DataDirectoryChoice" Width="220" SelectedIndex="0"
+                                                  AutomationProperties.Name="次回起動時の保存先"
+                                                  SelectionChanged="OnDataDirectoryChoiceChanged">
+                                            <ComboBoxItem Content="AppData（既定）" />
+                                            <ComboBoxItem Content="実行ファイル横の Settings" />
+                                        </ComboBox>
+                                        <Button x:Name="ApplyDataDirectoryButton" Content="保存先を変更" IsEnabled="False"
+                                                Margin="8,0,0,8" Click="OnApplyDataDirectory" />
+                                    </WrapPanel>
+                                    <TextBlock Text="次回起動から、設定と受信XML・JSONを選択した場所に保存します。切替先に設定がない場合は、現在の保存済み設定をコピーします。過去の受信データは保存元のフォルダーにあります。"
+                                               TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
+                                    <TextBlock x:Name="DataDirectoryStatus" TextWrapping="Wrap" Margin="0,6,0,0"
+                                               AutomationProperties.LiveSetting="Polite" />
+                                </StackPanel>
+                            </GroupBox>
                             <GroupBox Header="設定の初期化" Margin="0,20,0,0">
                                 <StackPanel>
                                     <TextBlock Text="受信元・表示・音声・出力など、すべての設定を初期状態に戻して保存・反映します。APIキーやOBSパスワードの入力も初期化されます。実行前に警告と確認が表示されます。"

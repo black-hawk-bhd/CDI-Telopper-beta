@@ -41,8 +41,11 @@ public sealed class IntensityPageSettingsTests
         var settings = AppSettings.CreateDefault();
         var oldDisplay = JsonNode.Parse(JsonSerializer.Serialize(settings.Display))!.AsObject();
         oldDisplay.Remove(nameof(DisplaySettings.OmitScalePromptCautionWhenTsunamiWarningActive));
+        oldDisplay.Remove(nameof(DisplaySettings.SuppressScalePromptWhenTsunamiWarningActive));
         Assert.IsFalse(JsonSerializer.Deserialize<DisplaySettings>(oldDisplay.ToJsonString())!
             .OmitScalePromptCautionWhenTsunamiWarningActive);
+        Assert.IsFalse(JsonSerializer.Deserialize<DisplaySettings>(oldDisplay.ToJsonString())!
+            .SuppressScalePromptWhenTsunamiWarningActive);
 
         var editor = new SettingsEditorViewModel(settings) { OmitScalePromptCautionWhenTsunamiWarningActive = true };
         var saved = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(editor.ToSettings(settings)))!;
@@ -50,6 +53,19 @@ public sealed class IntensityPageSettingsTests
         Assert.IsTrue(loaded.OmitScalePromptCautionWhenTsunamiWarningActive);
         loaded.ResetDisplaySettings();
         Assert.IsFalse(loaded.ToSettings(saved).Display.OmitScalePromptCautionWhenTsunamiWarningActive);
+    }
+
+    [TestMethod]
+    public void WholeScalePromptSuppressionCanBeSavedAndResetIndependently()
+    {
+        var settings = AppSettings.CreateDefault();
+        var editor = new SettingsEditorViewModel(settings) { SuppressScalePromptWhenTsunamiWarningActive = true };
+        var saved = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(editor.ToSettings(settings)))!;
+        var loaded = new SettingsEditorViewModel(saved);
+        Assert.IsTrue(loaded.SuppressScalePromptWhenTsunamiWarningActive);
+        Assert.IsFalse(loaded.OmitScalePromptCautionWhenTsunamiWarningActive);
+        loaded.ResetDisplaySettings();
+        Assert.IsFalse(loaded.ToSettings(saved).Display.SuppressScalePromptWhenTsunamiWarningActive);
     }
 
     [TestMethod]

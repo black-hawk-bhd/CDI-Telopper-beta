@@ -6,11 +6,11 @@ namespace EEWTelop.Application.Display;
 /// <summary>Resolve output-only visibility without changing original badges, source metadata or pages.</summary>
 public static class DisplayBadgeVisibility
 {
-    public static bool HideModeBanner(DisplayProgram program, DisplaySettings settings) =>
-        IsNormalProduction(program) ? settings.HideNormalModeBanner : program.HideReplayModeBanner;
+    public static bool HideModeBanner(DisplayProgram program) =>
+        !IsNormalProduction(program) && program.HideReplayModeBanner;
 
     public static bool HideInformationBadges(DisplayProgram program, DisplaySettings settings) =>
-        IsNormalProduction(program) ? settings.HideNormalInformationBadges : program.HideInformationBadges;
+        settings.HideNormalInformationBadges || (!IsNormalProduction(program) && program.HideInformationBadges);
 
     public static bool UsesAlignedCaptionColumn(DisplayBlock block) =>
         block.StyleToken is DisplayStyleTokens.Intensity or DisplayStyleTokens.Tsunami;
@@ -36,8 +36,7 @@ public static class DisplayBadgeVisibility
         text.StartsWith(label, StringComparison.Ordinal) ? text :
         text.Length == 0 ? label : $"{label}　{text}";
 
-    // A production-source EEW test can still carry a training label. Never use normal-mode
-    // choices for that case, or for automatic live rotation whose source remains Production.
+    // Replay and test programs can retain production source metadata and use their own presentation settings.
     private static bool IsNormalProduction(DisplayProgram program) =>
         program.SourceMode == SourceMode.Production && !program.IsReplayPresentation &&
         string.IsNullOrWhiteSpace(program.RehearsalLabel);

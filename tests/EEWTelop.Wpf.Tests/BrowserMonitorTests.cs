@@ -107,6 +107,29 @@ public sealed class BrowserMonitorTests
     }
 
     [TestMethod]
+    public void ReopeningStoredTrainingTelegramUsesCurrentGlobalSubtitleSetting()
+    {
+        var store = new ObsSnapshotStore(Settings, Now);
+        var item = TestScenarioCatalog.Create(Now).First(scenario => scenario.Event.Kind == EventKind.Quake).Event;
+        var program = new PageComposer().Compose(item, Settings);
+        store.AddMonitorTelegram(item, program, Settings, "訓練表示");
+
+        ObsViewBlock original = ReadIntensity();
+        Assert.IsFalse(original.HideBadge);
+        store.PublishSettings(Settings with { HideNormalInformationBadges = true }, Now);
+        ObsViewBlock shownAsSubtitle = ReadIntensity();
+        Assert.IsTrue(shownAsSubtitle.HideBadge);
+        Assert.StartsWith(original.Badge, shownAsSubtitle.PrimaryText);
+        store.PublishSettings(Settings, Now);
+        Assert.AreEqual(original, ReadIntensity());
+        Assert.IsFalse(store.Read(ObsViewChannel.General, Now).HasProgram);
+
+        ObsViewBlock ReadIntensity() => store.ReadMonitorTelegram(1, Now)!
+            .SelectMany(static page => page.Blocks)
+            .First(static block => block.StyleToken == DisplayStyleTokens.Intensity && block.Badge.Length > 0);
+    }
+
+    [TestMethod]
     public void HistoryIsBoundedAndDuplicateTelegramIsReplaced()
     {
         var store = new ObsSnapshotStore(Settings, Now);

@@ -92,6 +92,8 @@ public sealed class JsonDisplayStateStoreTests
         Assert.IsNotNull(actual.Current);
         Assert.IsNotNull(actual.PersistentTsunami);
         Assert.AreEqual(expected.Current?.ProgramId, actual.Current.ProgramId);
+        Assert.IsTrue(actual.Current.TryToProgram(out DisplayProgram? restored));
+        Assert.AreEqual("VTSE51", restored?.TelegramPageDurationKey);
         Assert.AreEqual(expected.PersistentTsunami?.ProgramId, actual.PersistentTsunami.ProgramId);
         Assert.HasCount(1, actual.Pending);
         Assert.AreEqual(expected.Pending[0].ProgramId, actual.Pending[0].ProgramId);
@@ -126,7 +128,7 @@ public sealed class JsonDisplayStateStoreTests
         DateTimeOffset now = DateTimeOffset.UtcNow;
         DisplayProgram program = CoordinatorTestSupport.Program("stored-tsunami", EventKind.Tsunami,
             OverlayPriority.TsunamiWarning, issuedAt: now, pageCount: 1,
-            endPolicy: EndPolicy.LoopUntilReplaced);
+            endPolicy: EndPolicy.LoopUntilReplaced) with { TelegramPageDurationKey = "VTSE51" };
         StoredDisplayProgram stored = StoredDisplayProgram.From(program, now);
         return DisplayStateDocument.Empty(now) with
         {

@@ -5,7 +5,8 @@ internal static class AtomicFileWriter
     public static async Task WriteAsync(
         string path,
         Func<Stream, CancellationToken, Task> write,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool overwrite = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(write);
@@ -31,7 +32,7 @@ internal static class AtomicFileWriter
                 stream.Flush(flushToDisk: true);
             }
 
-            if (File.Exists(fullPath))
+            if (overwrite && File.Exists(fullPath))
             {
                 File.Replace(temporaryPath, fullPath, destinationBackupFileName: null);
             }

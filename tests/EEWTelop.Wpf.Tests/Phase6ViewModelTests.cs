@@ -295,6 +295,36 @@ public sealed partial class Phase6ViewModelTests
     }
 
     [TestMethod]
+    public void TelegramPageDurationEditorLoadsRoundsInheritsAndResets()
+    {
+        AppSettings defaults = AppSettings.CreateDefault();
+        AppSettings settings = defaults with
+        {
+            Display = defaults.Display with
+            {
+                PageDurationSeconds = 4.5,
+                TelegramPageDurationSeconds = new() { ["VXSE51"] = 2.5, ["VXSE53"] = 8 },
+            },
+        };
+        var editor = new SettingsEditorViewModel(settings);
+        var scalePrompt = editor.TelegramPageDurations.Single(row => row.Key == "VXSE51");
+        var detailedQuake = editor.TelegramPageDurations.Single(row => row.Key == "VXSE53");
+        Assert.AreEqual(2.5, scalePrompt.Seconds);
+        Assert.AreEqual(8.0, detailedQuake.Seconds);
+
+        scalePrompt.Seconds = 0;
+        detailedQuake.Seconds = 6.25;
+        DisplaySettings updated = editor.ToSettings(settings).Display;
+        Assert.AreEqual(4.5, updated.PageDurationSeconds);
+        Assert.HasCount(1, updated.TelegramPageDurationSeconds);
+        Assert.AreEqual(6.5, updated.TelegramPageDurationSeconds["VXSE53"]);
+
+        editor.ResetDisplaySettings();
+        Assert.AreEqual(0.0, detailedQuake.Seconds);
+        Assert.IsEmpty(editor.ToSettings(settings).Display.TelegramPageDurationSeconds);
+    }
+
+    [TestMethod]
     public async Task OAuthAuthorizationWorksWithoutEnteringAClientId()
     {
         AppSettings settings = AppSettings.CreateDefault();
@@ -688,10 +718,7 @@ public sealed partial class Phase6ViewModelTests
             LocalHistoryXmlFilePath = @" C:\test-data\sample.xml ",
             HideQuakeBelowIntensity3 = true,
             HideWeatherContinuationOnly = false,
-            AutoHideSeconds = -1,
             EewAutoHideSeconds = 9999,
-            QuakeAutoHideSeconds = 9999,
-            TsunamiAutoHideSeconds = -1,
             ProductionReplayRotationIntervalSeconds = 999,
             ProductionReplayResumeDelaySeconds = -5,
             ProductionReplayTsunamiEnabled = true,
@@ -713,10 +740,8 @@ public sealed partial class Phase6ViewModelTests
         Assert.AreEqual(0, result.Display.LetterSpacingEm);
         Assert.AreEqual(1, result.Display.LineSpacing);
         Assert.AreEqual(1, result.Display.FontScale);
-        Assert.AreEqual(0, result.Display.AutoHideSeconds);
+        Assert.AreEqual(defaults.Display.AutoHideSeconds, result.Display.AutoHideSeconds);
         Assert.AreEqual(3600, result.Display.EewAutoHideSeconds);
-        Assert.AreEqual(3600, result.Display.QuakeAutoHideSeconds);
-        Assert.AreEqual(0, result.Display.TsunamiAutoHideSeconds);
         Assert.AreEqual(300, result.Display.ProductionReplay.RotationIntervalSeconds);
         Assert.AreEqual(0, result.Display.ProductionReplay.ResumeDelaySeconds);
         Assert.IsTrue(result.Display.ProductionReplay.Tsunami.Enabled);
@@ -2117,6 +2142,46 @@ public sealed partial class Phase6ViewModelTests
     }
 
     [TestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public async Task IncomingTsunamiWarningClearsOnlyTheLinkedScalePromptFromObs(bool matchingId)
+    {
+        var clock = new FakeClock();
+        AppSettings defaults = AppSettings.CreateDefault();
+        AppSettings settings = defaults with
+        {
+            Display = defaults.Display with { SuppressScalePromptWhenTsunamiWarningActive = true },
+        };
+        var warning = (TsunamiEvent)TestScenarioCatalog.Create(clock.UtcNow)
+            .Single(item => item.Id == "tsunami-watch").Event;
+        var tsunami = new TsunamiEvent(warning.Id, warning.Provider, clock.UtcNow, clock.UtcNow, warning.Signature,
+            SourceMode.Production, warning.Issue, warning.Areas, isCancelled: false, expireAt: clock.UtcNow.AddHours(1))
+        {
+            JmaEarthquakeIds = [EventId.Create("20260731205810")],
+        };
+        QuakeEvent quake = CreateQuake(SourceMode.Production, "scale-prompt-obs", QuakeIssueType.ScalePrompt) with
+        {
+            JmaEarthquakeId = EventId.Create(matchingId ? "20260731205810" : "20260731205811"),
+        };
+        AppServices services = CreateServices(ProviderConnectionState.Stopped, clock,
+            suppliedSettings: settings, suppliedNormalizer: new StubNormalizer(tsunami));
+        var store = new ObsSnapshotStore(settings.Display, clock.UtcNow);
+        await using var viewModel = new ControlWindowViewModel(services, settings,
+            new FakeConfirmationService(), new ImmediateUiDispatcher(), store);
+        DisplayProgram program = services.PageComposer.Compose(quake, settings.Display);
+        services.DisplayCoordinator.Apply(program);
+        store.PublishProgram(quake, program, settings.Display, clock.UtcNow);
+        Assert.IsTrue(store.Read(ObsViewChannel.General, clock.UtcNow).HasProgram);
+        ((FakeEventSource)services.EventSource).Enqueue(new RawProviderMessage("p2pquake", "{}", SourceMode.Production, clock.UtcNow));
+
+        viewModel.ConnectCommand.Execute(null);
+        await WaitUntilAsync(() => store.Read(ObsViewChannel.Tsunami, clock.UtcNow).HasProgram);
+
+        Assert.IsTrue(store.Read(ObsViewChannel.Tsunami, clock.UtcNow).HasProgram);
+        Assert.AreEqual(!matchingId, store.Read(ObsViewChannel.General, clock.UtcNow).HasProgram);
+    }
+
+    [TestMethod]
     public async Task CategoryClearRemovesOnlyTheRequestedKind()
     {
         var clock = new FakeClock();
@@ -2672,11 +2737,12 @@ public sealed partial class Phase6ViewModelTests
             : $"{mode}｜{issuedAtText}";
     }
 
-    private static QuakeEvent CreateQuake(SourceMode sourceMode, string eventId)
+    private static QuakeEvent CreateQuake(
+        SourceMode sourceMode, string eventId, QuakeIssueType issueType = QuakeIssueType.DetailScale)
     {
         QuakeEvent source = (QuakeEvent)TestScenarioCatalog.Create(
             new DateTimeOffset(2026, 8, 1, 3, 0, 0, TimeSpan.Zero))
-            .Single(item => item.Id == "detail-scale")
+            .Single(item => item.Id == (issueType == QuakeIssueType.ScalePrompt ? "scale-prompt" : "detail-scale"))
             .Event;
         return new QuakeEvent(
             EventId.Create(eventId),

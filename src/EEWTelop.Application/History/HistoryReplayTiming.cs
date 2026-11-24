@@ -16,7 +16,7 @@ public static class HistoryReplayTiming
 
         TimeSpan configuredInterval = TimeSpan.FromSeconds(Math.Max(1, intervalSeconds));
         int pageCount = Math.Max(1, program.Pages.Count);
-        TimeSpan pageDuration = PageClock.NormalizePageDuration(display.PageDurationSeconds);
+        TimeSpan pageDuration = PageClock.GetPageDuration(display, program);
         TimeSpan completePagePass = TimeSpan.FromTicks(pageDuration.Ticks * pageCount);
         return completePagePass > configuredInterval ? completePagePass : configuredInterval;
     }

@@ -179,12 +179,17 @@ public sealed class ProductionReplayCatalog
         }
     }
 
-    public void RemoveRoutineNankaiCommentary()
+    public void RemoveRoutineNankaiCommentary() =>
+        RemoveEntries(static entry => entry.Event is QuakeEvent { IsRoutineNankaiCommentary: true });
+
+    public void RemoveQuakePrograms(Predicate<DisplayProgram> matches) =>
+        RemoveEntries(entry => entry.Event.Kind == EventKind.Quake && matches(entry.Program));
+
+    private void RemoveEntries(Predicate<Entry> matches)
     {
         lock (_gate)
         {
-            foreach (ProductionReplayKey key in _entries.Where(pair => pair.Value.Event is
-                         QuakeEvent { IsRoutineNankaiCommentary: true }).Select(pair => pair.Key).ToArray())
+            foreach (ProductionReplayKey key in _entries.Where(pair => matches(pair.Value)).Select(pair => pair.Key).ToArray())
                 _entries.Remove(key);
             ResetCursorIfMissing();
         }

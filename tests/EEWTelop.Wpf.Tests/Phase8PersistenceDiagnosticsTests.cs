@@ -8,6 +8,7 @@ using EEWTelop.Domain.Events;
 using EEWTelop.Infrastructure.Diagnostics;
 using EEWTelop.Infrastructure.Logging;
 using EEWTelop.Infrastructure.Settings;
+using EEWTelop.Wpf.ViewModels;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace EEWTelop.Wpf.Tests;
@@ -20,6 +21,7 @@ public sealed class Phase8PersistenceDiagnosticsTests
         PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
     };
     private string _directory = string.Empty;
+    public TestContext TestContext { get; set; } = null!;
 
     [TestInitialize]
     public void Initialize()
@@ -35,6 +37,34 @@ public sealed class Phase8PersistenceDiagnosticsTests
         {
             Directory.Delete(_directory, recursive: true);
         }
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task LegacyWarningSettingSeedsBothFiltersAndTheyCanThenBeSavedIndependently(bool legacyWarnings)
+    {
+        string path = Path.Combine(_directory, "legacy-warning-filter.json");
+        var legacyJson = JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(AppSettings.CreateDefault(), CamelCaseJson))!.AsObject();
+        var filter = legacyJson["filter"]!.AsObject();
+        filter.Remove("weatherDangerWarnings");
+        filter["weatherWarnings"] = legacyWarnings;
+        await File.WriteAllTextAsync(path, legacyJson.ToJsonString(), TestContext.CancellationToken);
+        var store = new JsonSettingsStore(path, new UiLogBuffer());
+
+        var saved = await store.LoadAsync(TestContext.CancellationToken);
+        var editor = new SettingsEditorViewModel(saved);
+        Assert.AreEqual(legacyWarnings, editor.FilterWeatherWarnings);
+        Assert.AreEqual(legacyWarnings, editor.FilterWeatherDangerWarnings);
+        editor.FilterWeatherDangerWarnings = !legacyWarnings;
+        await store.SaveAsync(editor.ToSettings(saved), TestContext.CancellationToken);
+
+        var reloaded = new SettingsEditorViewModel(await store.LoadAsync(TestContext.CancellationToken));
+        Assert.AreEqual(legacyWarnings, reloaded.FilterWeatherWarnings);
+        Assert.AreEqual(!legacyWarnings, reloaded.FilterWeatherDangerWarnings);
+        reloaded.ResetFilterSettings();
+        Assert.IsTrue(reloaded.FilterWeatherWarnings);
+        Assert.IsTrue(reloaded.FilterWeatherDangerWarnings);
     }
 
     [TestMethod]
@@ -64,14 +94,13 @@ public sealed class Phase8PersistenceDiagnosticsTests
             Display = AppSettings.CreateDefault().Display with
             {
                 PageDurationSeconds = 7.5,
+                TelegramPageDurationSeconds = new() { ["VXSE51"] = 2.5, ["VXSE53"] = 8.5 },
                 FontScale = 1.25,
                 LetterSpacingEm = 0.2,
                 LineSpacing = 1.5,
                 BackgroundMode = BackgroundMode.Blue,
                 OutputTransform = new OutputTransformSettings(2, 10, 20, 30, 40, 50, 60),
                 EewAutoHideSeconds = 18,
-                QuakeAutoHideSeconds = 22,
-                TsunamiAutoHideSeconds = 35,
                 ProductionReplay = ProductionReplaySettings.Default with
                 {
                     RotationIntervalSeconds = 12,
@@ -130,8 +159,8 @@ public sealed class Phase8PersistenceDiagnosticsTests
         Assert.AreEqual(BackgroundMode.Transparent, actual.Display.BackgroundMode);
         Assert.AreEqual(OutputTransformSettings.Default, actual.Display.OutputTransform);
         Assert.AreEqual(18, actual.Display.EewAutoHideSeconds);
-        Assert.AreEqual(22, actual.Display.QuakeAutoHideSeconds);
-        Assert.AreEqual(35, actual.Display.TsunamiAutoHideSeconds);
+        Assert.AreEqual(2.5, actual.Display.TelegramPageDurationSeconds["VXSE51"]);
+        Assert.AreEqual(8.5, actual.Display.TelegramPageDurationSeconds["VXSE53"]);
         Assert.AreEqual(12, actual.Display.ProductionReplay.RotationIntervalSeconds);
         Assert.AreEqual(3, actual.Display.ProductionReplay.ResumeDelaySeconds);
         Assert.IsTrue(actual.Display.ProductionReplay.Tsunami.Enabled);
@@ -427,7 +456,7 @@ public sealed class Phase8PersistenceDiagnosticsTests
     }
 
     [TestMethod]
-    public async Task LegacySettingsMakeEewInheritTheFormerCommonAutoHideValue()
+    public async Task LegacySettingsKeepPageDurationAndUseFormerCommonTimerForEew()
     {
         var logs = new UiLogBuffer();
         string path = Path.Combine(_directory, "settings.json");
@@ -437,21 +466,31 @@ public sealed class Phase8PersistenceDiagnosticsTests
             Display = AppSettings.CreateDefault().Display with
             {
                 AutoHideSeconds = 27,
+                PageDurationSeconds = 3.5,
             },
         };
         await store.SaveAsync(legacy);
         JsonNode document = JsonNode.Parse(await File.ReadAllTextAsync(path))!;
-        document["display"]!.AsObject().Remove("eewAutoHideSeconds");
-        document["display"]!.AsObject().Remove("quakeAutoHideSeconds");
-        document["display"]!.AsObject().Remove("tsunamiAutoHideSeconds");
+        JsonObject display = document["display"]!.AsObject();
+        display.Remove("eewAutoHideSeconds");
+        display.Remove("telegramPageDurationSeconds");
+        display["quakeAutoHideSeconds"] = 0;
+        display["tsunamiAutoHideSeconds"] = 45;
+        display["weatherWarningAutoHideSeconds"] = 15;
         await File.WriteAllTextAsync(path, document.ToJsonString());
 
         AppSettings actual = await store.LoadAsync();
 
         Assert.AreEqual(27, actual.Display.AutoHideSeconds);
         Assert.AreEqual(27, actual.Display.EewAutoHideSeconds);
-        Assert.AreEqual(27, actual.Display.QuakeAutoHideSeconds);
-        Assert.AreEqual(27, actual.Display.TsunamiAutoHideSeconds);
+        Assert.AreEqual(3.5, actual.Display.PageDurationSeconds);
+        Assert.IsEmpty(actual.Display.TelegramPageDurationSeconds);
+
+        await store.SaveAsync(actual);
+        var saved = JsonNode.Parse(await File.ReadAllTextAsync(path))!["display"]!.AsObject();
+        Assert.IsFalse(saved.ContainsKey("quakeAutoHideSeconds"));
+        Assert.IsFalse(saved.ContainsKey("tsunamiAutoHideSeconds"));
+        Assert.IsFalse(saved.ContainsKey("weatherWarningAutoHideSeconds"));
     }
 
     [TestMethod]

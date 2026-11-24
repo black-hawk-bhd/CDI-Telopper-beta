@@ -690,7 +690,7 @@ internal static partial class WeatherWarningPageComposer
 
         if (item.Level == WeatherWarningLevel.Warning)
         {
-            return IsLevelFourWarning(item.KindName)
+            return item.IsDangerWarning
                 ? DisplayStyleTokens.WeatherDangerWarning
                 : DisplayStyleTokens.WeatherWarning;
         }
@@ -699,11 +699,6 @@ internal static partial class WeatherWarningPageComposer
             ? DisplayStyleTokens.WeatherWarning
             : DisplayStyleTokens.WeatherAdvisory;
     }
-
-    private static bool IsLevelFourWarning(string kindName) =>
-        kindName.Contains("レベル４", StringComparison.Ordinal) ||
-        kindName.Contains("レベル4", StringComparison.Ordinal) ||
-        kindName.Contains("危険警報", StringComparison.Ordinal);
 
     private static int GetStyleDisplayOrder(string styleToken) => styleToken switch
     {

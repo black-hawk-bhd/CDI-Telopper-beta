@@ -5,6 +5,7 @@ using EEWTelop.Application.Coordination;
 using EEWTelop.Application.Display;
 using EEWTelop.Domain.Events;
 using EEWTelop.Wpf.Mvvm;
+using FontFamily = System.Windows.Media.FontFamily;
 
 namespace EEWTelop.Wpf.ViewModels;
 
@@ -17,6 +18,8 @@ public sealed class OverlayViewModel : ObservableObject
     private string _accessibleText = "";
     private BackgroundMode _backgroundMode;
     private double _fontScale = 1;
+    private string _fontFamilyName = DisplaySettings.DefaultFontFamilyName;
+    private FontFamily _subtitleFontFamily = SubtitleFonts.DefaultFamily;
     private double _lineSpacing = 1;
     private double _letterSpacingEm;
     private bool _isEewProgram;
@@ -61,6 +64,12 @@ public sealed class OverlayViewModel : ObservableObject
     public string AccessibleText { get => _accessibleText; private set => SetProperty(ref _accessibleText, value); }
 
     public BackgroundMode BackgroundMode { get => _backgroundMode; private set => SetProperty(ref _backgroundMode, value); }
+
+    public FontFamily SubtitleFontFamily
+    {
+        get => _subtitleFontFamily;
+        private set => SetProperty(ref _subtitleFontFamily, value);
+    }
 
     public double FontScale
     {
@@ -165,12 +174,7 @@ public sealed class OverlayViewModel : ObservableObject
     public void Apply(CoordinatorSnapshot snapshot, DisplaySettings settings)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        ArgumentNullException.ThrowIfNull(settings);
-        BackgroundMode = settings.BackgroundMode;
-        FontScale = settings.FontScale;
-        LineSpacing = settings.LineSpacing;
-        LetterSpacingEm = settings.LetterSpacingEm;
-        OutputTransform = settings.OutputTransform;
+        ApplySettings(settings);
         Blocks.Clear();
         if (snapshot.CurrentProgram is null || snapshot.CurrentPage is null)
         {
@@ -195,7 +199,7 @@ public sealed class OverlayViewModel : ObservableObject
                 DisplayStyleTokens.EewHeaderTest) > 1;
         IsSubtitleProgram = program.Kind != EventKind.Eew;
         ProgramId = program.ProgramId;
-        RehearsalLabel = DisplayBadgeVisibility.HideModeBanner(program, settings) ||
+        RehearsalLabel = DisplayBadgeVisibility.HideModeBanner(program) ||
             program.HideSimulatorTrainingBanner && program.SourceMode == SourceMode.ManualTest
             ? string.Empty : program.RehearsalLabel;
         PageIndicator = settings.ShowPageIndicator && program.Pages.Count > 1
@@ -244,6 +248,12 @@ public sealed class OverlayViewModel : ObservableObject
     {
         ArgumentNullException.ThrowIfNull(settings);
         BackgroundMode = settings.BackgroundMode;
+        string fontFamilyName = DisplaySettings.NormalizeFontFamilyName(settings.FontFamilyName);
+        if (!string.Equals(_fontFamilyName, fontFamilyName, StringComparison.OrdinalIgnoreCase))
+        {
+            _fontFamilyName = fontFamilyName;
+            SubtitleFontFamily = SubtitleFonts.CreateFamily(fontFamilyName);
+        }
         FontScale = settings.FontScale;
         LineSpacing = settings.LineSpacing;
         LetterSpacingEm = settings.LetterSpacingEm;

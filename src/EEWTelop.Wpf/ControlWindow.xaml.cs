@@ -92,6 +92,7 @@ public partial class ControlWindow : Window, IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(services);
         InitializeComponent();
+        InitializeDataDirectory(services);
         var obsSnapshots = new ObsSnapshotStore(services.InitialSettings.Display, services.Clock.UtcNow);
         var obsServer = new ObsLocalViewServer(
             obsSnapshots,

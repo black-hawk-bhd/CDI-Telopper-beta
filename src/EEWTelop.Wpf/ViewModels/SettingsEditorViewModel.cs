@@ -1,5 +1,6 @@
 using EEWTelop.Application.Audio;
 using EEWTelop.Application.Configuration;
+using EEWTelop.Application.Coordination;
 using EEWTelop.Domain.Events;
 using EEWTelop.Infrastructure.P2P.Configuration;
 #if QTELOPPER_DMDATA_PROVIDER
@@ -54,6 +55,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private string[] _weatherPrefectureCodes;
     private bool _filterWeatherSpecialWarnings;
     private bool _filterWeatherWarnings;
+    private bool _filterWeatherDangerWarnings;
     private bool _filterWeatherAdvisories;
     private bool _filterWeatherTornadoAdvisories;
     private bool _filterWeatherRecordShortRain;
@@ -69,6 +71,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private bool _showPageIndicator;
     private bool _showTsunamiForecast;
     private bool _omitScalePromptCautionWhenTsunamiWarningActive;
+    private bool _suppressScalePromptWhenTsunamiWarningActive;
     private bool _separateIntensityPagesByScale;
     private bool _limitActiveWeatherAreaRowsToTwo;
     private bool _useVerticalEewWarningLayout;
@@ -84,13 +87,9 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private double _letterSpacingEm;
     private double _lineSpacing;
     private double _fontScale;
-    private bool _hideNormalModeBanner;
+    private string _fontFamilyName;
     private bool _hideNormalInformationBadges;
-    private int _autoHideSeconds;
     private int _eewAutoHideSeconds;
-    private int _quakeAutoHideSeconds;
-    private int _tsunamiAutoHideSeconds;
-    private int _weatherWarningAutoHideSeconds;
     private int _productionReplayRotationIntervalSeconds;
     private int _productionReplayResumeDelaySeconds;
     private bool _productionReplayEewEnabled;
@@ -228,6 +227,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _weatherPrefectureCodes = WeatherPrefectureCatalog.ResolveCodes(settings.Filter);
         _filterWeatherSpecialWarnings = settings.Filter.WeatherSpecialWarnings;
         _filterWeatherWarnings = settings.Filter.WeatherWarnings;
+        _filterWeatherDangerWarnings = settings.Filter.WeatherDangerWarnings;
         _filterWeatherAdvisories = settings.Filter.WeatherAdvisories;
         _filterWeatherTornadoAdvisories = settings.Filter.WeatherTornadoAdvisories;
         _filterWeatherRecordShortRain = settings.Filter.WeatherRecordShortRain;
@@ -246,9 +246,14 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _showLowIntensityPointsInStrongQuakes = settings.Display.ShowLowIntensityPointsInStrongQuakes;
         _hideNonJmaIntensityStations = settings.Display.HideNonJmaIntensityStations;
         _pageDurationSeconds = settings.Display.PageDurationSeconds;
+        TelegramPageDurations = TelegramPageDurationOptions.All
+            .Select(option => new TelegramPageDurationViewModel(
+                option, settings.Display.TelegramPageDurationSeconds?.GetValueOrDefault(option.Key) ?? 0))
+            .ToArray();
         _showPageIndicator = settings.Display.ShowPageIndicator;
         _showTsunamiForecast = settings.Display.ShowTsunamiForecast;
         _omitScalePromptCautionWhenTsunamiWarningActive = settings.Display.OmitScalePromptCautionWhenTsunamiWarningActive;
+        _suppressScalePromptWhenTsunamiWarningActive = settings.Display.SuppressScalePromptWhenTsunamiWarningActive;
         _separateIntensityPagesByScale = settings.Display.SeparateIntensityPagesByScale;
         _limitActiveWeatherAreaRowsToTwo = settings.Display.LimitActiveWeatherAreaRowsToTwo;
         _useVerticalEewWarningLayout = settings.Display.UseVerticalEewWarningLayout;
@@ -264,14 +269,9 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _letterSpacingEm = 0;
         _lineSpacing = 1;
         _fontScale = 1;
-        _autoHideSeconds = settings.Display.AutoHideSeconds;
+        _fontFamilyName = DisplaySettings.NormalizeFontFamilyName(settings.Display.FontFamilyName);
         _eewAutoHideSeconds = settings.Display.EffectiveEewAutoHideSeconds;
-        _quakeAutoHideSeconds = settings.Display.EffectiveQuakeAutoHideSeconds;
-        _hideNormalModeBanner = settings.Display.HideNormalModeBanner;
         _hideNormalInformationBadges = settings.Display.HideNormalInformationBadges;
-        _tsunamiAutoHideSeconds = settings.Display.EffectiveTsunamiAutoHideSeconds;
-        _weatherWarningAutoHideSeconds =
-            settings.Display.EffectiveWeatherWarningAutoHideSeconds;
         _subtitlePhraseOverrides = new Dictionary<string, string>(
             settings.Display.SubtitlePhraseOverrides ?? [],
             StringComparer.Ordinal);
@@ -690,6 +690,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     }
     public bool FilterWeatherSpecialWarnings { get => _filterWeatherSpecialWarnings; set => SetProperty(ref _filterWeatherSpecialWarnings, value); }
     public bool FilterWeatherWarnings { get => _filterWeatherWarnings; set => SetProperty(ref _filterWeatherWarnings, value); }
+    public bool FilterWeatherDangerWarnings { get => _filterWeatherDangerWarnings; set => SetProperty(ref _filterWeatherDangerWarnings, value); }
     public bool FilterWeatherAdvisories { get => _filterWeatherAdvisories; set => SetProperty(ref _filterWeatherAdvisories, value); }
     public bool FilterWeatherTornadoAdvisories { get => _filterWeatherTornadoAdvisories; set => SetProperty(ref _filterWeatherTornadoAdvisories, value); }
     public bool FilterWeatherRecordShortRain { get => _filterWeatherRecordShortRain; set => SetProperty(ref _filterWeatherRecordShortRain, value); }
@@ -727,12 +728,18 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public bool ShowLowIntensityPointsInStrongQuakes { get => _showLowIntensityPointsInStrongQuakes; set => SetProperty(ref _showLowIntensityPointsInStrongQuakes, value); }
     public bool HideNonJmaIntensityStations { get => _hideNonJmaIntensityStations; set => SetProperty(ref _hideNonJmaIntensityStations, value); }
     public double PageDurationSeconds { get => _pageDurationSeconds; set => SetProperty(ref _pageDurationSeconds, value); }
+    public IReadOnlyList<TelegramPageDurationViewModel> TelegramPageDurations { get; }
     public bool ShowPageIndicator { get => _showPageIndicator; set => SetProperty(ref _showPageIndicator, value); }
     public bool ShowTsunamiForecast { get => _showTsunamiForecast; set => SetProperty(ref _showTsunamiForecast, value); }
     public bool OmitScalePromptCautionWhenTsunamiWarningActive
     {
         get => _omitScalePromptCautionWhenTsunamiWarningActive;
         set => SetProperty(ref _omitScalePromptCautionWhenTsunamiWarningActive, value);
+    }
+    public bool SuppressScalePromptWhenTsunamiWarningActive
+    {
+        get => _suppressScalePromptWhenTsunamiWarningActive;
+        set => SetProperty(ref _suppressScalePromptWhenTsunamiWarningActive, value);
     }
     public bool SeparateIntensityPagesByScale { get => _separateIntensityPagesByScale; set => SetProperty(ref _separateIntensityPagesByScale, value); }
     public bool LimitActiveWeatherAreaRowsToTwo { get => _limitActiveWeatherAreaRowsToTwo; set => SetProperty(ref _limitActiveWeatherAreaRowsToTwo, value); }
@@ -749,13 +756,15 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public double LetterSpacingEm { get => _letterSpacingEm; set => SetProperty(ref _letterSpacingEm, 0); }
     public double LineSpacing { get => _lineSpacing; set => SetProperty(ref _lineSpacing, 1); }
     public double FontScale { get => _fontScale; set => SetProperty(ref _fontScale, 1); }
-    public bool HideNormalModeBanner { get => _hideNormalModeBanner; set => SetProperty(ref _hideNormalModeBanner, value); }
+    public string FontFamilyName
+    {
+        get => _fontFamilyName;
+        set => SetProperty(ref _fontFamilyName, DisplaySettings.NormalizeFontFamilyName(value));
+    }
+
+    public IReadOnlyList<SubtitleFontOption> SubtitleFontOptions => SubtitleFonts.GetOptions(FontFamilyName);
     public bool HideNormalInformationBadges { get => _hideNormalInformationBadges; set => SetProperty(ref _hideNormalInformationBadges, value); }
-    public int AutoHideSeconds { get => _autoHideSeconds; set => SetProperty(ref _autoHideSeconds, value); }
     public int EewAutoHideSeconds { get => _eewAutoHideSeconds; set => SetProperty(ref _eewAutoHideSeconds, value); }
-    public int QuakeAutoHideSeconds { get => _quakeAutoHideSeconds; set => SetProperty(ref _quakeAutoHideSeconds, value); }
-    public int TsunamiAutoHideSeconds { get => _tsunamiAutoHideSeconds; set => SetProperty(ref _tsunamiAutoHideSeconds, value); }
-    public int WeatherWarningAutoHideSeconds { get => _weatherWarningAutoHideSeconds; set => SetProperty(ref _weatherWarningAutoHideSeconds, value); }
     public IReadOnlyDictionary<string, string> SubtitlePhraseOverrides =>
         _subtitlePhraseOverrides;
 
@@ -885,9 +894,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     {
         ArgumentNullException.ThrowIfNull(baseline);
         ProviderRoutingSettings routing = CurrentRouting;
-        double pageDuration = Math.Round(
-            Math.Clamp(PageDurationSeconds, 1, 30) * 2,
-            MidpointRounding.AwayFromZero) / 2;
+        double pageDuration = PageClock.NormalizePageDuration(PageDurationSeconds).TotalSeconds;
         ProviderMode providerMode = routing.Uses(ReceptionProvider.Axis) ||
             routing.Uses(ReceptionProvider.Dmdata) ||
             routing.Uses(ReceptionProvider.Wolfx) || routing.Uses(ReceptionProvider.JmaXml)
@@ -961,6 +968,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
                     : string.Empty,
                 WeatherSpecialWarnings = FilterWeatherSpecialWarnings,
                 WeatherWarnings = FilterWeatherWarnings,
+                WeatherDangerWarnings = FilterWeatherDangerWarnings,
                 WeatherAdvisories = FilterWeatherAdvisories,
                 WeatherTornadoAdvisories = FilterWeatherTornadoAdvisories,
                 WeatherRecordShortRain = FilterWeatherRecordShortRain,
@@ -975,22 +983,19 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 0,
                 1,
                 1,
-                Math.Clamp(AutoHideSeconds, 0, 3600),
+                baseline.Display.AutoHideSeconds,
                 backgroundMode,
                 Math.Clamp(Width, 320, 7680),
                 Math.Clamp(Height, 180, 4320))
             {
+                FontFamilyName = FontFamilyName,
                 EewAutoHideSeconds = Math.Clamp(EewAutoHideSeconds, 0, 3600),
-                HideNormalModeBanner = HideNormalModeBanner,
+                TelegramPageDurationSeconds = PageClock.NormalizeTelegramPageDurations(TelegramPageDurations
+                    .Select(static row => KeyValuePair.Create(row.Key, row.Seconds))),
                 HideNormalInformationBadges = HideNormalInformationBadges,
-                QuakeAutoHideSeconds = Math.Clamp(QuakeAutoHideSeconds, 0, 3600),
-                TsunamiAutoHideSeconds = Math.Clamp(TsunamiAutoHideSeconds, 0, 3600),
-                WeatherWarningAutoHideSeconds = Math.Clamp(
-                    WeatherWarningAutoHideSeconds,
-                    0,
-                    3600),
                 ShowTsunamiForecast = ShowTsunamiForecast,
                 OmitScalePromptCautionWhenTsunamiWarningActive = OmitScalePromptCautionWhenTsunamiWarningActive,
+                SuppressScalePromptWhenTsunamiWarningActive = SuppressScalePromptWhenTsunamiWarningActive,
                 ShowLowIntensityPointsInStrongQuakes = ShowLowIntensityPointsInStrongQuakes,
                 HideNonJmaIntensityStations = HideNonJmaIntensityStations,
                 SeparateIntensityPagesByScale = SeparateIntensityPagesByScale,
@@ -1436,6 +1441,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         SetWeatherPrefectureCodes(defaults.WeatherPrefectureCodes);
         FilterWeatherSpecialWarnings = defaults.WeatherSpecialWarnings;
         FilterWeatherWarnings = defaults.WeatherWarnings;
+        FilterWeatherDangerWarnings = defaults.WeatherDangerWarnings;
         FilterWeatherAdvisories = defaults.WeatherAdvisories;
         FilterWeatherTornadoAdvisories = defaults.WeatherTornadoAdvisories;
         FilterWeatherRecordShortRain = defaults.WeatherRecordShortRain;
@@ -1454,11 +1460,16 @@ public sealed class SettingsEditorViewModel : ObservableObject
     {
         DisplaySettings defaults = AppSettings.CreateDefault().Display;
         PageDurationSeconds = defaults.PageDurationSeconds;
+        foreach (TelegramPageDurationViewModel row in TelegramPageDurations)
+        {
+            row.Seconds = 0;
+        }
+
         ShowPageIndicator = defaults.ShowPageIndicator;
-        HideNormalModeBanner = defaults.HideNormalModeBanner;
         HideNormalInformationBadges = defaults.HideNormalInformationBadges;
         ShowTsunamiForecast = defaults.ShowTsunamiForecast;
         OmitScalePromptCautionWhenTsunamiWarningActive = defaults.OmitScalePromptCautionWhenTsunamiWarningActive;
+        SuppressScalePromptWhenTsunamiWarningActive = defaults.SuppressScalePromptWhenTsunamiWarningActive;
         ShowLowIntensityPointsInStrongQuakes = defaults.ShowLowIntensityPointsInStrongQuakes;
         HideNonJmaIntensityStations = defaults.HideNonJmaIntensityStations;
         SeparateIntensityPagesByScale = defaults.SeparateIntensityPagesByScale;
@@ -1469,11 +1480,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
         LetterSpacingEm = defaults.LetterSpacingEm;
         LineSpacing = defaults.LineSpacing;
         FontScale = defaults.FontScale;
-        AutoHideSeconds = defaults.AutoHideSeconds;
+        FontFamilyName = defaults.FontFamilyName;
         EewAutoHideSeconds = defaults.EffectiveEewAutoHideSeconds;
-        QuakeAutoHideSeconds = defaults.EffectiveQuakeAutoHideSeconds;
-        TsunamiAutoHideSeconds = defaults.EffectiveTsunamiAutoHideSeconds;
-        WeatherWarningAutoHideSeconds = defaults.EffectiveWeatherWarningAutoHideSeconds;
         SetSubtitlePhraseOverrides(defaults.SubtitlePhraseOverrides);
     }
 

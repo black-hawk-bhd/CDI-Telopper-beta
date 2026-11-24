@@ -62,10 +62,10 @@ public sealed class PageClockTests
     }
 
     [TestMethod]
-    public void AutoHideGuaranteesFiveSecondsOnLastPage()
+    public void EewAutoHideGuaranteesFiveSecondsOnLastPage()
     {
         DisplayProgram program = CoordinatorTestSupport.Program(
-            "quake", EventKind.Quake, OverlayPriority.Quake, pageCount: 4);
+            "eew", EventKind.Eew, OverlayPriority.Eew, pageCount: 4);
 
         PageClockResult before = _clock.Evaluate(
             program,
@@ -85,10 +85,10 @@ public sealed class PageClockTests
     }
 
     [TestMethod]
-    public void ZeroAutoHideKeepsLastPageVisible()
+    public void ZeroEewAutoHideKeepsLastPageVisible()
     {
         DisplayProgram program = CoordinatorTestSupport.Program(
-            "quake", EventKind.Quake, OverlayPriority.Quake);
+            "eew", EventKind.Eew, OverlayPriority.Eew);
 
         PageClockResult result = _clock.Evaluate(
             program,
@@ -118,34 +118,61 @@ public sealed class PageClockTests
             quake, settings, _startedAt, TimeSpan.FromSeconds(10));
 
         Assert.IsTrue(eewResult.IsExpired);
-        Assert.IsFalse(quakeResult.IsExpired);
+        Assert.IsTrue(quakeResult.IsExpired);
         Assert.AreEqual(_startedAt.AddSeconds(10), eewResult.ExpiresAtUtc);
-        Assert.AreEqual(_startedAt.AddSeconds(45), quakeResult.ExpiresAtUtc);
+        Assert.AreEqual(_startedAt.AddSeconds(4), quakeResult.ExpiresAtUtc);
     }
 
     [TestMethod]
-    public void QuakeAndTsunamiUseIndependentAutoHideSettings()
+    [DataRow(EventKind.Quake, 1, 4.0)]
+    [DataRow(EventKind.Quake, 3, 4.0)]
+    [DataRow(EventKind.Tsunami, 2, 1.5)]
+    [DataRow(EventKind.WeatherWarning, 3, 2.5)]
+    [DataRow(EventKind.Volcano, 1, 2.0)]
+    public void NonEewAutoHideExpiresAfterAllPages(EventKind kind, int pageCount, double pageSeconds)
     {
-        DisplayProgram quake = CoordinatorTestSupport.Program(
-            "quake", EventKind.Quake, OverlayPriority.Quake, pageCount: 1);
-        DisplayProgram tsunami = CoordinatorTestSupport.Program(
-            "tsunami", EventKind.Tsunami, OverlayPriority.TsunamiWatch, pageCount: 1);
-        var settings = CoordinatorTestSupport.Settings(autoHideSeconds: 45) with
+        DisplayProgram program = CoordinatorTestSupport.Program(
+            "one-pass", kind, OverlayPriority.Quake, pageCount: pageCount);
+        var settings = CoordinatorTestSupport.Settings(autoHideSeconds: 0, pageDurationSeconds: pageSeconds);
+        TimeSpan lifetime = TimeSpan.FromSeconds(pageCount * pageSeconds);
+
+        PageClockResult before = _clock.Evaluate(
+            program, settings, _startedAt, lifetime - TimeSpan.FromMilliseconds(1));
+        PageClockResult atExpiry = _clock.Evaluate(program, settings, _startedAt, lifetime);
+
+        Assert.AreEqual(pageCount - 1, before.Index);
+        Assert.IsFalse(before.IsExpired);
+        Assert.IsTrue(atExpiry.IsExpired);
+        Assert.AreEqual(_startedAt + lifetime, atExpiry.ExpiresAtUtc);
+    }
+
+    [TestMethod]
+    [DataRow(QuakeIssueType.ScalePrompt, "", "VXSE51", 2.5)]
+    [DataRow(QuakeIssueType.ScaleAndDestination, "", "VXSE53", 6.0)]
+    [DataRow(QuakeIssueType.Other, " vxse61 ", "VXSE61", 4.0)]
+    public void QuakeBulletinsUseTheirOwnPageDurationOrFallBackToCommon(
+        QuakeIssueType issueType, string rawType, string expectedKey, double expectedSeconds)
+    {
+        var settings = CoordinatorTestSupport.Settings(pageDurationSeconds: 4) with
         {
-            QuakeAutoHideSeconds = 12,
-            TsunamiAutoHideSeconds = 30,
+            TelegramPageDurationSeconds = new() { ["VXSE51"] = 2.5, ["VXSE53"] = 6 },
         };
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(issueType, rawType: rawType, comment: "検証用");
+        DisplayProgram program = new PageComposer().Compose(quake, settings);
+        TimeSpan duration = TimeSpan.FromSeconds(expectedSeconds);
+        TimeSpan lifetime = duration * program.Pages.Count;
 
-        PageClockResult quakeResult = _clock.Evaluate(
-            quake, settings, _startedAt, TimeSpan.FromSeconds(12));
-        PageClockResult tsunamiBefore = _clock.Evaluate(
-            tsunami, settings, _startedAt, TimeSpan.FromSeconds(29));
-        PageClockResult tsunamiAtExpiry = _clock.Evaluate(
-            tsunami, settings, _startedAt, TimeSpan.FromSeconds(30));
-
-        Assert.IsTrue(quakeResult.IsExpired);
-        Assert.IsFalse(tsunamiBefore.IsExpired);
-        Assert.IsTrue(tsunamiAtExpiry.IsExpired);
+        Assert.AreEqual(expectedKey, program.TelegramPageDurationKey);
+        Assert.AreEqual(duration, PageClock.GetPageDuration(settings, program));
+        PageClockResult first = _clock.Evaluate(program, settings, _startedAt,
+            duration - TimeSpan.FromMilliseconds(1));
+        PageClockResult next = _clock.Evaluate(program, settings, _startedAt, duration);
+        PageClockResult expired = _clock.Evaluate(program, settings, _startedAt, lifetime);
+        Assert.AreEqual(0, first.Index);
+        Assert.IsFalse(first.IsExpired);
+        Assert.AreEqual(Math.Min(1, program.Pages.Count - 1), next.Index);
+        Assert.AreEqual(_startedAt + lifetime, next.ExpiresAtUtc);
+        Assert.IsTrue(expired.IsExpired);
     }
 
     [TestMethod]
@@ -204,6 +231,7 @@ public sealed class PageClockTests
             manualPageIndex: 2);
 
         Assert.AreEqual(2, result.Index);
+        Assert.IsFalse(result.IsExpired);
     }
 
     [TestMethod]

@@ -110,6 +110,7 @@ public static class EventDisplayFilter
             _ => item.Level switch
             {
                 WeatherWarningLevel.SpecialWarning => filter.WeatherSpecialWarnings,
+                WeatherWarningLevel.Warning when item.IsDangerWarning => filter.WeatherDangerWarnings,
                 WeatherWarningLevel.Warning => filter.WeatherWarnings,
                 WeatherWarningLevel.Advisory when
                     item.KindName.Contains("竜巻", StringComparison.Ordinal) =>

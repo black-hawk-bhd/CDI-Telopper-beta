@@ -35,16 +35,12 @@ internal static class CoordinatorTestSupport
     public static DisplaySettings Settings(
         int autoHideSeconds = 45,
         double pageDurationSeconds = 4,
-        int? eewAutoHideSeconds = null,
-        int? quakeAutoHideSeconds = null,
-        int? tsunamiAutoHideSeconds = null) =>
+        int? eewAutoHideSeconds = null) =>
         AppSettings.CreateDefault().Display with
         {
             AutoHideSeconds = autoHideSeconds,
             PageDurationSeconds = pageDurationSeconds,
             EewAutoHideSeconds = eewAutoHideSeconds ?? autoHideSeconds,
-            QuakeAutoHideSeconds = quakeAutoHideSeconds ?? autoHideSeconds,
-            TsunamiAutoHideSeconds = tsunamiAutoHideSeconds ?? autoHideSeconds,
         };
 
     public static DisplayProgram Program(

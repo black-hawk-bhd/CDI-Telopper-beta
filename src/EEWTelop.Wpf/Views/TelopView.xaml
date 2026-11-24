@@ -8,6 +8,10 @@
     <UserControl.Resources>
         <conv:BackgroundModeToBrushConverter x:Key="BackgroundBrush" />
         <BooleanToVisibilityConverter x:Key="BoolVisibility" />
+        <Style TargetType="controls:OutlinedText">
+            <Setter Property="FontFamily"
+                    Value="{Binding DataContext.SubtitleFontFamily, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+        </Style>
         <Style x:Key="EewBlockBorderStyle" TargetType="Border">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="CornerRadius" Value="0" />
@@ -33,7 +37,8 @@
         </Style>
         <Style x:Key="EewText" TargetType="TextBlock">
             <Setter Property="Foreground" Value="White" />
-            <Setter Property="FontFamily" Value="BIZ UDPGothic, Yu Gothic UI, Meiryo" />
+            <Setter Property="FontFamily"
+                    Value="{Binding DataContext.SubtitleFontFamily, RelativeSource={RelativeSource AncestorType=UserControl}}" />
             <Setter Property="FontWeight" Value="Bold" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="Effect">
@@ -96,7 +101,7 @@
                     Panel.ZIndex="10">
                 <TextBlock Text="{Binding RehearsalLabel}"
                            Foreground="#FF111111"
-                           FontFamily="BIZ UDPGothic, Yu Gothic UI, Meiryo"
+                           FontFamily="{Binding SubtitleFontFamily}"
                            FontWeight="Black"
                            FontSize="{Binding BannerFontSize}"
                            LineStackingStrategy="BlockLineHeight"
@@ -181,7 +186,7 @@
                                     </Border.Effect>
                                     <TextBlock Text="{Binding BadgePlaceholder}"
                                                Foreground="{Binding BadgeForeground}"
-                                               FontFamily="BIZ UDPGothic, Yu Gothic UI, Meiryo"
+                                               FontFamily="{Binding DataContext.SubtitleFontFamily, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                FontWeight="Black"
                                                FontSize="{Binding DataContext.BadgeFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                TextAlignment="Center"
@@ -273,7 +278,7 @@
                             Padding="{Binding PagePadding}" Background="#B8000000" CornerRadius="5"
                             Visibility="{Binding HasPageIndicator, Converter={StaticResource BoolVisibility}}">
                         <TextBlock Text="{Binding PageIndicator}" Foreground="White"
-                                   FontFamily="BIZ UDPGothic, Yu Gothic UI, Meiryo"
+                                   FontFamily="{Binding SubtitleFontFamily}"
                                    FontWeight="Black" FontSize="{Binding PageFontSize}" />
                     </Border>
                 </StackPanel>

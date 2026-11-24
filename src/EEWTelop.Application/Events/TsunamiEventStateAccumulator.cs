@@ -40,13 +40,13 @@ public sealed class TsunamiEventStateAccumulator
         }
     }
 
-    internal bool HasActiveWarningFor(QuakeEvent quake, DateTimeOffset now)
+    internal bool HasActiveWarningFor(SourceMode sourceMode, EventId? earthquakeId, DateTimeOffset now)
     {
-        if (quake.JmaEarthquakeId is not { } id) return false;
+        if (earthquakeId is not { } id) return false;
 
         lock (_gate)
         {
-            return _latestWarningReports.TryGetValue(quake.SourceMode, out TsunamiEvent? warning) &&
+            return _latestWarningReports.TryGetValue(sourceMode, out TsunamiEvent? warning) &&
                 !warning.IsCancelled && !warning.IsExpired &&
                 (warning.ExpireAt is null || warning.ExpireAt > now) &&
                 warning.JmaEarthquakeIds.Contains(id) && warning.Areas.Any(static area =>

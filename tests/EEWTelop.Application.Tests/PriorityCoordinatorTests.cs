@@ -71,10 +71,7 @@ public sealed class PriorityCoordinatorTests
     public void SimultaneousWeatherTelegramsAreQueuedPerEventAndAllBecomeVisible()
     {
         var clock = new FakeClock();
-        var settings = CoordinatorTestSupport.Settings(autoHideSeconds: 5) with
-        {
-            WeatherWarningAutoHideSeconds = 5,
-        };
+        var settings = CoordinatorTestSupport.Settings(pageDurationSeconds: 5);
         var coordinator = new PriorityCoordinator(clock, settings);
         DateTimeOffset issued = clock.UtcNow;
         string[] telegrams =
@@ -124,10 +121,7 @@ public sealed class PriorityCoordinatorTests
     public void HigherPriorityWeatherTelegramPreemptsThenInterruptedWarningRestarts()
     {
         var clock = new FakeClock();
-        var settings = CoordinatorTestSupport.Settings(autoHideSeconds: 5) with
-        {
-            WeatherWarningAutoHideSeconds = 5,
-        };
+        var settings = CoordinatorTestSupport.Settings(pageDurationSeconds: 5);
         var coordinator = new PriorityCoordinator(clock, settings);
         coordinator.Apply(CoordinatorTestSupport.Program(
             "VPWW58-warning",

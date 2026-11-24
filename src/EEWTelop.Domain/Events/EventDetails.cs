@@ -131,7 +131,14 @@ public sealed record WeatherWarningItem(
     string KindCode,
     WeatherWarningLevel Level,
     string Status,
-    bool IsActive);
+    bool IsActive)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsDangerWarning => Level == WeatherWarningLevel.Warning &&
+        (KindName.Contains("レベル４", StringComparison.Ordinal) ||
+         KindName.Contains("レベル4", StringComparison.Ordinal) ||
+         KindName.Contains("危険警報", StringComparison.Ordinal));
+}
 
 public enum VolcanoInformationType
 {

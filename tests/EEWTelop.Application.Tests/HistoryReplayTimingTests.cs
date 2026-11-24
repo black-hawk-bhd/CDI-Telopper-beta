@@ -10,11 +10,15 @@ namespace EEWTelop.Application.Tests;
 public sealed class HistoryReplayTimingTests
 {
     [TestMethod]
-    public void MultiPageItemWaitsForEveryPageEvenWhenHistoryIntervalIsShorter()
+    [DataRow(0.0, 12.0)]
+    [DataRow(6.5, 19.5)]
+    public void MultiPageItemWaitsForEveryPageEvenWhenHistoryIntervalIsShorter(
+        double telegramSeconds, double expectedSeconds)
     {
         DisplaySettings display = AppSettings.CreateDefault().Display with
         {
             PageDurationSeconds = 4,
+            TelegramPageDurationSeconds = new() { ["VXSE51"] = telegramSeconds },
         };
         QuakeEvent quake = DisplayEventFactory.CreateQuake(
             QuakeIssueType.ScalePrompt,
@@ -28,7 +32,7 @@ public sealed class HistoryReplayTimingTests
             intervalSeconds: 3);
 
         Assert.AreEqual(3, program.Pages.Count);
-        Assert.AreEqual(TimeSpan.FromSeconds(12), duration);
+        Assert.AreEqual(TimeSpan.FromSeconds(expectedSeconds), duration);
     }
 
     [TestMethod]

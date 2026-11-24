@@ -331,6 +331,22 @@ public sealed class PriorityCoordinator : IDisplayCoordinator
         }
     }
 
+    public bool RemoveQuakePrograms(Predicate<DisplayProgram> matches)
+    {
+        ArgumentNullException.ThrowIfNull(matches);
+        lock (_gate)
+        {
+            bool removedCurrent = _current is { Program.Kind: EventKind.Quake } current && matches(current.Program);
+            if (removedCurrent)
+                _current = null;
+
+            if (_pendingByKind.TryGetValue(EventKind.Quake, out ScheduledProgram? pending) && matches(pending.Program))
+                _pendingByKind.Remove(EventKind.Quake);
+
+            return removedCurrent;
+        }
+    }
+
     public void SetRoutineNankaiCommentaryEnabled(bool enabled)
     {
         lock (_gate)

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using EEWTelop.Application.Abstractions;
 using EEWTelop.Application.Configuration;
+using EEWTelop.Application.Coordination;
 using EEWTelop.Application.Display;
 using EEWTelop.Domain.Events;
 using EEWTelop.Application.Logging;
@@ -161,9 +162,6 @@ public sealed class JsonSettingsStore : ISettingsStore
             settings.Display.PageDurationSeconds is < 1 or > 30 ||
             settings.Display.AutoHideSeconds is < 0 or > 3600 ||
             settings.Display.EewAutoHideSeconds is < -1 or > 3600 ||
-            settings.Display.QuakeAutoHideSeconds is < -1 or > 3600 ||
-            settings.Display.TsunamiAutoHideSeconds is < -1 or > 3600 ||
-            settings.Display.WeatherWarningAutoHideSeconds is < -1 or > 3600 ||
             settings.Display.ProductionReplay is null ||
             settings.Display.ProductionReplay.RotationIntervalSeconds is < 1 or > 300 ||
             settings.Display.ProductionReplay.ResumeDelaySeconds is < 0 or > 300 ||
@@ -202,23 +200,14 @@ public sealed class JsonSettingsStore : ISettingsStore
 
         DisplaySettings display = settings.Display with
         {
+            FontFamilyName = DisplaySettings.NormalizeFontFamilyName(settings.Display.FontFamilyName),
             LetterSpacingEm = 0,
             LineSpacing = 1,
             FontScale = 1,
             BackgroundMode = BackgroundMode.Transparent,
             OutputTransform = OutputTransformSettings.Default,
-            EewAutoHideSeconds = settings.Display.EewAutoHideSeconds < 0
-                ? settings.Display.AutoHideSeconds
-                : settings.Display.EewAutoHideSeconds,
-            QuakeAutoHideSeconds = settings.Display.QuakeAutoHideSeconds < 0
-                ? settings.Display.AutoHideSeconds
-                : settings.Display.QuakeAutoHideSeconds,
-            TsunamiAutoHideSeconds = settings.Display.TsunamiAutoHideSeconds < 0
-                ? settings.Display.AutoHideSeconds
-                : settings.Display.TsunamiAutoHideSeconds,
-            WeatherWarningAutoHideSeconds = settings.Display.WeatherWarningAutoHideSeconds < 0
-                ? settings.Display.AutoHideSeconds
-                : settings.Display.WeatherWarningAutoHideSeconds,
+            EewAutoHideSeconds = settings.Display.EffectiveEewAutoHideSeconds,
+            TelegramPageDurationSeconds = PageClock.NormalizeTelegramPageDurations(settings.Display.TelegramPageDurationSeconds),
             ProductionReplay = settings.Display.ProductionReplay,
             SubtitlePhraseOverrides = NormalizeSubtitlePhraseOverrides(
                 settings.Display.SubtitlePhraseOverrides),
@@ -324,6 +313,7 @@ public sealed class JsonSettingsStore : ISettingsStore
             QuakePrefectureMode = Enum.IsDefined(settings.Filter.QuakePrefectureMode)
                 ? settings.Filter.QuakePrefectureMode
                 : QuakePrefectureFilterMode.EventAndPoints,
+            WeatherDangerWarnings = settings.Filter.WeatherDangerWarnings,
             WeatherPrefectureCodes = weatherPrefectureCodes,
             WeatherPrefectureCode = weatherPrefectureCodes.Length == 1
                 ? weatherPrefectureCodes[0]

@@ -40,8 +40,9 @@ public sealed partial class ObsSnapshotStore
             var item = _monitorTelegrams.Find(entry => entry.Id == id);
             if (item is null) return null;
             // Review does not re-publish a program, advance its clock, or request audio.
+            DisplaySettings settings = item.Settings with { HideNormalInformationBadges = _useInformationSubtitles };
             return item.Program.Pages.Select((page, index) => CreateProgramSnapshot(item.Program, page,
-                index, item.Settings, now, 0) with { SourceMode = item.Event.SourceMode }).ToArray();
+                index, settings, now, 0) with { SourceMode = item.Event.SourceMode }).ToArray();
         }
     }
 

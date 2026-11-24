@@ -187,7 +187,10 @@ public sealed class ConcurrentEewProgramComposer
             Pages: [new DisplayPage(1, blocks, accessibleText, null)],
             StartedAtUtc: newest.Program.StartedAtUtc,
             EndPolicy: EndPolicy.AutoHide,
-            RehearsalLabel: newest.Program.RehearsalLabel);
+            RehearsalLabel: newest.Program.RehearsalLabel)
+        {
+            TelegramPageDurationKey = newest.Program.TelegramPageDurationKey,
+        };
     }
 
     private readonly record struct ActiveEewKey(SourceMode SourceMode, string EventId);

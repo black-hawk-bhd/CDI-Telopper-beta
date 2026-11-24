@@ -88,7 +88,7 @@ public sealed class EewVerticalPresentationTests
     }
 
     [TestMethod]
-    public void ContinuedWarningHighlightsAddedAndRevisedAreasEvenAfterAutoHide()
+    public void ContinuedWarningHighlightsOnlyRevisedAreasEvenAfterAutoHide()
     {
         var settings = DisplayEventFactory.Settings with { HighlightEewAreaChanges = true };
         var composer = new PageComposer();
@@ -108,7 +108,8 @@ public sealed class EewVerticalPresentationTests
         Assert.AreEqual("石川　富山　新潟", areas.PrimaryText);
         Assert.AreEqual(plain.Pages[0].AccessibleText, updated.Pages[0].AccessibleText);
         Assert.IsNotNull(areas.EewAreaLabels);
-        Assert.AreEqual("富山,新潟", string.Join(',', areas.EewAreaLabels.Where(label => label.IsChanged).Select(label => label.Name)));
+        Assert.AreEqual("富山", areas.EewAreaLabels.Single(label => label.IsChanged).Name);
+        Assert.Contains(new EewAreaLabel("新潟", false), areas.EewAreaLabels);
         Assert.AreSame(areas.EewAreaLabels, updated.Pages[0].Blocks[0].EewAreaLabels);
 
         EewEvent identical = DisplayEventFactory.CreateEew(next.Areas.Reverse().ToArray(), issuedAt: next.IssuedAt.AddSeconds(1));
@@ -144,6 +145,11 @@ public sealed class EewVerticalPresentationTests
         Assert.IsNotNull(labels);
         Assert.AreEqual("関東", labels.Single(label => label.IsChanged).Name);
         Assert.Contains(new EewAreaLabel("北陸", false), labels);
+
+        EewEvent membershipOnly = DisplayEventFactory.CreateEew(
+            [Area("群馬県"), areas[0], areas[1], .. areas.Skip(3)], issuedAt: continued.IssuedAt.AddSeconds(1));
+        var sameForecasts = concurrent.Compose(membershipOnly, composer.Compose(membershipOnly, enabled), enabled);
+        Assert.IsTrue(sameForecasts.Pages[0].Blocks.All(block => block.EewAreaLabels is null));
     }
 
     [TestMethod]

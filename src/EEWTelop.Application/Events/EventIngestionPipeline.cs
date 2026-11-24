@@ -8,6 +8,8 @@ namespace EEWTelop.Application.Events;
 
 public sealed class EventIngestionPipeline
 {
+    public const string ScalePromptSuppressionReason = "同じ地震の津波注意報・警報発表中のため震度速報を非表示";
+
     private readonly IEventNormalizer _normalizer;
     private readonly IEventVersionCache _versionCache;
     private readonly IPageComposer _pageComposer;
@@ -154,6 +156,9 @@ public sealed class EventIngestionPipeline
         if (receivedEvent is TsunamiEvent tsunami)
         {
             _tsunamiStateAccumulator.ObserveWarningReport(tsunami);
+            if (_settings.SuppressScalePromptWhenTsunamiWarningActive && _filter.Tsunami &&
+                _displayCoordinator is PriorityCoordinator coordinator)
+                coordinator.RemoveQuakePrograms(program => IsScalePromptSuppressed(program, raw.ReceivedAt));
             if (!completeTsunami) disasterEvent = _tsunamiStateAccumulator.Merge(tsunami);
         }
 
@@ -191,10 +196,21 @@ public sealed class EventIngestionPipeline
         }
 
         DisplaySettings settings = _settings;
-        bool omitScalePromptTsunamiCaution = settings.OmitScalePromptCautionWhenTsunamiWarningActive &&
+        bool linkedTsunamiWarningActive =
+            (settings.SuppressScalePromptWhenTsunamiWarningActive || settings.OmitScalePromptCautionWhenTsunamiWarningActive) &&
             _filter.Tsunami && displayEvent is QuakeEvent { IssueType: QuakeIssueType.ScalePrompt } quake &&
-            _tsunamiStateAccumulator.HasActiveWarningFor(quake, raw.ReceivedAt);
-        DisplayProgram program = _pageComposer.Compose(displayEvent, settings, omitScalePromptTsunamiCaution);
+            _tsunamiStateAccumulator.HasActiveWarningFor(quake.SourceMode, quake.JmaEarthquakeId, raw.ReceivedAt);
+        if (linkedTsunamiWarningActive && settings.SuppressScalePromptWhenTsunamiWarningActive)
+        {
+            return CreateResult(raw, EventIngestionStatus.Accepted, disasterEvent, null, null,
+                normalized.Issues, ScalePromptSuppressionReason) with
+            {
+                ReviewProgram = _pageComposer.Compose(displayEvent, settings),
+            };
+        }
+
+        DisplayProgram program = _pageComposer.Compose(displayEvent, settings,
+            linkedTsunamiWarningActive && settings.OmitScalePromptCautionWhenTsunamiWarningActive);
         if (completeTsunami && program.Pages.Count == 0)
             return ClearTsunamiSnapshot(raw, (TsunamiEvent)disasterEvent, normalized.Issues);
         if (revalidatedTsunami)
@@ -266,6 +282,10 @@ public sealed class EventIngestionPipeline
     private DisplayProgram? ComposeSuppressedRoutineCommentary(DisasterEvent disasterEvent) =>
         EventDisplayFilter.IsRoutineNankaiCommentarySuppressed(_filter, disasterEvent)
             ? _pageComposer.Compose(disasterEvent, _settings) : null;
+
+    public bool IsScalePromptSuppressed(DisplayProgram program, DateTimeOffset now) =>
+        _settings.SuppressScalePromptWhenTsunamiWarningActive && _filter.Tsunami &&
+        _tsunamiStateAccumulator.HasActiveWarningFor(program.SourceMode, program.ScalePromptEarthquakeId, now);
 
     private EventIngestionResult ClearTsunamiSnapshot(RawProviderMessage raw, TsunamiEvent tsunami,
         IReadOnlyList<ValidationIssue> issues)

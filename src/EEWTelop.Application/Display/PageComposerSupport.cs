@@ -51,6 +51,9 @@ internal static class PageComposerSupport
             RehearsalLabel: GetRehearsalLabel(disasterEvent))
         {
             ExpiresAtUtc = disasterEvent is TsunamiEvent { SnapshotObservations: not null } tsunami ? tsunami.ExpireAt : null,
+            TelegramPageDurationKey = TelegramPageDurationOptions.GetKey(disasterEvent),
+            ScalePromptEarthquakeId = disasterEvent is QuakeEvent { IssueType: QuakeIssueType.ScalePrompt } quake
+                ? quake.JmaEarthquakeId : null,
         };
     }
 

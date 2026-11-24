@@ -10,6 +10,8 @@ This guide covers **2.0.0-beta.73** for Windows x64. Menu names appear as they d
 2. Before updating, exit the old version by right-clicking its tray icon and selecting **終了** (Exit). Closing the main window with X sends it to the system tray.
 3. Extract the entire ZIP into a separate writable directory and run `CDI-Telopper.exe`. Regular updates reuse your existing settings. The default data directory is `%LOCALAPPDATA%\QTelopper\2.x-beta`.
 
+Under **Version information → Data directory**, select `Settings` beside `CDI-Telopper.exe` to store data with the application. Apply the location, exit from the system tray, and start the application again. CDI-Telopper copies the currently saved settings if the destination has no settings file. If it already has settings, CDI-Telopper loads those. When raw message archiving is enabled, new XML and JSON messages go into `raw-reception` under the selected location. You can still find earlier messages in their original folder.
+
 Hover over the CDI-Telopper icon in the notification area to check the current reception status.
 
 ## Set up reception and captions
@@ -27,9 +29,21 @@ JMA XML polls at intervals of at least 60 seconds and carries no EEW in this app
 
 Under **フィルター** (Filters) → **表示フィルター** (Display filters), enable **気象庁以外の震度観測点を非表示** (Hide non-JMA intensity stations) to omit stations whose names end in a full-width `＊` from detailed intensity captions received from Wolfx, JMA XML, DMDATA.JP or AXIS JMA telegrams (`jmx-seismology`). The option is off by default. P2PQuake stations are outside the scope of this option. The summary uses the reported maximum intensity. The telegram review window lists all received stations under **震度観測点（電文）**. [JMA station notation](https://www.data.jma.go.jp/suishin/oshirase/pdf/20250703.pdf)
 
-In **表示** (Display), **緊急地震速報の継続報で追加・更新された地域名をオレンジ色にする** highlights newly added and updated areas in EEW follow-up reports. It applies to horizontal and vertical OBS layouts and the in-app preview. The option is off by default.
+Under **気象情報** (Weather information) in **フィルター** (Filters), **警報** and **危険警報** can be toggled separately. On upgrade, both inherit the previous **警報** setting.
+
+In **表示** (Display), **情報種別をバッジではなく字幕で表示** shows warning types and intensities as subtitles in live output, training, tests, rehearsals, and replays. If this option is off, the separate message-review setting still controls training, rehearsal, and replay output.
+
+Under **表示** (Display) → **ページと文字** (Pages and text), choose an installed Windows font from **字幕フォント** (Subtitle font). Saving applies the font to both the browser preview and OBS. The default is BIZ UDPGothic, which also supplies missing characters when available.
+
+**ページ秒数** (Seconds per page) sets how long each page is shown. Earthquake reports and weather warnings or advisories clear automatically after all pages have been shown. Three pages at four seconds each take 12 seconds. Set the separate EEW timer under **緊急地震速報（EEW）の自動消去秒** (EEW auto-clear time).
+
+Expand **電文別のページ秒数** (Seconds per page by bulletin type) to set a separate duration for bulletins such as seismic intensity alerts (VXSE51) and detailed earthquake reports (VXSE53). Enter 0 to use the shared page duration. Save the settings to apply the durations to OBS, tests, and replays as well.
+
+In **表示** (Display), **緊急地震速報の継続報で更新された地域名をオレンジ色にする** highlights areas already in the previous warning when their expected intensity, arrival time or warning status changes. It applies to horizontal and vertical OBS layouts and the in-app preview. The option is off by default.
 
 In **表示** (Display), **津波注意報以上の発表中は震度速報の定型注意文を省く** omits the provisional tsunami caution sentence from a seismic intensity bulletin when tsunami captions are enabled and an active advisory or warning has already been received for the same earthquake. If the earthquake IDs cannot be matched, the caution still appears. The option is off by default.
+
+**津波注意報以上の発表中は震度速報を表示しない** hides the entire seismic intensity bulletin for the same earthquake while a tsunami advisory or warning is active and tsunami captions are enabled. An advisory or warning that arrives later also removes a bulletin that is already visible or queued. The received bulletin stays in the message review list. If both options are enabled, hiding the bulletin takes precedence. A forecast alone or an unavailable earthquake ID leaves the bulletin visible. The option is off by default.
 
 Under **フィルター** (Filters) → **表示フィルター** (Display filters), **南海トラフの定例解説をテロップに表示** (Show routine Nankai Trough commentary on the overlay) is off by default. Check it and save to enable captions. Turning it off clears any routine commentary on screen. Received reports are available in message review.
 

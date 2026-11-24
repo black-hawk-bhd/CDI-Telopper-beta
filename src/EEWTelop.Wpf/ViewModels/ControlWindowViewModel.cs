@@ -783,6 +783,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             _settings = updated;
             _services.IngestionPipeline.UpdateSettings(updated.Display, updated.Filter);
             if (hideRoutineCommentary) StopRoutineNankaiCommentaryOutput();
+            StopSuppressedScalePromptOutput(_services.Clock.UtcNow);
         });
         _productionReplayCatalog.Prune(
             updated.Display.ProductionReplay,
@@ -1586,6 +1587,13 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             }
 
             if (_telegramReplayMode == TelegramReplayMode.ProductionReplay &&
+                _services.IngestionPipeline.IsScalePromptSuppressed(item.Program, _services.Clock.UtcNow))
+            {
+                TelegramReviewStatusText = EventIngestionPipeline.ScalePromptSuppressionReason;
+                return;
+            }
+
+            if (_telegramReplayMode == TelegramReplayMode.ProductionReplay &&
                 item.Event.SourceMode != SourceMode.Production)
             {
                 TelegramReviewStatusText =
@@ -1600,6 +1608,41 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             DisplayRehearsal(item.Event, item.Program, label);
             TelegramReviewStatusText = $"{GetTelegramReplayModeText(_telegramReplayMode)}として再表示しました。";
         }
+    }
+
+    private void StopSuppressedScalePromptOutput(DateTimeOffset now)
+    {
+        if (!_settings.Display.SuppressScalePromptWhenTsunamiWarningActive || !_settings.Filter.Tsunami)
+            return;
+
+        bool IsSuppressed(DisplayProgram program) => _services.IngestionPipeline.IsScalePromptSuppressed(program, now);
+        _productionReplayCatalog.RemoveQuakePrograms(IsSuppressed);
+        _obsSnapshotStore.ClearQuakeProgram(now, IsSuppressed);
+
+        var drafts = _preDisplaySubtitleDrafts.Where(draft => IsSuppressed(draft.Program)).ToArray();
+        foreach (var draft in drafts)
+        {
+            _preDisplaySubtitleDrafts.Remove(draft);
+            AddTelegramForReview(draft.Event, draft.Program, EventIngestionPipeline.ScalePromptSuppressionReason);
+        }
+        if (drafts.Length > 0)
+            UpdatePreDisplayDraftState();
+
+        IDisplayCoordinator active = Volatile.Read(ref _activeCoordinator);
+        if (_services.DisplayCoordinator is PriorityCoordinator liveCoordinator)
+            liveCoordinator.RemoveQuakePrograms(IsSuppressed);
+
+        if (active is PriorityCoordinator coordinator && !ReferenceEquals(active, _services.DisplayCoordinator) &&
+            coordinator.RemoveQuakePrograms(IsSuppressed) && ReferenceEquals(active, _productionReplayCoordinator))
+        {
+            _productionReplayCoordinator = null;
+            _productionReplayNextSwitchUtc = now;
+            active = _services.DisplayCoordinator;
+            Volatile.Write(ref _activeCoordinator, active);
+        }
+
+        if (_lastCoordinatorSnapshot?.CurrentProgram is { } displayed && IsSuppressed(displayed))
+            ApplyDisplaySnapshot(active.Evaluate());
     }
 
     private void SetTelegramReplayMode(TelegramReplayMode mode)
@@ -1751,6 +1794,13 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             !string.Equals(sourceProgram.ProgramId, editedProgram.ProgramId, StringComparison.Ordinal))
         {
             ReceptionStatusText = "作画前情報が更新されたため、編集内容を送出できませんでした";
+            return false;
+        }
+
+        if (_services.IngestionPipeline.IsScalePromptSuppressed(sourceProgram, _services.Clock.UtcNow))
+        {
+            StopSuppressedScalePromptOutput(_services.Clock.UtcNow);
+            ReceptionStatusText = EventIngestionPipeline.ScalePromptSuppressionReason;
             return false;
         }
 
@@ -2330,6 +2380,9 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     private void OnEventProcessed(object? sender, EventIngestionResult result) =>
         _dispatcher.Invoke(() =>
         {
+            if (result is { Status: EventIngestionStatus.Accepted, Event: TsunamiEvent })
+                StopSuppressedScalePromptOutput(_services.Clock.UtcNow);
+
             if (result.Event is { } received && result.Program is { } program &&
                 EventDisplayFilter.IsRoutineNankaiCommentarySuppressed(_settings.Filter, received))
             {
@@ -2375,7 +2428,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             if (result is { Status: EventIngestionStatus.Accepted, Event: { SourceMode: not SourceMode.Production } previewEvent,
                 Program: null, ReviewProgram: { } preview })
             {
-                _obsSnapshotStore.AddMonitorTelegram(previewEvent, preview, _settings.Display, "テスト電文（確認のみ）");
+                _obsSnapshotStore.AddMonitorTelegram(previewEvent, preview, _settings.Display,
+                    result.DisplaySuppressionReason ?? "テスト電文（確認のみ）");
                 ReceptionStatusText = "テスト電文を受信しました。ブラウザーモニターで確認できます。";
                 return;
             }
@@ -3119,7 +3173,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     }
 
     private double GetProductionCycleSeconds(DisplayProgram? program) =>
-        PageClock.NormalizePageDuration(_settings.Display.PageDurationSeconds).TotalSeconds *
+        PageClock.GetPageDuration(_settings.Display, program).TotalSeconds *
         Math.Max(1, program?.Pages.Count ?? 1);
 
     private void ApplyDisplaySnapshot(CoordinatorSnapshot snapshot)

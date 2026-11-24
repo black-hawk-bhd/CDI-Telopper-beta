@@ -200,6 +200,9 @@ function fitVerticalEew() {
 function applySnapshot(state) {
   applyOutputTransform(state.outputTransform);
   canvas.className = String(state.backgroundMode ?? "Transparent").toLowerCase();
+  const fontFamily = state.fontFamilyName;
+  canvas.style.fontFamily = typeof fontFamily === "string" && fontFamily && fontFamily !== "BIZ UDPGothic"
+    ? `"${CSS.escape(fontFamily)}", var(--telop-font-fallback)` : "";
   banner.textContent = state.rehearsalLabel ?? "";
   banner.hidden = !state.rehearsalLabel;
   content.hidden = !state.hasProgram;

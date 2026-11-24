@@ -68,6 +68,14 @@ public sealed class Phase7ObsLocalViewTests
     public async Task DedicatedObsUrlsServeIndependentTextViews()
     {
         AppSettings settings = AppSettings.CreateDefault();
+        settings = settings with
+        {
+            Display = settings.Display with
+            {
+                PageDurationSeconds = 4,
+                TelegramPageDurationSeconds = new() { ["VPWW55"] = 3.5 },
+            },
+        };
         var clock = new TestClock();
         var store = new ObsSnapshotStore(settings.Display, clock.UtcNow);
         var coordinator = new PriorityCoordinator(clock, settings.Display);
@@ -99,7 +107,10 @@ public sealed class Phase7ObsLocalViewTests
             "weather-route", weatherEvent.Id, EventKind.WeatherWarning,
             SourceMode.Production, clock.UtcNow, OverlayPriority.WeatherWarning,
             [new DisplayPage(0, [new DisplayBlock("大雨警報", "熊本市", "", DisplayStyleTokens.WeatherWarning) { WeatherHeading = "熊本県｜新たに発表" }], "", null)],
-            clock.UtcNow, EndPolicy.AutoHide, string.Empty);
+            clock.UtcNow, EndPolicy.AutoHide, string.Empty) with
+        {
+            TelegramPageDurationKey = "VPWW55",
+        };
         store.PublishProgram(weatherEvent, weatherProgram, settings.Display, clock.UtcNow);
 
         await using var server = new ObsLocalViewServer(store, clock, new UiLogBuffer());
@@ -128,6 +139,13 @@ public sealed class Phase7ObsLocalViewTests
         Assert.AreEqual("熊本県｜新たに発表", weather.RootElement.GetProperty("blocks")[0].GetProperty("weatherHeading").GetString());
         Assert.AreEqual("大雨警報", weather.RootElement.GetProperty("blocks")[0].GetProperty("badge").GetString());
 
+        clock.UtcNow += TimeSpan.FromSeconds(3.5);
+        using JsonDocument expiredWeather = JsonDocument.Parse(await client.GetStringAsync(
+            $"http://127.0.0.1:{server.Port}/state{tokenQuery}&view=weather"));
+        using JsonDocument activeEew = JsonDocument.Parse(await client.GetStringAsync(
+            $"http://127.0.0.1:{server.Port}/state{tokenQuery}&view=eew"));
+        Assert.IsFalse(expiredWeather.RootElement.GetProperty("hasProgram").GetBoolean());
+        Assert.IsTrue(activeEew.RootElement.GetProperty("hasProgram").GetBoolean());
     }
 
     [TestMethod]
