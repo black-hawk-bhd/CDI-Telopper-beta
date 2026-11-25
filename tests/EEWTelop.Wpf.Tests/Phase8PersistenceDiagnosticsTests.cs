@@ -70,6 +70,7 @@ public sealed class Phase8PersistenceDiagnosticsTests
     [TestMethod]
     public async Task SettingsRoundTripUsesSchemaVersionAndLeavesNoTemporaryFile()
     {
+        const string logoPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=";
         var logs = new UiLogBuffer();
         string path = Path.Combine(_directory, "settings.json");
         var store = new JsonSettingsStore(path, logs);
@@ -95,6 +96,7 @@ public sealed class Phase8PersistenceDiagnosticsTests
             {
                 PageDurationSeconds = 7.5,
                 TelegramPageDurationSeconds = new() { ["VXSE51"] = 2.5, ["VXSE53"] = 8.5 },
+                SubtitleImages = new() { [EventKind.Quake] = new("logo.png", logoPng, 50, 75, 120) },
                 FontScale = 1.25,
                 LetterSpacingEm = 0.2,
                 LineSpacing = 1.5,
@@ -161,6 +163,7 @@ public sealed class Phase8PersistenceDiagnosticsTests
         Assert.AreEqual(18, actual.Display.EewAutoHideSeconds);
         Assert.AreEqual(2.5, actual.Display.TelegramPageDurationSeconds["VXSE51"]);
         Assert.AreEqual(8.5, actual.Display.TelegramPageDurationSeconds["VXSE53"]);
+        Assert.AreEqual(new SubtitleImageSettings("logo.png", logoPng, 50, 75, 120), actual.Display.SubtitleImages[EventKind.Quake]);
         Assert.AreEqual(12, actual.Display.ProductionReplay.RotationIntervalSeconds);
         Assert.AreEqual(3, actual.Display.ProductionReplay.ResumeDelaySeconds);
         Assert.IsTrue(actual.Display.ProductionReplay.Tsunami.Enabled);

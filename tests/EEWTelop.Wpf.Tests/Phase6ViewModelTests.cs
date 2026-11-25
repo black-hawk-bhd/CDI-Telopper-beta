@@ -1603,6 +1603,46 @@ public sealed partial class Phase6ViewModelTests
     }
 
     [TestMethod]
+    public async Task TrainingXmlFolderUpdatesTheListAndFiltersByCategoryAndTelegramType()
+    {
+        string directory = Directory.CreateTempSubdirectory("qt-library-folder-").FullName;
+        try
+        {
+            string source = Directory.CreateDirectory(Path.Combine(directory, "source")).FullName;
+            await File.WriteAllTextAsync(Path.Combine(source, "a_VPBS50.xml"), "<Report />");
+            await File.WriteAllTextAsync(Path.Combine(source, "b_VPHW50.xml"), "<Report />");
+            await File.WriteAllTextAsync(Path.Combine(source, "c_VXSE51.xml"), "<Report />");
+            await File.WriteAllTextAsync(Path.Combine(source, "broken.xml"), "<Report>");
+            var library = new FileTestCaseLibrary(Path.Combine(directory, "library"));
+            AppServices services = CreateServices(ProviderConnectionState.Stopped, testCaseLibrary: library);
+            await using var viewModel = new ControlWindowViewModel(services, services.InitialSettings,
+                new FakeConfirmationService(), new ImmediateUiDispatcher());
+
+            await viewModel.ImportTestXmlFolderAsync(source);
+
+            Assert.HasCount(3, viewModel.TestLibraryCases);
+            StringAssert.Contains(viewModel.TestLibraryFolderImportStatus, "XMLを3件登録");
+            StringAssert.Contains(viewModel.TestLibraryFolderImportStatus, "broken.xml");
+            Assert.IsFalse(viewModel.Overlay.HasProgram);
+            viewModel.SelectedTestLibraryKind = viewModel.TestLibraryKindOptions.Single(item => item.Kind == EventKind.WeatherWarning);
+            Assert.HasCount(2, viewModel.TestLibraryCases);
+            viewModel.SelectedTestLibraryTelegramType = "VPBS50";
+            OperationalTestCaseViewModel bulletin = viewModel.TestLibraryCases.Single();
+            Assert.AreEqual("a_VPBS50", bulletin.Name);
+            bulletin.ResultText = "合格";
+            viewModel.TestLibrarySearchText = "c_VXSE51";
+            Assert.IsEmpty(viewModel.TestLibraryCases);
+            viewModel.TestLibrarySearchText = string.Empty;
+            Assert.AreSame(bulletin, viewModel.TestLibraryCases.Single());
+            Assert.AreEqual("合格", viewModel.TestLibraryCases.Single().ResultText);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public async Task StartingProductionClearsTestOutputAndKeepsTestsBlockedUntilReceptionStops()
     {
         var source = new FaultedActiveConfigurableEventSource();

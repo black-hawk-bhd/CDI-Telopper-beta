@@ -27,12 +27,26 @@ public sealed partial class ControlWindowViewModel
     private string? _selectedProfileName;
     private OperationalTestCaseViewModel? _selectedLibraryCase;
     private string _testLibrarySearchText = string.Empty;
+    private const string AllTestLibraryTelegramTypes = "すべての電文種別";
+    private string _selectedTestLibraryTelegramType = AllTestLibraryTelegramTypes;
+    private IReadOnlyList<OperationalTestCaseViewModel> _loadedTestLibraryCases = [];
+    private string _testLibraryFolderImportStatus = string.Empty;
+    private bool _testLibraryFolderImporting;
+    private static readonly TestLibraryKindOption[] LibraryKindOptions =
+    [
+        new(null, "すべての情報種別"),
+        .. Enum.GetValues<EventKind>().Where(static kind => kind != EventKind.Unknown)
+            .Select(static kind => new TestLibraryKindOption(kind, TestCaseClassification.GetLabel(kind))),
+        new(EventKind.Unknown, TestCaseClassification.Unclassified),
+    ];
+    private TestLibraryKindOption _selectedTestLibraryKind = LibraryKindOptions[0];
     private string _operationalStatusText = "点検待ち";
     private bool _isSelfCheckRunning;
 
     public event Action? ImportProfileRequested;
     public event Action<string>? ExportProfileRequested;
     public event Action? ImportTestFilesRequested;
+    public event Action? ImportTestXmlFolderRequested;
     public event Action? ImportDmdataArchiveRequested;
     public event Action? ImportTestPackageRequested;
     public event Action<OperationalTestCaseViewModel>? ExportTestPackageRequested;
@@ -50,8 +64,27 @@ public sealed partial class ControlWindowViewModel
         get => _testLibrarySearchText;
         set
         {
-            if (SetProperty(ref _testLibrarySearchText, value)) RefreshTestLibrary();
+            if (SetProperty(ref _testLibrarySearchText, value)) ApplyTestLibraryFilters();
         }
+    }
+
+    public IReadOnlyList<TestLibraryKindOption> TestLibraryKindOptions { get; } = LibraryKindOptions;
+    public TestLibraryKindOption SelectedTestLibraryKind
+    {
+        get => _selectedTestLibraryKind;
+        set { if (SetProperty(ref _selectedTestLibraryKind, value)) ApplyTestLibraryFilters(); }
+    }
+    public IReadOnlyList<string> TestLibraryTelegramTypes { get; private set; } = [AllTestLibraryTelegramTypes];
+    public string SelectedTestLibraryTelegramType
+    {
+        get => _selectedTestLibraryTelegramType;
+        set { if (SetProperty(ref _selectedTestLibraryTelegramType, value)) ApplyTestLibraryFilters(); }
+    }
+    public bool CanEditTestLibrary => !_testLibraryFolderImporting;
+    public string TestLibraryFolderImportStatus
+    {
+        get => _testLibraryFolderImportStatus;
+        private set => SetProperty(ref _testLibraryFolderImportStatus, value);
     }
 
     public string NewProfileName
@@ -113,6 +146,7 @@ public sealed partial class ControlWindowViewModel
     public RelayCommand ImportProfileCommand { get; private set; } = null!;
     public RelayCommand ExportProfileCommand { get; private set; } = null!;
     public RelayCommand ImportTestFilesCommand { get; private set; } = null!;
+    public RelayCommand ImportTestXmlFolderCommand { get; private set; } = null!;
     public RelayCommand ImportDmdataArchiveCommand { get; private set; } = null!;
     public RelayCommand ImportTestPackageCommand { get; private set; } = null!;
     public RelayCommand ExportLibraryCaseCommand { get; private set; } = null!;
@@ -135,6 +169,8 @@ public sealed partial class ControlWindowViewModel
             if (SelectedProfileName is { } name) ExportProfileRequested?.Invoke(name);
         }, () => SelectedProfileName is not null);
         ImportTestFilesCommand = new RelayCommand(() => ImportTestFilesRequested?.Invoke());
+        ImportTestXmlFolderCommand = new RelayCommand(() => ImportTestXmlFolderRequested?.Invoke(),
+            () => CanEditTestLibrary && _services.TestCaseLibrary is not null);
         ImportDmdataArchiveCommand = new RelayCommand(() => ImportDmdataArchiveRequested?.Invoke());
         ImportTestPackageCommand = new RelayCommand(() => ImportTestPackageRequested?.Invoke());
         ExportLibraryCaseCommand = new RelayCommand(() =>
@@ -284,6 +320,47 @@ public sealed partial class ControlWindowViewModel
             RefreshTestLibrary();
             OperationalStatusText = $"dmdata生データを{imported.Count}件登録しました（表示解析はXML正本のみ）。";
         });
+    }
+
+    public async Task ImportTestXmlFolderAsync(string directory)
+    {
+        if (_services.TestCaseLibrary is not { } library || !CanEditTestLibrary) return;
+
+        SetTestLibraryFolderImporting(true);
+        TestLibraryFolderImportStatus = "フォルダー内のXMLを登録中…";
+        try
+        {
+            TestXmlFolderImportResult result = await Task.Run(() => library.ImportXmlFolderAsync(directory))
+                .ConfigureAwait(false);
+            _dispatcher.Invoke(() =>
+            {
+                RefreshTestLibrary();
+                int skipped = result.SkippedFiles.Count;
+                TestLibraryFolderImportStatus = (result.ImportedCount, skipped) switch
+                {
+                    (0, 0) => "フォルダー内にXMLファイルがありません。",
+                    (_, 0) => $"XMLを{result.ImportedCount}件登録しました。",
+                    _ => $"XMLを{result.ImportedCount}件登録しました。{skipped}件は登録できませんでした。 " +
+                        string.Join("、", result.SkippedFiles.Take(3)) + (skipped > 3 ? " ほか" : string.Empty),
+                };
+            });
+        }
+        catch
+        {
+            _dispatcher.Invoke(() => TestLibraryFolderImportStatus = "フォルダーからXMLを登録できませんでした。");
+            throw;
+        }
+        finally
+        {
+            _dispatcher.Invoke(() => SetTestLibraryFolderImporting(false));
+        }
+    }
+
+    private void SetTestLibraryFolderImporting(bool importing)
+    {
+        _testLibraryFolderImporting = importing;
+        OnPropertyChanged(nameof(CanEditTestLibrary));
+        ImportTestXmlFolderCommand.RaiseCanExecuteChanged();
     }
 
     public async Task ImportTestPackageAsync(string path)
@@ -485,17 +562,41 @@ public sealed partial class ControlWindowViewModel
 
     private void RefreshTestLibrary()
     {
+        _loadedTestLibraryCases = _services.TestCaseLibrary?.List()
+            .Select(static item => new OperationalTestCaseViewModel(item)).ToArray() ?? [];
+        string previousType = SelectedTestLibraryTelegramType;
+        TestLibraryTelegramTypes = [AllTestLibraryTelegramTypes, .. _loadedTestLibraryCases
+            .Select(static item => item.TelegramType).Where(static type => !string.IsNullOrWhiteSpace(type))
+            .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.CurrentCultureIgnoreCase)];
+        OnPropertyChanged(nameof(TestLibraryTelegramTypes));
+        SelectedTestLibraryTelegramType = TestLibraryTelegramTypes.Contains(previousType, StringComparer.OrdinalIgnoreCase)
+            ? previousType : AllTestLibraryTelegramTypes;
+        ApplyTestLibraryFilters();
+    }
+
+    private void ApplyTestLibraryFilters()
+    {
+        string? selectedId = SelectedLibraryCase?.Manifest.Id;
         TestLibraryCases.Clear();
-        if (_services.TestCaseLibrary is null) return;
-        IEnumerable<TestCaseManifest> cases = _services.TestCaseLibrary.List();
+        IEnumerable<OperationalTestCaseViewModel> cases = _loadedTestLibraryCases;
+        if (SelectedTestLibraryKind?.Kind is { } kind)
+        {
+            cases = cases.Where(item => item.Kind == kind);
+        }
+        if (!string.IsNullOrEmpty(SelectedTestLibraryTelegramType) && SelectedTestLibraryTelegramType != AllTestLibraryTelegramTypes)
+        {
+            cases = cases.Where(item => string.Equals(item.TelegramType, SelectedTestLibraryTelegramType, StringComparison.OrdinalIgnoreCase));
+        }
         if (!string.IsNullOrWhiteSpace(TestLibrarySearchText))
         {
             string search = TestLibrarySearchText.Trim();
             cases = cases.Where(item => string.Join(" ", item.Name, item.Category, item.Provider,
-                item.TelegramType, item.EventId, item.Description, string.Join(" ", item.Tags))
+                item.TelegramType, item.EventId, item.Description, string.Join(" ", item.Manifest.Tags))
                 .Contains(search, StringComparison.CurrentCultureIgnoreCase));
         }
-        foreach (TestCaseManifest item in cases) TestLibraryCases.Add(new OperationalTestCaseViewModel(item));
+        foreach (OperationalTestCaseViewModel item in cases) TestLibraryCases.Add(item);
+        if (selectedId is not null)
+            SelectedLibraryCase = TestLibraryCases.FirstOrDefault(item => item.Manifest.Id == selectedId);
         DeleteAllLibraryCasesCommand?.RaiseCanExecuteChanged();
     }
 
@@ -638,6 +739,8 @@ public sealed partial class ControlWindowViewModel
     }
 }
 
+public sealed record TestLibraryKindOption(EventKind? Kind, string Label);
+
 public sealed class OperationalTestCaseViewModel : ObservableObject
 {
     private string _resultText = "未実行";
@@ -685,6 +788,7 @@ public sealed class OperationalTestCaseViewModel : ObservableObject
     }
 
     public TestCaseManifest Manifest => _manifest;
+    public EventKind Kind => TestCaseClassification.GetKind(TelegramType);
     public string Name { get => _name; set { if (SetProperty(ref _name, value)) OnPropertyChanged(nameof(DisplayText)); } }
     public string Category { get => _category; set { if (SetProperty(ref _category, value)) OnPropertyChanged(nameof(DisplayText)); } }
     public string Provider { get => _provider; set => SetProperty(ref _provider, value); }

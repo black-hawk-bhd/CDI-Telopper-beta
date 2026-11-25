@@ -5,16 +5,18 @@
 
 Comprehensive Disaster Information Telopper（CDI-Telopper）は、地震・津波・気象・火山・南海トラフに関する防災情報を受信し、OBS向け字幕として出力するWindowsアプリです。
 
-現在の公開版は **2.0.0-beta.74** です（2026年11月24日）。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
+現在の公開版は **2.0.0-beta.75** です（2026年11月25日）。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
 本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
 
-- [2.0.0-beta.74をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.74)
-- [操作マニュアル](docs/USER_GUIDE.md) / [beta.74の変更点と操作](README_CDI-Telopper_2.0.0-beta.74.txt)
+- [2.0.0-beta.75をダウンロード](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.75)
+- [操作マニュアル](docs/USER_GUIDE.md) / [beta.75の変更点と操作](README_CDI-Telopper_2.0.0-beta.75.txt)
 - [ソースからのビルド方法](SOURCE_BUILD.md)
 - [開発者向けコードガイド](docs/DEVELOPER_GUIDE.md)
 - [MIT License](LICENSE) / [利用規約・免責事項](TERMS.md) / [プライバシーポリシー](PRIVACY.md)
 
 ## 主な機能
+
+beta.75では、OBS字幕にPNGを添える機能、訓練XMLの一括登録と種別による絞り込みを追加しました。気象庁の公式サンプルXML185件を単一EXE版と軽量版の両方に収録しています。 [変更内容](RELEASE_NOTES_2.0.0-beta.75.md) ・ [訓練XMLの出典](jmaxml_20261118_CDI-Telopper/README.md)
 
 beta.74では、電文別のページ秒数、字幕フォントの選択、実行ファイル横の `Settings` への保存、同じ地震の津波注意報以上が発表された場合の震度速報の非表示を追加しました。[変更内容](RELEASE_NOTES_2.0.0-beta.74.md)
 
@@ -233,7 +235,7 @@ beta.57以降は、地震・EEW・津波・気象の音声をそれぞれ該当�
 - 利用する受信プロバイダーへ接続できるインターネット環境
 - AXISまたはDMDATA.JPを使う場合は、有効な契約と認証情報
 
-GitHub Releasesの配布物は自己完結型です。通常利用ではVisual Studioや.NET SDKをインストールする必要はありません。
+GitHub Releasesでは、すぐ起動できる.NET同梱の単一EXE版を案内します。軽量版には .NET 10 Desktop Runtime（x64、10.0.14以降の10.0系）が必要です。[Microsoft公式ダウンロード](https://dotnet.microsoft.com/ja-jp/download/dotnet/10.0)
 
 ## インストールと初回起動
 
@@ -267,10 +269,10 @@ powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 配布物を作成する場合は次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.74
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.75
 ```
 
-フォルダー版、単一EXE版、`version.json`、`SHA256SUMS.txt`は `artifacts\release\2.0.0-beta.74\win-x64` に生成されます。[ソースビルドの詳細](SOURCE_BUILD.md)
+beta.75から、.NET同梱の単一EXE版と軽量版を作成します。2種類のZIP、`version.json`、`SHA256SUMS.txt`は `artifacts\release\2.0.0-beta.75\win-x64` に生成されます。[ソースビルドの詳細](SOURCE_BUILD.md)
 
 ## 開発者向け資料
 

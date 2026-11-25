@@ -251,10 +251,34 @@ run('weather area headings retain their position beside the badge', () => {
   assert(heading.left > badge.right && places.left === badge.left && places.top >= heading.bottom, 'Weather heading moved');
   assert(!blocks.classList.contains('aligned-labels'), 'Earthquake and tsunami columns applied to weather');
 });
-// Leave a representative two-warning frame for the screenshot.
-applySnapshot({ ...base, alignVerticalEewWarningsLeft: ${leftPreview}, blocks: [...warning(first), ...warning(second)] });
-const result = document.createElement('pre'); result.id = 'probe-result'; result.hidden = true;
-result.textContent = JSON.stringify(results); document.body.appendChild(result);
+async function checkSubtitleImage() {
+  const logo = document.getElementById('subtitleImage');
+  const loaded = new Promise((resolve, reject) => {
+    logo.addEventListener('load', resolve, { once: true });
+    logo.addEventListener('error', () => reject(new Error('PNG did not load')), { once: true });
+  });
+  const withImage = { ...base, subtitleImage: { id: 'a'.repeat(64), x: 24, y: 780, width: 156 } };
+  applySnapshot(withImage);
+  await loaded;
+  assert(!logo.hidden && logo.width === 156 && logo.height === 156, 'PNG is not visible at the specified width and aspect ratio');
+  assert(logo.offsetLeft === 24 && logo.offsetTop === 780, 'PNG is not at the specified position');
+  applySnapshot({ ...withImage, hasProgram: false });
+  assert(logo.hidden, 'PNG remained after caption disappeared');
+  applySnapshot(withImage);
+  assert(!logo.hidden, 'PNG did not return with its caption');
+  applySnapshot(base);
+  assert(logo.hidden, 'PNG carried over to a caption without an image');
+}
+
+checkSubtitleImage().then(
+  () => results.push({ name: 'PNG follows caption visibility and placement', passed: true }),
+  error => results.push({ name: 'PNG follows caption visibility and placement', passed: false, error: error.message })
+).finally(() => {
+  // Leave a representative two-warning frame for the screenshot.
+  applySnapshot({ ...base, alignVerticalEewWarningsLeft: ${leftPreview}, blocks: [...warning(first), ...warning(second)] });
+  const result = document.createElement('pre'); result.id = 'probe-result'; result.hidden = true;
+  result.textContent = JSON.stringify(results); document.body.appendChild(result);
+});
 </script>`;
 
 const server = http.createServer((request, response) => {
@@ -264,6 +288,9 @@ const server = http.createServer((request, response) => {
   } else if (request.url === "/assets/overlay.js") {
     response.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8" });
     response.end(script);
+  } else if (request.url === `/subtitle-image/${"a".repeat(64)}?token=`) {
+    response.writeHead(200, { "Content-Type": "image/png" });
+    response.end(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=", "base64"));
   } else { response.writeHead(404); response.end(); }
 });
 

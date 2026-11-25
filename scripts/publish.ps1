@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '2.0.0-beta.74',
+    [string]$Version = '2.0.0-beta.75',
     [string]$RuntimeIdentifier = 'win-x64',
     [string]$OutputLabel = '',
     [ValidateSet('true', 'false')]
@@ -8,8 +8,8 @@ param(
     [string]$DmdataProviderEnabled = 'true',
     [ValidateSet('true', 'false')]
     [string]$ExtendedFeaturesEnabled = 'true',
-    [ValidateSet('Both', 'SingleFileOnly')]
-    [string]$PackageMode = 'Both',
+    [ValidateSet('Auto', 'SingleFileAndLight', 'Both', 'SingleFileOnly')]
+    [string]$PackageMode = 'Auto',
     [switch]$SkipSmokeTest,
     [switch]$SkipSha256,
     [string]$DotnetPath = ''
@@ -40,14 +40,34 @@ $versionSuffix = $versionMatch.Groups['suffix'].Value
 if ($versionMajor -ne 1 -and -not ($versionMajor -eq 2 -and $versionSuffix)) {
     throw "Stable releases must remain 1.x; 2.x builds require a prerelease suffix: $Version"
 }
+if ($PackageMode -eq 'Auto') {
+    $legacyBeta = $versionMinor -eq 0 -and $versionPatch -eq 0 -and
+        $versionSuffix -match '^-beta\.([0-9]+)(?:[.-]|$)' -and [int]$Matches[1] -lt 75
+    $PackageMode = if ($versionMajor -eq 1 -or $legacyBeta) { 'Both' } else { 'SingleFileAndLight' }
+}
 $assemblyVersion = "$versionMajor.$versionMinor.$versionPatch.0"
 $releaseLabel = if ([string]::IsNullOrWhiteSpace($OutputLabel)) { $Version } else { $OutputLabel }
 if ($releaseLabel.IndexOfAny([IO.Path]::GetInvalidFileNameChars()) -ge 0) {
     throw "Output label contains invalid file-name characters: $releaseLabel"
 }
 $releaseRoot = Join-Path $workspaceRoot "artifacts\release\$releaseLabel\$RuntimeIdentifier"
-$folderOutput = Join-Path $releaseRoot 'folder'
-$singleOutput = Join-Path $releaseRoot 'single-file'
+$singleFilePackage = @{
+    Kind = 'single-file'
+    Zip = "CDI-Telopper-$Version-$RuntimeIdentifier-single-file.zip"
+    SelfContained = $true
+    SingleFile = $true
+}
+$packagesToBuild = @(switch ($PackageMode) {
+    'Both' {
+        @{ Kind = 'folder'; Zip = "CDI-Telopper-$Version-$RuntimeIdentifier-folder.zip"; SelfContained = $true; SingleFile = $false }
+        $singleFilePackage
+    }
+    'SingleFileAndLight' {
+        $singleFilePackage
+        @{ Kind = 'framework-dependent'; Zip = "CDI-Telopper-$Version-$RuntimeIdentifier-framework-dependent.zip"; SelfContained = $false; SingleFile = $true }
+    }
+    'SingleFileOnly' { $singleFilePackage }
+})
 $msbuildProperties = @(
     "-p:Version=$Version",
     "-p:AssemblyVersion=$assemblyVersion",
@@ -57,9 +77,6 @@ $msbuildProperties = @(
     "-p:DmdataProviderEnabled=$DmdataProviderEnabled",
     "-p:ExtendedFeaturesEnabled=$ExtendedFeaturesEnabled",
     '-p:NuGetAudit=false'
-    # RID alone does not imply self-contained. Restore the same
-    # deployment graph that both --no-restore publish commands consume.
-    '-p:SelfContained=true'
 )
 $enabledProviders = @('P2PQuake', 'Wolfx')
 if ($DmdataProviderEnabled -eq 'true') { $enabledProviders += 'DMDATA.JP' }
@@ -109,6 +126,7 @@ function Add-DistributionFiles {
     param(
         [string]$Directory,
         [bool]$SingleFile,
+        [bool]$SelfContained,
         [string]$Commit,
         [string]$BuiltAtUtc,
         [object[]]$RuntimeFrameworks
@@ -118,24 +136,27 @@ function Add-DistributionFiles {
     New-Item -ItemType Directory -Path $licenses | Out-Null
     $readmeName = "README_CDI-Telopper_$Version.txt"
     $readmePath = Join-Path $workspaceRoot $readmeName
-    if (-not (Test-Path -LiteralPath $readmePath)) {
-        $readmePath = Get-ChildItem -LiteralPath $workspaceRoot -Filter 'README_CDI-Telopper_2.0.0-beta.*.txt' -File |
-            Sort-Object LastWriteTimeUtc | Select-Object -Last 1 -ExpandProperty FullName
-    }
-    if ([string]::IsNullOrWhiteSpace($readmePath) -or -not (Test-Path -LiteralPath $readmePath)) {
-        # 名称移行直後の旧READMEも入力として利用し、配布物内では新名称へ変換する。
-        $readmePath = Get-ChildItem -LiteralPath $workspaceRoot -Filter 'README_QTelopper_2.0.0-beta.*.txt' -File |
-            Sort-Object LastWriteTimeUtc | Select-Object -Last 1 -ExpandProperty FullName
-    }
-    if ([IO.Path]::GetFileName($readmePath).StartsWith('README_QTelopper_', [StringComparison]::OrdinalIgnoreCase)) {
-        (Get-Content -LiteralPath $readmePath -Raw).Replace('QTelopper', 'CDI-Telopper') |
-            Set-Content -LiteralPath (Join-Path $Directory $readmeName) -Encoding UTF8
+    if ($SelfContained -and (Test-Path -LiteralPath $readmePath)) {
+        Copy-Item -LiteralPath $readmePath -Destination (Join-Path $Directory $readmeName)
     }
     else {
-        Copy-Item -LiteralPath $readmePath -Destination (Join-Path $Directory $readmeName)
+        if ($SelfContained) {
+            $runtimeNote = 'Self-contained package (.NET Desktop Runtime included).'
+        }
+        else {
+            $desktopVersion = ($RuntimeFrameworks | Where-Object name -eq 'Microsoft.WindowsDesktop.App').version
+            $runtimeNote = "Lightweight package. Install .NET 10 Desktop Runtime ($RuntimeIdentifier, $desktopVersion or a later .NET 10 patch).`r`nhttps://dotnet.microsoft.com/ja-jp/download/dotnet/10.0"
+        }
+        $template = Get-Content -LiteralPath (Join-Path $workspaceRoot 'docs\distribution-readme.txt') -Encoding UTF8 -Raw
+        $template.Replace('{{version}}', $Version).Replace('{{runtime}}', $runtimeNote) |
+            Set-Content -LiteralPath (Join-Path $Directory $readmeName) -Encoding UTF8
     }
     Copy-Item -LiteralPath (Join-Path $workspaceRoot 'docs\disaster-simulator.md') -Destination (Join-Path $Directory 'SIMULATOR_GUIDE.md')
     Copy-Item -LiteralPath (Join-Path $workspaceRoot 'docs\external-api-v1.md') -Destination (Join-Path $Directory 'EXTERNAL_API_V1.md')
+    if ($versionMajor -eq 2) {
+        Copy-Item -LiteralPath (Join-Path $workspaceRoot 'jmaxml_20261118_CDI-Telopper') `
+            -Destination (Join-Path $Directory 'TrainingSamples') -Recurse
+    }
     foreach ($policyFile in @('TERMS.md', 'PRIVACY.md', 'LICENSE')) {
         Copy-Item -LiteralPath (Join-Path $workspaceRoot $policyFile) -Destination (Join-Path $Directory $policyFile)
     }
@@ -172,7 +193,7 @@ function Add-DistributionFiles {
         builtAtUtc = $BuiltAtUtc
         runtimeIdentifier = $RuntimeIdentifier
         targetFramework = $targetFramework
-        selfContained = $true
+        selfContained = $SelfContained
         runtimeFrameworks = $RuntimeFrameworks
         singleFile = $SingleFile
         extendedFeaturesEnabled = $ExtendedFeaturesEnabled -eq 'true'
@@ -182,15 +203,24 @@ function Add-DistributionFiles {
 }
 
 function Get-PublishedRuntimeFrameworks {
-    param([string]$RuntimeConfigPath)
+    param([string]$RuntimeConfigPath, [bool]$SelfContained)
 
-    $frameworks = @((Get-Content -LiteralPath $RuntimeConfigPath -Raw | ConvertFrom-Json).runtimeOptions.includedFrameworks)
+    $options = (Get-Content -LiteralPath $RuntimeConfigPath -Raw | ConvertFrom-Json).runtimeOptions
+    if ($SelfContained) {
+        $frameworks = @($options.includedFrameworks)
+    }
+    else {
+        if ($options.includedFrameworks -or $options.rollForward -ne 'LatestPatch') {
+            throw "The lightweight package must use the installed .NET 10 Desktop Runtime and roll forward to the latest patch: $RuntimeConfigPath"
+        }
+        $frameworks = @($options.frameworks)
+    }
     foreach ($name in @('Microsoft.NETCore.App', 'Microsoft.WindowsDesktop.App')) {
         $frameworkMatches = @($frameworks | Where-Object { $_.name -eq $name })
         $runtimeVersion = $null
         if ($frameworkMatches.Count -ne 1 -or -not [Version]::TryParse($frameworkMatches[0].version, [ref]$runtimeVersion) -or
             $runtimeVersion.Major -ne 10 -or $runtimeVersion -lt [Version]'10.0.14') {
-            throw "Published $name must be self-contained .NET 10.0.14 or newer: $RuntimeConfigPath"
+            throw "Published $name must use .NET 10.0.14 or newer within .NET 10: $RuntimeConfigPath"
         }
     }
     return $frameworks
@@ -198,6 +228,13 @@ function Get-PublishedRuntimeFrameworks {
 
 function Test-PublishedApplication {
     param([string]$Executable)
+
+    $session = (Get-Process -Id $PID).SessionId
+    $running = @(Get-Process -Name 'CDI-Telopper', 'QTelopper' -ErrorAction SilentlyContinue |
+        Where-Object SessionId -eq $session)
+    if ($running.Count -gt 0) {
+        throw 'Exit the running CDI-Telopper from its tray menu before the startup smoke test.'
+    }
 
     $temporaryRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
     $smokeDirectory = Join-Path $temporaryRoot ("CDI-Telopper-publish-smoke-" + [Guid]::NewGuid().ToString('N'))
@@ -209,20 +246,34 @@ function Test-PublishedApplication {
         $dataEnvironmentVariable,
         $smokeDirectory,
         [EnvironmentVariableTarget]::Process)
+    $process = $null
     try {
         $process = Start-Process -FilePath $Executable -PassThru -WindowStyle Hidden
-        Start-Sleep -Seconds 3
-        if ($process.HasExited) {
-            throw "Published application exited during smoke startup: $Executable (exit $($process.ExitCode))"
-        }
-
-        $null = $process.CloseMainWindow()
-        if (-not $process.WaitForExit(5000)) {
-            Stop-Process -Id $process.Id -Force
-            $process.WaitForExit()
-        }
+        $deadline = [DateTime]::UtcNow.AddSeconds(20)
+        do {
+            $process.Refresh()
+            if ($process.HasExited) {
+                throw "Published application exited during smoke startup: $Executable (exit $($process.ExitCode))"
+            }
+            if ($process.MainWindowHandle -ne 0 -and $process.MainWindowTitle -like 'CDI-Telopper *') {
+                Write-Output "Startup verified: $Executable"
+                return
+            }
+            Start-Sleep -Milliseconds 250
+        } while ([DateTime]::UtcNow -lt $deadline)
+        throw "Published application did not open its main window: $Executable"
     }
     finally {
+        if ($null -ne $process) {
+            if (-not $process.HasExited) {
+                $null = $process.CloseMainWindow()
+                if (-not $process.WaitForExit(2000)) {
+                    Stop-Process -Id $process.Id -Force
+                    $process.WaitForExit()
+                }
+            }
+            $process.Dispose()
+        }
         [Environment]::SetEnvironmentVariable(
             $dataEnvironmentVariable,
             $previousDataDirectory,
@@ -237,71 +288,58 @@ function Test-PublishedApplication {
 
 Push-Location $workspaceRoot
 try {
-    Invoke-Dotnet (@(
-        'restore', $project,
-        '-r', $RuntimeIdentifier,
-        '--configfile', (Join-Path $workspaceRoot 'NuGet.Config')) + $msbuildProperties)
+    $commit = Get-CommitId
+    $builtAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
+    $lastRestore = $null
+    $bundleRuntimeConfig = Join-Path $workspaceRoot "src\EEWTelop.Wpf\bin\Release\$targetFramework\$RuntimeIdentifier\CDI-Telopper.runtimeconfig.json"
+    foreach ($package in $packagesToBuild) {
+        $output = Join-Path $releaseRoot $package.Kind
+        $selfContained = $package.SelfContained.ToString().ToLowerInvariant()
+        $deploymentProperties = $msbuildProperties + "-p:SelfContained=$selfContained"
+        if (-not $package.SelfContained) {
+            $deploymentProperties += '-p:RollForward=LatestPatch'
+        }
+        # Rid-specific restore must use the same mode as publish.
+        if ($lastRestore -ne $selfContained) {
+            Invoke-Dotnet (@(
+                'restore', $project,
+                '-r', $RuntimeIdentifier,
+                '--configfile', (Join-Path $workspaceRoot 'NuGet.Config')) + $deploymentProperties)
+            $lastRestore = $selfContained
+        }
 
-    if ($PackageMode -eq 'Both') {
+        $packagingProperties = @("-p:PublishSingleFile=$($package.SingleFile.ToString().ToLowerInvariant())")
+        if ($package.SingleFile) {
+            $packagingProperties += '-p:IncludeNativeLibrariesForSelfExtract=true'
+        }
         Invoke-Dotnet (@(
             'publish', $project,
             '-c', 'Release',
             '-r', $RuntimeIdentifier,
-            '--self-contained', 'true',
+            '--self-contained', $selfContained,
             '--no-restore',
-            '-o', $folderOutput,
-            '-p:PublishSingleFile=false',
+            '-o', $output,
             '-p:PublishTrimmed=false',
             '-p:DebugType=None',
-            '-p:DebugSymbols=false') + $msbuildProperties)
-        $folderFrameworks = @(Get-PublishedRuntimeFrameworks (Join-Path $folderOutput 'CDI-Telopper.runtimeconfig.json'))
-    }
+            '-p:DebugSymbols=false') + $deploymentProperties + $packagingProperties)
 
-    Invoke-Dotnet (@(
-        'publish', $project,
-        '-c', 'Release',
-        '-r', $RuntimeIdentifier,
-        '--self-contained', 'true',
-        '--no-restore',
-        '-o', $singleOutput,
-        '-p:PublishSingleFile=true',
-        '-p:IncludeNativeLibrariesForSelfExtract=true',
-        '-p:PublishTrimmed=false',
-        '-p:DebugType=None',
-        '-p:DebugSymbols=false') + $msbuildProperties)
-    # The SDK keeps the runtimeconfig used for the single-file bundle in bin/.
-    $singleRuntimeConfig = Join-Path $workspaceRoot "src\EEWTelop.Wpf\bin\Release\$targetFramework\$RuntimeIdentifier\CDI-Telopper.runtimeconfig.json"
-    $singleFrameworks = @(Get-PublishedRuntimeFrameworks $singleRuntimeConfig)
-
-    $commit = Get-CommitId
-    $builtAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
-    if ($PackageMode -eq 'Both') {
-        Add-DistributionFiles -Directory $folderOutput -SingleFile $false -Commit $commit -BuiltAtUtc $builtAtUtc -RuntimeFrameworks $folderFrameworks
-    }
-    Add-DistributionFiles -Directory $singleOutput -SingleFile $true -Commit $commit -BuiltAtUtc $builtAtUtc -RuntimeFrameworks $singleFrameworks
-
-    if (-not $SkipSmokeTest) {
-        if ($PackageMode -eq 'Both') {
-            Test-PublishedApplication -Executable (Join-Path $folderOutput 'CDI-Telopper.exe')
+        # The SDK keeps the runtimeconfig used for the single-file bundle in bin/.
+        $runtimeConfig = if ($package.SingleFile) { $bundleRuntimeConfig }
+            else { Join-Path $output 'CDI-Telopper.runtimeconfig.json' }
+        $frameworks = @(Get-PublishedRuntimeFrameworks -RuntimeConfigPath $runtimeConfig -SelfContained $package.SelfContained)
+        Add-DistributionFiles -Directory $output -SingleFile $package.SingleFile -SelfContained $package.SelfContained `
+            -Commit $commit -BuiltAtUtc $builtAtUtc -RuntimeFrameworks $frameworks
+        if (-not $SkipSmokeTest) {
+            Test-PublishedApplication -Executable (Join-Path $output 'CDI-Telopper.exe')
         }
-        Test-PublishedApplication -Executable (Join-Path $singleOutput 'CDI-Telopper.exe')
     }
-    else {
-        Write-Warning 'Published application startup smoke test was skipped.'
-    }
+    if ($SkipSmokeTest) { Write-Warning 'Published application startup smoke test was skipped.' }
 
-    $folderZip = Join-Path $releaseRoot "CDI-Telopper-$Version-$RuntimeIdentifier-folder.zip"
-    $singleZip = Join-Path $releaseRoot "CDI-Telopper-$Version-$RuntimeIdentifier-single-file.zip"
-    if ($PackageMode -eq 'Both') {
-        Compress-Archive -Path (Join-Path $folderOutput '*') -DestinationPath $folderZip -CompressionLevel Optimal
-    }
-    Compress-Archive -Path (Join-Path $singleOutput '*') -DestinationPath $singleZip -CompressionLevel Optimal
-
-    $packages = @()
-    if ($PackageMode -eq 'Both') {
-        $packages += [ordered]@{ kind = 'folder'; path = [IO.Path]::GetFileName($folderZip) }
-    }
-    $packages += [ordered]@{ kind = 'single-file'; path = [IO.Path]::GetFileName($singleZip) }
+    $packages = @(foreach ($package in $packagesToBuild) {
+        $output = Join-Path $releaseRoot $package.Kind
+        Compress-Archive -Path (Join-Path $output '*') -DestinationPath (Join-Path $releaseRoot $package.Zip) -CompressionLevel Optimal
+        [ordered]@{ kind = $package.Kind; path = $package.Zip; selfContained = $package.SelfContained }
+    })
 
     $topVersion = [ordered]@{
         application = 'CDI-Telopper'
@@ -317,17 +355,10 @@ try {
     $topVersion | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $releaseRoot 'version.json') -Encoding UTF8
 
     if (-not $SkipSha256) {
-        $checksumTargets = @(
-            $singleZip,
-            (Join-Path $singleOutput 'CDI-Telopper.exe'),
-            (Join-Path $releaseRoot 'version.json')
-        )
-        if ($PackageMode -eq 'Both') {
-            $checksumTargets = @(
-                $folderZip,
-                (Join-Path $folderOutput 'CDI-Telopper.exe')
-            ) + $checksumTargets
-        }
+        $checksumTargets = @(foreach ($package in $packagesToBuild) {
+            Join-Path $releaseRoot $package.Zip
+            Join-Path (Join-Path $releaseRoot $package.Kind) 'CDI-Telopper.exe'
+        }) + (Join-Path $releaseRoot 'version.json')
         $checksumLines = foreach ($target in $checksumTargets) {
             $hash = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant()
             $relative = $target.Substring($releaseRoot.Length).TrimStart('\').Replace('\', '/')

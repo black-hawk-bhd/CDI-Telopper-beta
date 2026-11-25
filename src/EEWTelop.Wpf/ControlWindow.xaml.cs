@@ -130,6 +130,7 @@ public partial class ControlWindow : Window, IAsyncDisposable
         _viewModel.ImportProfileRequested += OnImportProfileRequested;
         _viewModel.ExportProfileRequested += OnExportProfileRequested;
         _viewModel.ImportTestFilesRequested += OnImportTestFilesRequested;
+        _viewModel.ImportTestXmlFolderRequested += OnImportTestXmlFolderRequested;
         _viewModel.ImportDmdataArchiveRequested += OnImportDmdataArchiveRequested;
         _viewModel.ImportTestPackageRequested += OnImportTestPackageRequested;
         _viewModel.ExportTestPackageRequested += OnExportTestPackageRequested;
@@ -177,6 +178,7 @@ public partial class ControlWindow : Window, IAsyncDisposable
         _viewModel.ImportProfileRequested -= OnImportProfileRequested;
         _viewModel.ExportProfileRequested -= OnExportProfileRequested;
         _viewModel.ImportTestFilesRequested -= OnImportTestFilesRequested;
+        _viewModel.ImportTestXmlFolderRequested -= OnImportTestXmlFolderRequested;
         _viewModel.ImportDmdataArchiveRequested -= OnImportDmdataArchiveRequested;
         _viewModel.ImportTestPackageRequested -= OnImportTestPackageRequested;
         _viewModel.ExportTestPackageRequested -= OnExportTestPackageRequested;
@@ -328,6 +330,13 @@ public partial class ControlWindow : Window, IAsyncDisposable
         };
         if (dialog.ShowDialog(this) == true)
             await RunDialogOperationAsync(() => _viewModel.ImportDmdataArchiveAsync(dialog.FileName));
+    }
+
+    private async void OnImportTestXmlFolderRequested()
+    {
+        var dialog = new OpenFolderDialog { Title = "訓練用XMLが入ったフォルダーを選択" };
+        if (dialog.ShowDialog(this) == true)
+            await RunDialogOperationAsync(() => _viewModel.ImportTestXmlFolderAsync(dialog.FolderName));
     }
 
     private async void OnImportTestPackageRequested()

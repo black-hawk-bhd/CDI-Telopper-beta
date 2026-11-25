@@ -193,7 +193,21 @@ public sealed partial class FileTestCaseLibrary : ITestCaseLibrary
     public async Task<TestCaseManifest> ImportFilesAsync(string name, IReadOnlyList<string> paths, CancellationToken cancellationToken = default)
     {
         if (paths.Count == 0) throw new InvalidDataException("登録するファイルがありません。");
-        foreach (string path in paths) ValidatePayload(path);
+        string telegramType = string.Empty;
+        string eventId = string.Empty;
+        foreach (string path in paths)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            XDocument? document = ValidatePayload(path);
+            if (document is not null && telegramType.Length == 0)
+            {
+                XElement? control = ReadReportElement(document.Root, "Control");
+                XElement? head = ReadReportElement(document.Root, "Head");
+                string? title = ReadReportElement(control, "Title")?.Value ?? ReadReportElement(head, "Title")?.Value;
+                telegramType = NormalizeTelegramType(title, [path]);
+                eventId = ReadReportElement(head, "EventID")?.Value.Trim() ?? string.Empty;
+            }
+        }
         string id = Guid.NewGuid().ToString("N");
         string caseDirectory = Path.Combine(_directory, id);
         Directory.CreateDirectory(caseDirectory);
@@ -214,7 +228,8 @@ public sealed partial class FileTestCaseLibrary : ITestCaseLibrary
                 !file.EndsWith(".png", StringComparison.OrdinalIgnoreCase)).ToArray();
             var manifest = new TestCaseManifest(
                 TestCaseManifest.CurrentSchemaVersion, id, string.IsNullOrWhiteSpace(name) ? id : name.Trim(),
-                "未分類", InferProvider(copied), InferTelegramType(paths), string.Empty, [], string.Empty,
+                TestCaseClassification.GetLabel(TestCaseClassification.GetKind(telegramType)), InferProvider(copied),
+                telegramType, eventId, [], string.Empty,
                 DateTimeOffset.UtcNow, payloads, referenceImage,
                 new TestCaseExpectation(string.Empty, string.Empty, null, [], [], [], string.Empty, string.Empty));
             await WriteManifestAsync(caseDirectory, manifest, cancellationToken).ConfigureAwait(false);
@@ -225,6 +240,45 @@ public sealed partial class FileTestCaseLibrary : ITestCaseLibrary
             if (Directory.Exists(caseDirectory)) Directory.Delete(caseDirectory, recursive: true);
             throw;
         }
+    }
+
+    public async Task<TestXmlFolderImportResult> ImportXmlFolderAsync(string directory, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+        string root = Path.GetFullPath(directory);
+        var options = new EnumerationOptions
+        {
+            RecurseSubdirectories = true,
+            MatchCasing = MatchCasing.CaseInsensitive,
+            AttributesToSkip = FileAttributes.ReparsePoint,
+            IgnoreInaccessible = false,
+        };
+        // Take the list before writing any cases so the import cannot pick up its own copies.
+        var files = new List<string>();
+        foreach (string file in Directory.EnumerateFiles(root, "*.xml", options))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            files.Add(file);
+        }
+        files.Sort(StringComparer.OrdinalIgnoreCase);
+
+        int imported = 0;
+        var skipped = new List<string>();
+        foreach (string file in files)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                await ImportFilesAsync(Path.GetFileNameWithoutExtension(file), [file], cancellationToken).ConfigureAwait(false);
+                imported++;
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or XmlException)
+            {
+                skipped.Add(Path.GetRelativePath(root, file));
+            }
+        }
+
+        return new TestXmlFolderImportResult(imported, skipped);
     }
 
     public async Task<IReadOnlyList<TestCaseManifest>> ImportDmdataArchiveAsync(
@@ -442,18 +496,17 @@ public sealed partial class FileTestCaseLibrary : ITestCaseLibrary
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { return null; }
     }
 
-    private static void ValidatePayload(string path)
+    private static XDocument? ValidatePayload(string path)
     {
         string extension = Path.GetExtension(path).ToLowerInvariant();
         if (extension == ".xml")
         {
             var settings = new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null };
             using XmlReader reader = XmlReader.Create(path, settings);
-            _ = XDocument.Load(reader, LoadOptions.PreserveWhitespace);
-            return;
+            return XDocument.Load(reader, LoadOptions.PreserveWhitespace);
         }
-        if (extension == ".json") { using JsonDocument _ = JsonDocument.Parse(File.ReadAllText(path)); return; }
-        if (extension == ".png") return;
+        if (extension == ".json") { using JsonDocument _ = JsonDocument.Parse(File.ReadAllText(path)); return null; }
+        if (extension == ".png") return null;
         throw new InvalidDataException($"未対応のテストファイルです: {Path.GetFileName(path)}");
     }
 
@@ -474,27 +527,33 @@ public sealed partial class FileTestCaseLibrary : ITestCaseLibrary
         return JmaXmlTestProviderName;
     }
 
-    private static TestCaseManifest NormalizeManifest(TestCaseManifest manifest) => manifest with
+    private static TestCaseManifest NormalizeManifest(TestCaseManifest manifest)
     {
-        Name = string.IsNullOrWhiteSpace(manifest.Name) ? manifest.Id : manifest.Name.Trim(),
-        Category = string.IsNullOrWhiteSpace(manifest.Category) ? "未分類" : manifest.Category.Trim(),
-        Provider = string.IsNullOrWhiteSpace(manifest.Provider) ? JmaXmlTestProviderName : manifest.Provider.Trim(),
-        TelegramType = NormalizeTelegramType(manifest.TelegramType, manifest.PayloadFiles),
-        EventId = manifest.EventId?.Trim() ?? string.Empty,
-        Tags = manifest.Tags?.Where(static item => !string.IsNullOrWhiteSpace(item))
-            .Select(static item => item.Trim()).Distinct(StringComparer.CurrentCultureIgnoreCase).ToArray() ?? [],
-        Description = manifest.Description?.Trim() ?? string.Empty,
-        PayloadFiles = manifest.PayloadFiles ?? [],
-        ReferenceImageFile = manifest.ReferenceImageFile ?? string.Empty,
-        Expectation = manifest.Expectation is null
-            ? new TestCaseExpectation(string.Empty, string.Empty, null, [], [], [], string.Empty, string.Empty)
-            : manifest.Expectation with
-            {
-                RequiredBadges = manifest.Expectation.RequiredBadges ?? [],
-                RequiredTextFragments = manifest.Expectation.RequiredTextFragments ?? [],
-                RequiredAreas = manifest.Expectation.RequiredAreas ?? [],
-            },
-    };
+        string telegramType = NormalizeTelegramType(manifest.TelegramType, manifest.PayloadFiles);
+        string? category = manifest.Category?.Trim();
+        return manifest with
+        {
+            Name = string.IsNullOrWhiteSpace(manifest.Name) ? manifest.Id : manifest.Name.Trim(),
+            Category = string.IsNullOrEmpty(category) || category == TestCaseClassification.Unclassified
+                ? TestCaseClassification.GetLabel(TestCaseClassification.GetKind(telegramType)) : category,
+            Provider = string.IsNullOrWhiteSpace(manifest.Provider) ? JmaXmlTestProviderName : manifest.Provider.Trim(),
+            TelegramType = telegramType,
+            EventId = manifest.EventId?.Trim() ?? string.Empty,
+            Tags = manifest.Tags?.Where(static item => !string.IsNullOrWhiteSpace(item))
+                .Select(static item => item.Trim()).Distinct(StringComparer.CurrentCultureIgnoreCase).ToArray() ?? [],
+            Description = manifest.Description?.Trim() ?? string.Empty,
+            PayloadFiles = manifest.PayloadFiles ?? [],
+            ReferenceImageFile = manifest.ReferenceImageFile ?? string.Empty,
+            Expectation = manifest.Expectation is null
+                ? new TestCaseExpectation(string.Empty, string.Empty, null, [], [], [], string.Empty, string.Empty)
+                : manifest.Expectation with
+                {
+                    RequiredBadges = manifest.Expectation.RequiredBadges ?? [],
+                    RequiredTextFragments = manifest.Expectation.RequiredTextFragments ?? [],
+                    RequiredAreas = manifest.Expectation.RequiredAreas ?? [],
+                },
+        };
+    }
 
     private static void CopyDirectory(string source, string destination)
     {
@@ -505,32 +564,14 @@ public sealed partial class FileTestCaseLibrary : ITestCaseLibrary
             File.Copy(file, file.Replace(source, destination, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static string InferTelegramType(IReadOnlyList<string> paths)
-    {
-        foreach (string path in paths.Where(static path => Path.GetExtension(path).Equals(".xml", StringComparison.OrdinalIgnoreCase)))
-        {
-            try
-            {
-                string? fileCode = Path.GetFileName(path).Split(
-                        ['_', '.'],
-                        StringSplitOptions.RemoveEmptyEntries)
-                    .FirstOrDefault(IsJmaTelegramTypeToken);
-                if (!string.IsNullOrWhiteSpace(fileCode)) return fileCode.ToUpperInvariant();
-                XDocument document = XDocument.Load(path);
-                string? type = document.Descendants().FirstOrDefault(element =>
-                    element.Name.LocalName is "Title" or "ReportDateTime")?.Parent?
-                    .Elements().FirstOrDefault(element => element.Name.LocalName == "Title")?.Value;
-                if (!string.IsNullOrWhiteSpace(type)) return type.Trim();
-            }
-            catch { }
-        }
-        return string.Empty;
-    }
+    private static XElement? ReadReportElement(XElement? parent, string name) =>
+        parent?.Elements().FirstOrDefault(element => element.Name.LocalName == name);
 
     private static bool IsJmaTelegramTypeToken(string value) =>
         value.Length == 6 &&
         value[0] is 'V' or 'v' &&
-        value[1..].All(char.IsAsciiLetterOrDigit);
+        char.IsAsciiLetter(value[1]) && char.IsAsciiLetter(value[2]) && char.IsAsciiLetter(value[3]) &&
+        char.IsAsciiDigit(value[4]) && char.IsAsciiDigit(value[5]);
 
     private static string NormalizeTelegramType(
         string? telegramType,

@@ -14,6 +14,8 @@ const content = document.getElementById("content");
 const blocks = document.getElementById("blocks");
 const pageIndicator = document.getElementById("pageIndicator");
 const alertAudio = document.getElementById("alertAudio");
+const subtitleImage = document.getElementById("subtitleImage");
+let subtitleImageUrl = "";
 // Each OBS source receives only its own category's audio commands. The browser
 // preview remains silent and does not subscribe as an audio client.
 const monitorMode = window.location.pathname === "/monitor/view";
@@ -197,6 +199,30 @@ function fitVerticalEew() {
   }
 }
 
+function updateSubtitleImageVisibility() {
+  subtitleImage.hidden = !subtitleImageUrl || subtitleImage.currentSrc !== subtitleImageUrl ||
+    !subtitleImage.complete || subtitleImage.naturalWidth === 0;
+}
+
+subtitleImage.addEventListener("load", updateSubtitleImageVisibility);
+subtitleImage.addEventListener("error", updateSubtitleImageVisibility);
+
+function applySubtitleImage(image) {
+  if (!image || !/^[0-9a-f]{64}$/.test(image.id)) {
+    subtitleImageUrl = "";
+    subtitleImage.hidden = true;
+    return;
+  }
+
+  subtitleImage.style.left = `${image.x}px`;
+  subtitleImage.style.top = `${image.y}px`;
+  subtitleImage.style.width = `${image.width}px`;
+  const query = new URLSearchParams({ token });
+  subtitleImageUrl = new URL(`/subtitle-image/${image.id}?${query}`, window.location.origin).href;
+  if (subtitleImage.src !== subtitleImageUrl) subtitleImage.src = subtitleImageUrl;
+  updateSubtitleImageVisibility();
+}
+
 function applySnapshot(state) {
   applyOutputTransform(state.outputTransform);
   canvas.className = String(state.backgroundMode ?? "Transparent").toLowerCase();
@@ -206,6 +232,7 @@ function applySnapshot(state) {
   banner.textContent = state.rehearsalLabel ?? "";
   banner.hidden = !state.rehearsalLabel;
   content.hidden = !state.hasProgram;
+  applySubtitleImage(state.hasProgram ? state.subtitleImage : null);
   blocks.replaceChildren();
   blocks.classList.remove("aligned-labels");
   const items = state.blocks ?? [];

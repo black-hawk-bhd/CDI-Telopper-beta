@@ -41,6 +41,7 @@ Microsoft/
 !/docs/dmdata-oauth.md
 !/docs/eew-vertical-style.md
 !/docs/dotnet10-migration.md
+!/docs/distribution-readme.txt
 
 # External reference and raw test data belong in the local archive
 /JMA_Format/
@@ -51,6 +52,7 @@ Microsoft/
 /QTelopper.FlaUI.Tests/
 /P2P API仕様書.yaml
 /fixtures/jma-xml/
+/jmaxml_20261118_Samples/
 /README_QTelopper_*.txt
 *.docx
 *.zip

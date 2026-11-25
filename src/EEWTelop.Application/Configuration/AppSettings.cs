@@ -367,6 +367,8 @@ public sealed record DisplaySettings(
 
     public Dictionary<string, double> TelegramPageDurationSeconds { get; init; } = [];
 
+    public Dictionary<EventKind, SubtitleImageSettings> SubtitleImages { get; init; } = [];
+
     // -1 marks settings saved before the EEW-specific timer was introduced.
     // In that case EEW inherits the former common auto-hide value.
     public int EewAutoHideSeconds { get; init; } = -1;

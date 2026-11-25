@@ -68,6 +68,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private bool _showLowIntensityPointsInStrongQuakes;
     private bool _hideNonJmaIntensityStations;
     private double _pageDurationSeconds;
+    private SubtitleImageEditor _selectedSubtitleImage;
     private bool _showPageIndicator;
     private bool _showTsunamiForecast;
     private bool _omitScalePromptCautionWhenTsunamiWarningActive;
@@ -250,6 +251,17 @@ public sealed class SettingsEditorViewModel : ObservableObject
             .Select(option => new TelegramPageDurationViewModel(
                 option, settings.Display.TelegramPageDurationSeconds?.GetValueOrDefault(option.Key) ?? 0))
             .ToArray();
+        SubtitleImages =
+        [
+            MakeSubtitleImageEditor(EventKind.Eew, "緊急地震速報（EEW）"),
+            MakeSubtitleImageEditor(EventKind.Quake, "地震情報"),
+            MakeSubtitleImageEditor(EventKind.Tsunami, "津波情報"),
+            MakeSubtitleImageEditor(EventKind.WeatherWarning, "気象情報"),
+            MakeSubtitleImageEditor(EventKind.Volcano, "火山情報"),
+        ];
+        _selectedSubtitleImage = SubtitleImages[0];
+        SubtitleImageEditor MakeSubtitleImageEditor(EventKind kind, string label) =>
+            new(kind, label, settings.Display.SubtitleImages?.GetValueOrDefault(kind));
         _showPageIndicator = settings.Display.ShowPageIndicator;
         _showTsunamiForecast = settings.Display.ShowTsunamiForecast;
         _omitScalePromptCautionWhenTsunamiWarningActive = settings.Display.OmitScalePromptCautionWhenTsunamiWarningActive;
@@ -729,6 +741,12 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public bool HideNonJmaIntensityStations { get => _hideNonJmaIntensityStations; set => SetProperty(ref _hideNonJmaIntensityStations, value); }
     public double PageDurationSeconds { get => _pageDurationSeconds; set => SetProperty(ref _pageDurationSeconds, value); }
     public IReadOnlyList<TelegramPageDurationViewModel> TelegramPageDurations { get; }
+    public IReadOnlyList<SubtitleImageEditor> SubtitleImages { get; }
+    public SubtitleImageEditor SelectedSubtitleImage
+    {
+        get => _selectedSubtitleImage;
+        set => SetProperty(ref _selectedSubtitleImage, value);
+    }
     public bool ShowPageIndicator { get => _showPageIndicator; set => SetProperty(ref _showPageIndicator, value); }
     public bool ShowTsunamiForecast { get => _showTsunamiForecast; set => SetProperty(ref _showTsunamiForecast, value); }
     public bool OmitScalePromptCautionWhenTsunamiWarningActive
@@ -992,6 +1010,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 EewAutoHideSeconds = Math.Clamp(EewAutoHideSeconds, 0, 3600),
                 TelegramPageDurationSeconds = PageClock.NormalizeTelegramPageDurations(TelegramPageDurations
                     .Select(static row => KeyValuePair.Create(row.Key, row.Seconds))),
+                SubtitleImages = SubtitleImages.Where(static row => row.HasImage)
+                    .ToDictionary(static row => row.Kind, static row => row.ToSettings()),
                 HideNormalInformationBadges = HideNormalInformationBadges,
                 ShowTsunamiForecast = ShowTsunamiForecast,
                 OmitScalePromptCautionWhenTsunamiWarningActive = OmitScalePromptCautionWhenTsunamiWarningActive,

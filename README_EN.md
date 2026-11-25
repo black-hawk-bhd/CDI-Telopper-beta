@@ -24,13 +24,15 @@ beta.51 adds per-domain upstream health, a separately authenticated rehearsal AP
 
 beta.50 improves unreported-intensity normalization and labeling, removes trailing full-width station markers only from display text, and preserves observed and unreported entries at the same place. Simulator decoding and additive external API fields are improved while training/live separation remains enforced.
 
-The current public release is **2.0.0-beta.74** (November 24, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.75** (November 25, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.74](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.74)
-- [English user guide](docs/USER_GUIDE_EN.md) / [Japanese beta.74 release guide](README_CDI-Telopper_2.0.0-beta.74.txt)
+- [Download 2.0.0-beta.75](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.75)
+- [English user guide](docs/USER_GUIDE_EN.md) / [Japanese beta.75 release guide](README_CDI-Telopper_2.0.0-beta.75.txt)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
+
+beta.75 adds PNG images alongside OBS captions, bulk import of training XML folders, and test-library filters by category and bulletin type. Both packages include 185 JMA sample XML files. [Japanese release notes](RELEASE_NOTES_2.0.0-beta.75.md) · [JMA sample attribution](jmaxml_20261118_CDI-Telopper/README.md)
 
 beta.74 adds per-bulletin page durations, subtitle font selection, a portable `Settings` folder next to the executable, and suppression of seismic intensity bulletins while a tsunami advisory or warning for the same earthquake is active. [Japanese release notes](RELEASE_NOTES_2.0.0-beta.74.md)
 
@@ -210,7 +212,7 @@ Legacy OBS map output and the always-on desktop overlay have been removed. The b
 - Internet access to the selected reception providers
 - A valid subscription and credentials when using AXIS or DMDATA.JP
 
-GitHub Release packages are self-contained builds. Visual Studio and the .NET SDK are not required for normal use.
+GitHub Releases lists the self-contained single-EXE package first. The lightweight package requires the x64 .NET 10 Desktop Runtime at version 10.0.14 or a later .NET 10 patch. [Microsoft downloads](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
 
 ## Installation and first launch
 
@@ -244,10 +246,10 @@ The script restores dependencies, builds every project in the Release configurat
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.74
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.75
 ```
 
-The folder package, single-file package, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.74\win-x64`. [Source build details](SOURCE_BUILD.md)
+Starting with beta.75, the self-contained single-EXE ZIP, the lightweight ZIP, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.75\win-x64`. [Source build details](SOURCE_BUILD.md)
 
 ## External API integration: terms and disclaimer
 

@@ -1,4 +1,4 @@
-# CDI-Telopper 2.0.0-beta.74 unified source build
+# CDI-Telopper unified source build
 
 Formal name: **Comprehensive Disaster Information Telopper**
 
@@ -28,8 +28,8 @@ The project-local `.dotnet-sdk` SDK takes precedence when present, so update it 
 well as any system SDK. Both scripts accept `-DotnetPath C:\path\to\dotnet.exe`
 to explicitly select a different installation. Self-contained builds require .NET 10.0.14 or newer and
 reject older runtime packs, including an explicit downgrade through build flags.
-Updating a system runtime does not update already-published self-contained apps;
-rebuild both distribution formats and verify their bundled runtime versions.
+Rebuild the self-contained package after a runtime update and verify its bundled
+runtime version. The lightweight package uses the latest installed .NET 10 patch.
 The WPF application's default minimum runtime is also 10.0.14 for framework-dependent builds.
 The runtime security guard's seven regression cases run as part of `verify.ps1`.
 All 15 projects target `net10.0` or `net10.0-windows`; C# 12 is retained.
@@ -63,21 +63,25 @@ stream instead of being retained as a complete batch before delivery.
 
 ## Create distributable binaries
 
-After verification succeeds, build the current unified beta release:
+After verification succeeds, build the next unified beta release:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.74
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.75
 ```
 
-Self-contained folder and single-file packages are written under:
+Starting with beta.75, place both ZIPs in the same GitHub release and list the
+self-contained package first in the download instructions.
 
-- `artifacts\release\2.0.0-beta.74\win-x64`
+- `*-single-file.zip` contains the self-contained single EXE. It includes the desktop runtime.
+- `*-framework-dependent.zip` contains the lightweight single EXE. It requires the x64 .NET 10 Desktop Runtime at version 10.0.14 or a later .NET 10 patch.
 
-Restore and publish both explicitly use `SelfContained=true`. Before packaging,
-the script checks the SDK-generated runtime configuration for both formats and
-records its core/desktop runtime versions in each package's `version.json`.
-An existing release directory is never overwritten; use `-OutputLabel` for local
-verification builds. These changes do not replace previously published releases.
+Both ZIPs include the JMA training XML and its attribution in `TrainingSamples`.
+Both ZIPs, `version.json`, and `SHA256SUMS.txt` are written to
+`artifacts\release\2.0.0-beta.75\win-x64`. The script restores each deployment
+mode, verifies its runtime configuration, and checks startup. For the lightweight
+startup check, install the required Desktop Runtime on the build PC. Use
+`-OutputLabel` for local verification builds and `-PackageMode Both` when
+reproducing the previous folder and self-contained EXE formats.
 
 The .NET 10 migration and compatibility notes are in [docs/dotnet10-migration.md](docs/dotnet10-migration.md).
 

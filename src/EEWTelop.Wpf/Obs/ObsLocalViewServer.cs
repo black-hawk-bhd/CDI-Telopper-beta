@@ -470,6 +470,14 @@ public sealed partial class ObsLocalViewServer : IObsLocalViewServer
                 return;
             }
 
+            const string subtitleImagePath = "/subtitle-image/";
+            if (path.StartsWith(subtitleImagePath, StringComparison.Ordinal) &&
+                _snapshotStore.ReadSubtitleImage(path[subtitleImagePath.Length..]) is { } png)
+            {
+                await WriteResponseAsync(stream, 200, "image/png", png, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
             if (path == "/events")
             {
                 await WriteEventStreamAsync(
@@ -771,11 +779,22 @@ public sealed partial class ObsLocalViewServer : IObsLocalViewServer
         return reader.ReadToEnd();
     }
 
-    private static async Task WriteResponseAsync(
+    private static Task WriteResponseAsync(
         NetworkStream stream,
         int statusCode,
         string contentType,
         string content,
+        CancellationToken cancellationToken,
+        bool securityPolicy = false,
+        bool monitorFrames = false) =>
+        WriteResponseAsync(stream, statusCode, contentType, Encoding.UTF8.GetBytes(content),
+            cancellationToken, securityPolicy, monitorFrames);
+
+    private static async Task WriteResponseAsync(
+        NetworkStream stream,
+        int statusCode,
+        string contentType,
+        ReadOnlyMemory<byte> body,
         CancellationToken cancellationToken,
         bool securityPolicy = false,
         bool monitorFrames = false)
@@ -791,7 +810,6 @@ public sealed partial class ObsLocalViewServer : IObsLocalViewServer
             405 => "Method Not Allowed",
             _ => "Error",
         };
-        byte[] body = Encoding.UTF8.GetBytes(content);
         var headers = new StringBuilder()
             .Append("HTTP/1.1 ").Append(statusCode).Append(' ').Append(reason).Append("\r\n")
             .Append("Content-Type: ").Append(contentType).Append("\r\n")

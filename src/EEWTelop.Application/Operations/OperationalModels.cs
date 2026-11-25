@@ -503,6 +503,7 @@ public interface ITestCaseLibrary
 {
     IReadOnlyList<TestCaseManifest> List();
     Task<TestCaseManifest> ImportFilesAsync(string name, IReadOnlyList<string> paths, CancellationToken cancellationToken = default);
+    Task<TestXmlFolderImportResult> ImportXmlFolderAsync(string directory, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TestCaseManifest>> ImportDmdataArchiveAsync(string telegramsIndexPath, CancellationToken cancellationToken = default);
     Task DeleteAsync(string id, CancellationToken cancellationToken = default);
     Task DeleteAllAsync(CancellationToken cancellationToken = default);
@@ -512,3 +513,5 @@ public interface ITestCaseLibrary
     Task<TestCaseManifest> UpdateAsync(TestCaseManifest manifest, CancellationToken cancellationToken = default);
     IReadOnlyList<RawProviderMessage> LoadMessages(string id, SourceMode mode);
 }
+
+public sealed record TestXmlFolderImportResult(int ImportedCount, IReadOnlyList<string> SkippedFiles);

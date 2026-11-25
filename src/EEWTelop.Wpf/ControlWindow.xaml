@@ -790,6 +790,39 @@
                                                 Command="{Binding ResetCanvasSettingsCommand}" />
                                     </StackPanel>
                                 </GroupBox>
+                                <GroupBox Header="字幕と一緒に送出する画像">
+                                    <StackPanel>
+                                        <TextBlock Text="情報種別" Foreground="{StaticResource MutedBrush}" />
+                                        <ComboBox ItemsSource="{Binding Settings.SubtitleImages}"
+                                                  SelectedItem="{Binding Settings.SelectedSubtitleImage}"
+                                                  DisplayMemberPath="Label" AutomationProperties.Name="画像を設定する情報種別" />
+                                        <StackPanel DataContext="{Binding Settings.SelectedSubtitleImage}">
+                                            <TextBlock Text="{Binding FileLabel}" TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding FileLabel}" />
+                                            <UniformGrid Columns="2" Margin="0,4,0,6">
+                                                <Button Content="PNGを選ぶ" Click="OnSelectSubtitleImage" Margin="0,0,3,0" />
+                                                <Button Content="登録を解除" Click="OnRemoveSubtitleImage"
+                                                        IsEnabled="{Binding HasImage}" Margin="3,0,0,0" />
+                                            </UniformGrid>
+                                            <UniformGrid Columns="3">
+                                                <StackPanel Margin="0,0,6,0">
+                                                    <TextBlock Text="左から (X)" Foreground="{StaticResource MutedBrush}" />
+                                                    <TextBox Text="{Binding X}" AutomationProperties.Name="画像の左位置" />
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,6,0">
+                                                    <TextBlock Text="上から (Y)" Foreground="{StaticResource MutedBrush}" />
+                                                    <TextBox Text="{Binding Y}" AutomationProperties.Name="画像の上位置" />
+                                                </StackPanel>
+                                                <StackPanel>
+                                                    <TextBlock Text="横幅" Foreground="{StaticResource MutedBrush}" />
+                                                    <TextBox Text="{Binding Width}" AutomationProperties.Name="画像の横幅" />
+                                                </StackPanel>
+                                            </UniformGrid>
+                                        </StackPanel>
+                                        <TextBlock Text="1920×1080を基準にピクセルで指定。画像は縦横比を保ち、字幕表示中に送出されます。"
+                                                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </GroupBox>
                                 <GroupBox Header="OBS Local View">
                                     <StackPanel>
                                         <CheckBox Content="有効" IsChecked="{Binding Settings.ObsEnabled}" />
@@ -1249,8 +1282,10 @@
                                 <TextBlock Text="生データ・テストライブラリー" FontWeight="Bold" FontSize="18" />
                                 <TextBlock Text="XML、provider.xml、transport.json、dmdata生データ一式と任意の参考PNGを管理領域へコピーします。dmdataはtelegrams.jsonからXML正本ごとに登録し、対応JSONは参考データとして関連付けます。選択実行すると合否判定に加え、未接続でもプレビューとOBSへ訓練表示します。音声・本番履歴・重複キャッシュには影響しません。"
                                            Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,8" />
-                                <WrapPanel>
+                                <WrapPanel IsEnabled="{Binding CanEditTestLibrary}">
                                     <Button Content="ファイルを登録" Command="{Binding ImportTestFilesCommand}" />
+                                    <Button Content="XMLフォルダーを一括登録" Command="{Binding ImportTestXmlFolderCommand}"
+                                            ToolTip="サブフォルダーを含め、XMLファイル1件を1ケースとして登録します。" />
                                     <Button Content="dmdata一式を登録" Command="{Binding ImportDmdataArchiveCommand}" />
                                     <Button Content="ZIPを取り込み" Command="{Binding ImportTestPackageCommand}" />
                                     <Button Content="選択実行" Style="{StaticResource PrimaryButton}" Command="{Binding RunLibraryCaseCommand}" />
@@ -1260,6 +1295,16 @@
                                     <Button Content="一括削除" Command="{Binding DeleteAllLibraryCasesCommand}"
                                             Style="{StaticResource DangerButton}" />
                                 </WrapPanel>
+                                <TextBlock Text="{Binding TestLibraryFolderImportStatus}" Foreground="{StaticResource MutedBrush}"
+                                           TextWrapping="Wrap" />
+                                <UniformGrid Columns="2" Margin="0,6,0,0">
+                                    <ComboBox ItemsSource="{Binding TestLibraryKindOptions}" DisplayMemberPath="Label"
+                                              SelectedItem="{Binding SelectedTestLibraryKind}"
+                                              AutomationProperties.Name="情報種別で絞り込み" Margin="0,0,6,0" />
+                                    <ComboBox ItemsSource="{Binding TestLibraryTelegramTypes}"
+                                              SelectedItem="{Binding SelectedTestLibraryTelegramType}"
+                                              AutomationProperties.Name="電文種別で絞り込み" />
+                                </UniformGrid>
                                 <TextBlock Text="検索（名前・分類・提供元・電文種別・イベントID・タグ・説明）"
                                            Foreground="{StaticResource MutedBrush}" Margin="0,8,0,2" />
                                 <TextBox Text="{Binding TestLibrarySearchText, UpdateSourceTrigger=PropertyChanged}" />

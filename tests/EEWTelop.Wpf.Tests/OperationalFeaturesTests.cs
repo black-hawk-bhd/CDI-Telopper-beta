@@ -372,12 +372,49 @@ public sealed class OperationalFeaturesTests
     }
 
     [TestMethod]
+    public async Task XmlFolderImportCreatesOneCasePerXmlAndReportsUnreadableFiles()
+    {
+        string folder = Path.Combine(_directory, "folder-import");
+        string nested = Path.Combine(folder, "nested");
+        Directory.CreateDirectory(nested);
+        string bulletin = Path.Combine(nested, "sample_vpbs50.XML");
+        await File.WriteAllTextAsync(bulletin,
+            "<Report xmlns='http://xml.kishou.go.jp/jmaxml1/'><Control><Title>気象防災速報</Title></Control>" +
+            "<Head xmlns='http://xml.kishou.go.jp/jmaxml1/informationBasis1/'><EventID>20261125000000</EventID></Head></Report>");
+        await File.WriteAllTextAsync(Path.Combine(folder, "quake.xml"), "<Report><Control><Title>震度速報</Title></Control></Report>");
+        await File.WriteAllTextAsync(Path.Combine(folder, "other.xml"), "<Report><Control><Title>その他の情報</Title></Control></Report>");
+        await File.WriteAllTextAsync(Path.Combine(folder, "broken.xml"), "<Report>");
+        await File.WriteAllTextAsync(Path.Combine(folder, "notes.json"), "{}");
+        var library = new FileTestCaseLibrary(Path.Combine(_directory, "library"));
+
+        TestXmlFolderImportResult result = await library.ImportXmlFolderAsync(folder);
+
+        Assert.AreEqual(3, result.ImportedCount);
+        Assert.AreEqual("broken.xml", result.SkippedFiles.Single());
+        var manifests = library.List().ToDictionary(static item => item.Name);
+        Assert.AreEqual("地震情報", manifests["quake"].Category);
+        Assert.AreEqual("未分類", manifests["other"].Category);
+        TestCaseManifest weather = manifests["sample_vpbs50"];
+        Assert.AreEqual("気象情報", weather.Category);
+        Assert.AreEqual("VPBS50", weather.TelegramType);
+        Assert.AreEqual("20261125000000", weather.EventId);
+        Assert.HasCount(1, weather.PayloadFiles);
+        File.Delete(bulletin);
+        RawProviderMessage message = library.LoadMessages(weather.Id, SourceMode.HistoryRehearsal).Single();
+        Assert.AreEqual(SourceMode.HistoryRehearsal, message.SourceMode);
+        Assert.AreEqual(RawProviderContentFormat.JmaXml, message.ContentFormat);
+    }
+
+    [TestMethod]
     public void TestLibraryUiOffersBulkDeleteButNotBulkRun()
     {
         string xamlPath = FindRepositoryFile("src", "EEWTelop.Wpf", "ControlWindow.xaml");
         string xaml = File.ReadAllText(xamlPath);
 
         StringAssert.Contains(xaml, "Content=\"一括削除\"");
+        StringAssert.Contains(xaml, "Command=\"{Binding ImportTestXmlFolderCommand}\"");
+        StringAssert.Contains(xaml, "SelectedItem=\"{Binding SelectedTestLibraryKind}\"");
+        StringAssert.Contains(xaml, "SelectedItem=\"{Binding SelectedTestLibraryTelegramType}\"");
         Assert.IsFalse(xaml.Contains("Content=\"一括実行\"", StringComparison.Ordinal));
         Assert.IsFalse(xaml.Contains("RunAllLibraryCasesCommand", StringComparison.Ordinal));
         Assert.IsFalse(xaml.Contains("期待する種別／状態", StringComparison.Ordinal));

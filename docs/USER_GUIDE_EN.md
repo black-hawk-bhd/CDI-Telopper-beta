@@ -2,11 +2,11 @@
 
 [日本語](USER_GUIDE.md) | English
 
-This guide covers **2.0.0-beta.73** for Windows x64. Menu names appear as they do in the Japanese interface. [Download](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.73) / [Release notes in Japanese](../RELEASE_NOTES_2.0.0-beta.73.md)
+This guide covers **2.0.0-beta.75** for Windows x64. Menu names appear as they do in the Japanese interface. [Download](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.75) / [Release notes in Japanese](../RELEASE_NOTES_2.0.0-beta.75.md)
 
 ## Install or update
 
-1. Download the folder or single-EXE ZIP and check its SHA-256 against `SHA256SUMS.txt`. Both packages are self-contained.
+1. Download the self-contained single-EXE ZIP and verify its SHA-256 from the release page. The lightweight package requires the x64 .NET 10 Desktop Runtime at version 10.0.14 or a later .NET 10 patch. [Microsoft downloads](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
 2. Before updating, exit the old version by right-clicking its tray icon and selecting **終了** (Exit). Closing the main window with X sends it to the system tray.
 3. Extract the entire ZIP into a separate writable directory and run `CDI-Telopper.exe`. Regular updates reuse your existing settings. The default data directory is `%LOCALAPPDATA%\QTelopper\2.x-beta`.
 
@@ -39,6 +39,8 @@ Under **表示** (Display) → **ページと文字** (Pages and text), choose a
 
 Expand **電文別のページ秒数** (Seconds per page by bulletin type) to set a separate duration for bulletins such as seismic intensity alerts (VXSE51) and detailed earthquake reports (VXSE53). Enter 0 to use the shared page duration. Save the settings to apply the durations to OBS, tests, and replays as well.
 
+Under **出力** (Output) → **字幕と一緒に送出する画像** (Image shown with captions), register one PNG per information category. Set the left position (X), top position (Y), and width in pixels on the 1920×1080 canvas. After saving, the image appears in OBS and the browser preview only while the matching caption is visible. Transparency and aspect ratio are preserved. PNGs may be up to 2 MB and 4096 pixels per side.
+
 In **表示** (Display), **緊急地震速報の継続報で更新された地域名をオレンジ色にする** highlights areas already in the previous warning when their expected intensity, arrival time or warning status changes. It applies to horizontal and vertical OBS layouts and the in-app preview. The option is off by default.
 
 In **表示** (Display), **津波注意報以上の発表中は震度速報の定型注意文を省く** omits the provisional tsunami caution sentence from a seismic intensity bulletin when tsunami captions are enabled and an active advisory or warning has already been received for the same earthquake. If the earthquake IDs cannot be matched, the caution still appears. The option is off by default.
@@ -57,6 +59,10 @@ Under **フィルター** (Filters) → **表示フィルター** (Display filte
 ## Review past messages and run rehearsals
 
 Open **受信・過去電文を確認** (Review received and past messages). Under **取得元と再掲・訓練の表示設定**, select a history source such as the official JMA XML long feeds, the NII archive, a local JMA XML file or P2PQuake history. Use **過去電文を取得** (Fetch past messages) to populate the list. Fetching alone sends no captions or audio. Both past-information presentation and live-message replay are available during live reception. The live-message replay option is reserved for messages received in production. [History retrieval limits](data-sources.md#manual-history--replay)
+
+In **テスト** (Test) → **生データ・テストライブラリー** (Test library), select **XMLフォルダーを一括登録** (Import XML folder). Each XML file, including files in subfolders, is registered as a training case. The import reports the number of cases and unreadable files. Filter the list by information category or bulletin type, such as VPBS50.
+
+Select the `TrainingSamples` folder in the extracted ZIP to import the 185 included JMA sample files. [Attribution and terms](../jmaxml_20261118_CDI-Telopper/README.md)
 
 Disconnect live reception before running built-in tests, history rehearsals, test-library cases, OBS audio previews or the Simulator connection. [Simulator connection in Japanese](disaster-simulator.md)
 

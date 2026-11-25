@@ -30,7 +30,7 @@ public sealed class SettingsTabLayoutTests
             ["受信"] = ["受信元", "DMDATA.JP 契約情報", "互換設定"],
             ["フィルター"] = ["表示フィルター"],
             ["表示"] = ["ページと文字", "本番情報の繰り返し表示"],
-            ["出力"] = ["キャンバス", "OBS Local View", "CDI External API v1", "訓練・リハーサル専用API", "OBS WebSocket 自動登録"],
+            ["出力"] = ["キャンバス", "字幕と一緒に送出する画像", "OBS Local View", "CDI External API v1", "訓練・リハーサル専用API", "OBS WebSocket 自動登録"],
         };
         foreach ((string header, string[] expectedGroups) in groups)
         {
@@ -99,6 +99,9 @@ public sealed class SettingsTabLayoutTests
             ("出力", "SelectedItem", "{Binding Settings.BackgroundMode}"),
             ("出力", "Text", "{Binding Settings.Width}"),
             ("出力", "Text", "{Binding Settings.Height}"),
+            ("出力", "ItemsSource", "{Binding Settings.SubtitleImages}"),
+            ("出力", "Click", "OnSelectSubtitleImage"),
+            ("出力", "Click", "OnRemoveSubtitleImage"),
             ("出力", "IsChecked", "{Binding Settings.ObsEnabled}"),
             ("出力", "IsChecked", "{Binding ExternalApiEnabled}"),
             ("出力", "IsChecked", "{Binding Settings.ExternalApiAutoEnableOnStartup}"),

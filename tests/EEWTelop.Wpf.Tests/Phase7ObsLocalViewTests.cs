@@ -16,6 +16,61 @@ namespace EEWTelop.Wpf.Tests;
 [TestClass]
 public sealed class Phase7ObsLocalViewTests
 {
+    private const string TransparentPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=";
+
+    [TestMethod]
+    public async Task SubtitleImagesFollowTheActiveCategoryAndAreServedAsAuthenticatedPng()
+    {
+        DisplaySettings settings = AppSettings.CreateDefault().Display with
+        {
+            SubtitleImages = new()
+            {
+                [EventKind.Quake] = new("earthquake.png", TransparentPng, 30, 80, 160),
+                [EventKind.Eew] = new("early-warning.png", TransparentPng, 45, 90, 220),
+                [EventKind.Volcano] = new("invalid.png", "not-a-png"),
+            },
+        };
+        var clock = new TestClock();
+        var store = new ObsSnapshotStore(settings, clock.UtcNow);
+        var coordinator = new PriorityCoordinator(clock, settings);
+        var page = new DisplayPage(0, [new DisplayBlock("", "test", "", DisplayStyleTokens.Summary)], "test", null);
+        DisplayProgram quake = new("quake-image", EventId.Create("quake"), EventKind.Quake, SourceMode.Production,
+            clock.UtcNow, OverlayPriority.Quake, [page], clock.UtcNow, EndPolicy.AutoHide, "");
+        store.Publish(coordinator.Apply(quake), settings, clock.UtcNow);
+        ObsSubtitleImage? quakeImage = store.Read(ObsViewChannel.General, clock.UtcNow).SubtitleImage;
+        Assert.IsNotNull(quakeImage);
+        Assert.AreEqual(new ObsSubtitleImage(quakeImage.Id, 30, 80, 160), quakeImage);
+        Assert.IsNull(store.Read(ObsViewChannel.Eew, clock.UtcNow).SubtitleImage);
+
+        var eew = quake with { ProgramId = "eew-image", Kind = EventKind.Eew, EventId = EventId.Create("eew"), Priority = OverlayPriority.Eew };
+        ObsViewSnapshot active = store.Publish(coordinator.Apply(eew), settings, clock.UtcNow);
+        Assert.AreEqual(new ObsSubtitleImage(quakeImage.Id, 45, 90, 220), active.SubtitleImage);
+
+        await using var server = new ObsLocalViewServer(store, clock, new UiLogBuffer());
+        await server.StartAsync(0);
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        string token = new Uri(server.EewUrl).Query;
+        using JsonDocument state = JsonDocument.Parse(await client.GetStringAsync(
+            $"http://127.0.0.1:{server.Port}/state{token}&view=eew"));
+        JsonElement image = state.RootElement.GetProperty("subtitleImage");
+        Assert.AreEqual(220, image.GetProperty("width").GetInt32());
+        Assert.AreEqual(quakeImage.Id, image.GetProperty("id").GetString());
+        string imageUrl = $"http://127.0.0.1:{server.Port}/subtitle-image/{quakeImage.Id}";
+        using HttpResponseMessage forbidden = await client.GetAsync(imageUrl);
+        Assert.AreEqual(HttpStatusCode.Forbidden, forbidden.StatusCode);
+        using HttpResponseMessage uploaded = await client.GetAsync(imageUrl + token);
+        Assert.AreEqual(HttpStatusCode.OK, uploaded.StatusCode);
+        Assert.AreEqual("image/png", uploaded.Content.Headers.ContentType?.MediaType);
+        CollectionAssert.AreEqual(Convert.FromBase64String(TransparentPng), await uploaded.Content.ReadAsByteArrayAsync());
+
+        clock.UtcNow += TimeSpan.FromSeconds(4);
+        Assert.IsNull(store.Read(ObsViewChannel.General, clock.UtcNow).SubtitleImage);
+        store.PublishSettings(settings with { SubtitleImages = [] }, clock.UtcNow);
+        Assert.IsNull(store.Read(ObsViewChannel.Eew, clock.UtcNow).SubtitleImage);
+        using HttpResponseMessage removed = await client.GetAsync(imageUrl + token);
+        Assert.AreEqual(HttpStatusCode.NotFound, removed.StatusCode);
+    }
+
     [TestMethod]
     public void ObsMixerControlsEachCategorySource()
     {

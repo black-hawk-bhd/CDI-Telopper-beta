@@ -18,6 +18,7 @@
     #canvas.green { background: #00ff00; }
     #canvas.blue { background: #0000ff; }
     #canvas.opaque { background: #111; }
+    #subtitleImage { position: absolute; height: auto; pointer-events: none; }
     #banner { position: absolute; z-index: 10; left: 24px; top: 24px; max-width: 1344px;
       padding: calc(8.32px * var(--font-scale, 1)) calc(28.6px * var(--font-scale, 1));
       border: 5px solid #d00000; border-radius: 13px; background: #ffe600; color: #111;
@@ -152,6 +153,7 @@
 <body>
   <main id="viewport" aria-live="polite">
     <section id="canvas" class="transparent">
+      <img id="subtitleImage" alt="" hidden>
       <div id="banner" hidden></div>
       <div id="content" hidden>
         <div id="blocks"></div>

@@ -39,6 +39,8 @@ public sealed record ObsViewSnapshot(
 
     public bool UseVerticalEewWarningLayout { get; init; }
     public bool AlignVerticalEewWarningsLeft { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ObsSubtitleImage? SubtitleImage { get; init; }
 }
 
 public sealed record ObsViewBlock(
@@ -93,6 +95,7 @@ public sealed partial class ObsSnapshotStore
         ArgumentNullException.ThrowIfNull(settings);
         _snapshot = CreateEmpty(settings, now, sequence: 0);
         _useInformationSubtitles = settings.HideNormalInformationBadges;
+        _subtitleImages = PrepareSubtitleImages(settings);
     }
 
     public ObsViewSnapshot Read()
@@ -290,6 +293,7 @@ public sealed partial class ObsSnapshotStore
                 OutputTransform = settings.OutputTransform,
                 UseVerticalEewWarningLayout = settings.UseVerticalEewWarningLayout,
                 AlignVerticalEewWarningsLeft = settings.AlignVerticalEewWarningsLeft,
+                SubtitleImage = GetSubtitleImage(program.Kind),
             };
             return _snapshot;
         }
@@ -475,8 +479,10 @@ public sealed partial class ObsSnapshotStore
     public ObsViewSnapshot PublishSettings(DisplaySettings settings, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        var subtitleImages = PrepareSubtitleImages(settings);
         lock (_gate)
         {
+            _subtitleImages = subtitleImages;
             _useInformationSubtitles = settings.HideNormalInformationBadges;
             foreach (ObsViewChannel channel in _programs.Keys.ToArray())
             {
@@ -497,6 +503,7 @@ public sealed partial class ObsSnapshotStore
                 OutputTransform = settings.OutputTransform,
                 UseVerticalEewWarningLayout = settings.UseVerticalEewWarningLayout,
                 AlignVerticalEewWarningsLeft = settings.AlignVerticalEewWarningsLeft,
+                SubtitleImage = _snapshot.HasProgram ? GetSubtitleImage(_snapshot.Kind) : null,
             };
             return _snapshot;
         }
@@ -552,7 +559,7 @@ public sealed partial class ObsSnapshotStore
             AlignVerticalEewWarningsLeft = existing.AlignVerticalEewWarningsLeft,
         };
 
-    private static ObsViewSnapshot CreateProgramSnapshot(
+    private ObsViewSnapshot CreateProgramSnapshot(
         DisplayProgram program,
         DisplayPage page,
         int pageIndex,
@@ -592,6 +599,7 @@ public sealed partial class ObsSnapshotStore
             OutputTransform = settings.OutputTransform,
             UseVerticalEewWarningLayout = settings.UseVerticalEewWarningLayout,
             AlignVerticalEewWarningsLeft = settings.AlignVerticalEewWarningsLeft,
+            SubtitleImage = GetSubtitleImage(program.Kind),
         };
 
     private static ObsViewBlock CreateViewBlock(DisplayBlock source, DisplayProgram program, DisplaySettings settings)
