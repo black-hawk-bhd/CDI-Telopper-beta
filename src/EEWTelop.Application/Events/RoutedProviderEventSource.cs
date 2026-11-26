@@ -359,7 +359,7 @@ public sealed class RoutedProviderEventSource : IEventSource,
             snapshots.Where(static value => value.RetryDelay is not null)
                 .Select(static value => value.RetryDelay)
                 .Min(),
-            (backupActive ? "気象庁XML受信中（自動代替を含む・EEW対象外） / " : "") + string.Join(" / ", providers.Select(provider =>
+            (backupActive ? "気象庁XML受信中（自動代替を含む・緊急地震速報対象外） / " : "") + string.Join(" / ", providers.Select(provider =>
                 $"{GetProviderName(provider)}: {_sources[provider].Connection.State}")));
     }
 

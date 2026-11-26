@@ -1,3 +1,4 @@
+using EEWTelop.Application.Configuration;
 using EEWTelop.Application.Coordination;
 using EEWTelop.Application.Display;
 using EEWTelop.Domain.Events;
@@ -9,22 +10,29 @@ namespace EEWTelop.Application.Tests;
 public sealed class PriorityCoordinatorTests
 {
     [TestMethod]
-    public void DisablingRoutineCommentaryClearsWaitingAndRestoredProgramsSelectively()
+    [DataRow(QuakeIssueType.NankaiTroughCommentary)]
+    [DataRow(QuakeIssueType.NankaiTroughTemporaryInformation)]
+    [DataRow(QuakeIssueType.SubsequentEarthquakeAdvisory)]
+    public void DisablingSpecialQuakeFilterClearsWaitingAndRestoredProgramsSelectively(QuakeIssueType type)
     {
         var clock = new FakeClock();
         var coordinator = new PriorityCoordinator(clock, CoordinatorTestSupport.Settings());
-        DisplayProgram routine = CoordinatorTestSupport.Program("routine", EventKind.Quake, OverlayPriority.Quake,
-            clock.UtcNow) with { IsRoutineNankaiCommentary = true };
+        DisplayProgram special = CoordinatorTestSupport.Program("special", EventKind.Quake, OverlayPriority.Quake,
+            clock.UtcNow) with { QuakeIssueType = type, IsRoutineNankaiCommentary = type == QuakeIssueType.NankaiTroughCommentary };
         DisplayProgram eew = CoordinatorTestSupport.Program("eew", EventKind.Eew, OverlayPriority.Eew, clock.UtcNow);
         coordinator.Apply(eew);
-        Assert.HasCount(1, coordinator.Apply(routine).PendingPrograms);
+        Assert.HasCount(1, coordinator.Apply(special).PendingPrograms);
 
-        coordinator.SetRoutineNankaiCommentaryEnabled(false);
+        coordinator.SetSpecialQuakeFilters(AppSettings.CreateDefault().Filter with
+        {
+            ShowNankaiTroughInformation = type != QuakeIssueType.NankaiTroughTemporaryInformation,
+            ShowSubsequentEarthquakeAdvisory = type != QuakeIssueType.SubsequentEarthquakeAdvisory,
+        });
 
         Assert.AreEqual("eew", coordinator.Evaluate().CurrentProgram?.ProgramId);
         Assert.IsEmpty(coordinator.Evaluate().PendingPrograms);
-        Assert.AreEqual(CoordinatorDecisionKind.IgnoredFilteredProgram, coordinator.Apply(routine).Decision.Kind);
-        var restored = coordinator.Restore(new CoordinatorRestoreState(new RestoredProgram(routine, clock.UtcNow),
+        Assert.AreEqual(CoordinatorDecisionKind.IgnoredFilteredProgram, coordinator.Apply(special).Decision.Kind);
+        var restored = coordinator.Restore(new CoordinatorRestoreState(new RestoredProgram(special, clock.UtcNow),
             null, [new RestoredProgram(eew, clock.UtcNow)]));
         Assert.AreEqual("eew", restored.CurrentProgram?.ProgramId);
     }

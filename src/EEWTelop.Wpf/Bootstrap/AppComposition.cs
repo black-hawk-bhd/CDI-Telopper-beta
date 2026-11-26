@@ -61,7 +61,7 @@ public static class AppComposition
             settings.Provider.Routing.Eew is ReceptionProvider.Ydits or ReceptionProvider.YditsTest)
         {
             uiLogs.WriteAsync(new AppLogEntry(clock.UtcNow, AppLogLevel.Warning,
-                "YditsReceptionSuspended", "YDITSの受信は一時停止中です。EEWの受信元を「受信しない」として起動しました。"))
+                "YditsReceptionSuspended", "YDITSの受信は一時停止中です。緊急地震速報の受信元を「受信しない」として起動しました。"))
                 .AsTask().GetAwaiter().GetResult();
         }
         ProviderSettings availableProviderSettings = NormalizeProviderAvailability(
@@ -151,7 +151,7 @@ public static class AppComposition
         var historyLoader = new HistoryRehearsalLoader(new HistoryMessageSourceRouter(historySources),
             new ProviderRoutingEventNormalizer(historyNormalizers));
         var displayCoordinator = new PriorityCoordinator(clock, settings.Display);
-        displayCoordinator.SetRoutineNankaiCommentaryEnabled(settings.Filter.ShowRoutineNankaiCommentary);
+        displayCoordinator.SetSpecialQuakeFilters(settings.Filter);
         DisplayStateDocument storedState = stateStore.LoadAsync().AsTask().GetAwaiter().GetResult();
         CoordinatorSnapshot restored = displayCoordinator.Restore(storedState.ToRestoreState(clock.UtcNow));
         if (restored.CurrentProgram is not null || restored.PersistentTsunami is not null)

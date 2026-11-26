@@ -10,8 +10,8 @@ public interface IProviderSelectionConfigurable
 
 /// <summary>
 /// Applies the operator's per-information provider selection after payload
-/// normalization.  Nankai trough information shares EventKind.Quake with
-/// ordinary earthquake reports, so it is deliberately routed by issue type.
+/// normalization. Special earthquake reports share EventKind.Quake with
+/// ordinary earthquake reports, so they are also routed by issue type.
 /// </summary>
 public sealed class ProviderSelectionEventNormalizer :
     IEventNormalizer,
@@ -48,11 +48,12 @@ public sealed class ProviderSelectionEventNormalizer :
             return result;
         }
 
-        bool isNankaiTrough = result.Event is QuakeEvent quake &&
+        bool isSpecialEarthquake = result.Event is QuakeEvent quake &&
             (quake.IssueType is QuakeIssueType.NankaiTroughTemporaryInformation or QuakeIssueType.NankaiTroughCommentary ||
-             actualProvider == ReceptionProvider.Wolfx && quake.IssueType == QuakeIssueType.SubsequentEarthquakeAdvisory);
+             quake.IssueType == QuakeIssueType.SubsequentEarthquakeAdvisory &&
+             actualProvider is ReceptionProvider.Wolfx or ReceptionProvider.JmaXml);
         ReceptionProvider selectedProvider = (FallbackRouting?.GetRouting() ?? Volatile.Read(ref _routing))
-            .GetProvider(result.Event.Kind, isNankaiTrough);
+            .GetProvider(result.Event.Kind, isSpecialEarthquake);
         if (selectedProvider != actualProvider) return NormalizeResult.Ignored();
         if (FallbackRouting is not null && result.Event.Kind != EventKind.Eew && !raw.IsStateSnapshot)
         {

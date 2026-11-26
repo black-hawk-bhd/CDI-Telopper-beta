@@ -42,7 +42,10 @@ public sealed class BrowserMonitorTests
         Assert.AreEqual(HttpStatusCode.OK, html.StatusCode);
         Assert.IsTrue(html.Headers.CacheControl!.NoStore);
         StringAssert.Contains(html.Headers.GetValues("Content-Security-Policy").Single(), "frame-src 'self'");
-        StringAssert.Contains(await html.Content.ReadAsStringAsync(), "id=\"show-routine-commentary\" type=\"checkbox\" checked");
+        string monitorHtml = await html.Content.ReadAsStringAsync();
+        StringAssert.Contains(monitorHtml, "id=\"show-routine-commentary\" type=\"checkbox\" checked");
+        StringAssert.Contains(monitorHtml, "<option value=\"Eew\">緊急地震速報</option>");
+        StringAssert.Contains(await client.GetStringAsync(root + "/assets/monitor.js" + query), "Eew: \"緊急地震速報\"");
         using var frame = await client.GetAsync(root + "/monitor/view" + query);
         Assert.AreEqual(HttpStatusCode.OK, frame.StatusCode);
         using var data = JsonDocument.Parse(await client.GetStringAsync(root + "/monitor/data" + query));

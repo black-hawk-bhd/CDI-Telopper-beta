@@ -232,6 +232,8 @@ public sealed record EewEvent : DisasterEvent
 
     public bool IsTest { get; }
 
+    public EewIntensityRange? MaximumForecastIntensity { get; init; }
+
     // Source publication/creation time, never a fallback to local receipt time.
     // JMA XML uses Control/DateTime when present, otherwise ReportDateTime.
     public DateTimeOffset? SourceMessageTime { get; init; }

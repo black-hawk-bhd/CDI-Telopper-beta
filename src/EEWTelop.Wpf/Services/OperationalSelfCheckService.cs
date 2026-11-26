@@ -210,13 +210,15 @@ public sealed class OperationalSelfCheckService(
 
     private static IEnumerable<(string Label, string Path)> EnumerateAudio(AudioSettings audio)
     {
-        yield return ("EEW初報", audio.EewInitialFilePath);
-        yield return ("EEW続報", audio.EewContinuationFilePath);
-        yield return ("EEW取消", audio.EewCancellationFilePath);
+        yield return ("緊急地震速報初報", audio.EewInitialFilePath);
+        yield return ("緊急地震速報続報", audio.EewContinuationFilePath);
+        yield return ("緊急地震速報取消", audio.EewCancellationFilePath);
         yield return ("気象レベル5", audio.WeatherSpecialWarningFilePath);
         yield return ("気象防災速報", audio.WeatherDisasterPreventionBulletinFilePath);
         yield return ("気象レベル4～3", audio.WeatherWarningFilePath);
         yield return ("気象レベル2", audio.WeatherAdvisoryFilePath);
+        yield return ("噴火警報・予報（VFVO50）", audio.VolcanoWarningForecastCue.FilePath);
+        yield return ("噴火速報（VFVO56）", audio.VolcanoEruptionFlashCue.FilePath);
         foreach (var pair in audio.QuakeScaleCues) yield return ($"震度{pair.Key}", pair.Value.FilePath);
         foreach (var pair in audio.TsunamiGradeCues) yield return ($"津波{pair.Key}", pair.Value.FilePath);
     }

@@ -151,6 +151,7 @@ public sealed record StoredDisplayProgram(
     EndPolicy EndPolicy,
     string RehearsalLabel)
 {
+    public QuakeIssueType? QuakeIssueType { get; init; }
     public bool? IsRoutineNankaiCommentary { get; init; }
     public string? TelegramPageDurationKey { get; init; }
     public string? ScalePromptEarthquakeId { get; init; }
@@ -167,6 +168,7 @@ public sealed record StoredDisplayProgram(
         program.EndPolicy,
         program.RehearsalLabel)
     {
+        QuakeIssueType = program.QuakeIssueType,
         IsRoutineNankaiCommentary = program.IsRoutineNankaiCommentary,
         TelegramPageDurationKey = program.TelegramPageDurationKey,
         ScalePromptEarthquakeId = program.ScalePromptEarthquakeId?.Value,
@@ -198,6 +200,13 @@ public sealed record StoredDisplayProgram(
             RehearsalLabel ?? string.Empty)
         {
             TelegramPageDurationKey = TelegramPageDurationKey,
+            QuakeIssueType = QuakeIssueType ?? (TelegramPageDurationKey switch
+            {
+                "VYSE50" => EEWTelop.Domain.Events.QuakeIssueType.NankaiTroughTemporaryInformation,
+                "VYSE51" or "VYSE52" => EEWTelop.Domain.Events.QuakeIssueType.NankaiTroughCommentary,
+                "VYSE60" => EEWTelop.Domain.Events.QuakeIssueType.SubsequentEarthquakeAdvisory,
+                _ => null,
+            }),
             ScalePromptEarthquakeId = EEWTelop.Domain.Events.EventId.FromJmaEarthquakeId(ScalePromptEarthquakeId),
             // Older saved programs lack the classification but retain the Wolfx ID and title.
             IsRoutineNankaiCommentary = IsRoutineNankaiCommentary ??

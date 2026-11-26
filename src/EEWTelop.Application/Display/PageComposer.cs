@@ -15,6 +15,7 @@ public sealed class PageComposer : IPageComposer
         {
             QuakeEvent quake => QuakePageComposer.Compose(quake, settings, omitScalePromptTsunamiCaution) with
             {
+                QuakeIssueType = quake.IssueType,
                 IsRoutineNankaiCommentary = quake.IsRoutineNankaiCommentary,
             },
             TsunamiEvent tsunami => TsunamiPageComposer.Compose(tsunami, settings),

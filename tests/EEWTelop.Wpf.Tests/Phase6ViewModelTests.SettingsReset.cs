@@ -63,7 +63,7 @@ public sealed partial class Phase6ViewModelTests
                 WebSocketProtectedPassword = ObsCredentialProtector.Protect("test-password"),
             },
             Audio = defaults.Audio with { Muted = true, EewInitialFilePath = "test.wav" },
-            History = defaults.History with { Repeat = true, HideModeBanner = true },
+            History = defaults.History with { Repeat = true, HideInformationBadges = true },
             Compatibility = defaults.Compatibility with { EnrichQuakeById = true },
             Log = defaults.Log with { UiMaxEntries = 100 },
             Safety = defaults.Safety with { RestoreRehearsalState = !defaults.Safety.RestoreRehearsalState },

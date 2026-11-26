@@ -147,6 +147,13 @@ public sealed class EventSignatureBuilder : IEventSignatureBuilder
             writer.WriteString("sourceMessageTime", sourceTime.ToUniversalTime());
         WriteIssue(writer, eew.Issue);
         writer.WriteBoolean("test", eew.IsTest);
+        if (eew.MaximumForecastIntensity is { } forecast)
+        {
+            writer.WriteNumber("maximumForecastIntensityFrom", (int)forecast.From);
+            writer.WriteNumber("maximumForecastIntensityTo", (int)forecast.To);
+            writer.WriteBoolean("maximumForecastIntensityOpenEnded", forecast.IsOpenEnded);
+        }
+
         if (eew.Earthquake is not null)
         {
             WriteEarthquake(writer, eew.Earthquake);

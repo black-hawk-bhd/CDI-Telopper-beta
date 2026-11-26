@@ -21,6 +21,8 @@ Hover over the CDI-Telopper icon in the notification area to check the current r
 3. Use **フィルター** (Filters) to choose categories, areas and intensities. Use **表示** (Display) for layout and pagination and **音声** (Audio) to select sounds and when they play.
 4. Select **保存して反映** (Save and apply), check the output under **テスト** (Test) and in the silent browser preview, then select **接続** (Connect).
 
+For the Hokkaido and Sanriku subsequent earthquake advisory (VYSE60), select JMA XML or Wolfx in the shared row labeled **南海トラフ地震の情報** and **北海道・三陸沖後発地震注意情報**. VYSE60 from DMDATA.JP or AXIS follows the **地震情報** (Earthquake information) setting.
+
 Enable **起動時に受信APIへ自動接続** (Connect to reception APIs on startup) under **受信** (Reception) → **受信元** (Sources) and save. The app connects to your saved providers the next time it starts. This setting is off by default.
 
 With multiple sources, the window header shows the connection state of each source. The **接続** (Connection) panel and system tray also show how many times each source has entered the reconnect wait state since the app started. If the tray tooltip is too long, right-click the icon and open **API別の状態と再接続回数** (Status and reconnect count by API).
@@ -35,7 +37,7 @@ In **表示** (Display), **情報種別をバッジではなく字幕で表示**
 
 Under **表示** (Display) → **ページと文字** (Pages and text), choose an installed Windows font from **字幕フォント** (Subtitle font). Saving applies the font to both the browser preview and OBS. The default is BIZ UDPGothic, which also supplies missing characters when available.
 
-**ページ秒数** (Seconds per page) sets how long each page is shown. Earthquake reports and weather warnings or advisories clear automatically after all pages have been shown. Three pages at four seconds each take 12 seconds. Set the separate EEW timer under **緊急地震速報（EEW）の自動消去秒** (EEW auto-clear time).
+**ページ秒数** (Seconds per page) sets how long each page is shown. Earthquake reports and weather warnings or advisories clear automatically after all pages have been shown. Three pages at four seconds each take 12 seconds. Set the separate EEW timer under **緊急地震速報の自動消去秒** (EEW auto-clear time).
 
 Expand **電文別のページ秒数** (Seconds per page by bulletin type) to set a separate duration for bulletins such as seismic intensity alerts (VXSE51) and detailed earthquake reports (VXSE53). Enter 0 to use the shared page duration. Save the settings to apply the durations to OBS, tests, and replays as well.
 
@@ -43,11 +45,13 @@ Under **出力** (Output) → **字幕と一緒に送出する画像** (Image sh
 
 In **表示** (Display), **緊急地震速報の継続報で更新された地域名をオレンジ色にする** highlights areas already in the previous warning when their expected intensity, arrival time or warning status changes. It applies to horizontal and vertical OBS layouts and the in-app preview. The option is off by default.
 
+In **表示** (Display), **緊急地震速報に予想最大震度・推定マグニチュードを表示** adds available forecast maximum intensity and estimated magnitude to the warning in the preview and OBS. Both values are labeled as estimates. The option is off by default. A cancellation replaces the matching warning and removes its estimates.
+
 In **表示** (Display), **津波注意報以上の発表中は震度速報の定型注意文を省く** omits the provisional tsunami caution sentence from a seismic intensity bulletin when tsunami captions are enabled and an active advisory or warning has already been received for the same earthquake. If the earthquake IDs cannot be matched, the caution still appears. The option is off by default.
 
 **津波注意報以上の発表中は震度速報を表示しない** hides the entire seismic intensity bulletin for the same earthquake while a tsunami advisory or warning is active and tsunami captions are enabled. An advisory or warning that arrives later also removes a bulletin that is already visible or queued. The received bulletin stays in the message review list. If both options are enabled, hiding the bulletin takes precedence. A forecast alone or an unavailable earthquake ID leaves the bulletin visible. The option is off by default.
 
-Under **フィルター** (Filters) → **表示フィルター** (Display filters), **南海トラフの定例解説をテロップに表示** (Show routine Nankai Trough commentary on the overlay) is off by default. Check it and save to enable captions. Turning it off clears any routine commentary on screen. Received reports are available in message review.
+Under **フィルター** (Filters) → **表示フィルター** (Display filters) → **地震情報** (Earthquake information), you can toggle **南海トラフ地震の情報** (Nankai Trough earthquake information) and **北海道・三陸沖後発地震注意情報** (Hokkaido and Sanriku subsequent earthquake advisory) separately. Both are on by default. Saving an unchecked option clears its captions. Received reports remain available in message review. To show routine Nankai Trough commentary, enable both the Nankai Trough option and **南海トラフの定例解説をテロップに表示**. The routine commentary option is off by default.
 
 ## Connect OBS and preview
 
@@ -58,7 +62,7 @@ Under **フィルター** (Filters) → **表示フィルター** (Display filte
 
 ## Review past messages and run rehearsals
 
-Open **受信・過去電文を確認** (Review received and past messages). Under **取得元と再掲・訓練の表示設定**, select a history source such as the official JMA XML long feeds, the NII archive, a local JMA XML file or P2PQuake history. Use **過去電文を取得** (Fetch past messages) to populate the list. Fetching alone sends no captions or audio. Both past-information presentation and live-message replay are available during live reception. The live-message replay option is reserved for messages received in production. [History retrieval limits](data-sources.md#manual-history--replay)
+Open **受信・過去電文を確認** (Review received and past messages). Under **取得元と再掲の表示設定** (Sources and replay settings), select a history source such as the official JMA XML long feeds, the NII archive, a local JMA XML file or P2PQuake history. Use **過去電文を取得** (Fetch past messages) to populate the list. Fetching alone sends no captions or audio. Both past-information presentation and live-message replay are available during live reception. The live-message replay option is reserved for messages received in production. [History retrieval limits](data-sources.md#manual-history--replay)
 
 In **テスト** (Test) → **生データ・テストライブラリー** (Test library), select **XMLフォルダーを一括登録** (Import XML folder). Each XML file, including files in subfolders, is registered as a training case. The import reports the number of cases and unreadable files. Filter the list by information category or bulletin type, such as VPBS50.
 

@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using System.Text.Json;
 using System.Xml;
 using System.Xml.Linq;
@@ -172,7 +171,7 @@ public sealed class JsonSettingsProfileStore : ISettingsProfileStore
     }
 }
 
-public sealed partial class FileTestCaseLibrary : ITestCaseLibrary
+public sealed class FileTestCaseLibrary : ITestCaseLibrary
 {
     public const string JmaXmlTestProviderName = "test-library-jma-xml";
     public const string DmdataTestProviderName = "dmdata";
@@ -217,20 +216,14 @@ public sealed partial class FileTestCaseLibrary : ITestCaseLibrary
             foreach (string source in paths)
             {
                 string targetName = MakeUniqueFileName(caseDirectory, Path.GetFileName(source));
-                await using FileStream input = File.OpenRead(source);
-                await using FileStream output = File.Create(Path.Combine(caseDirectory, targetName));
-                await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
+                await CopyFileAsync(source, Path.Combine(caseDirectory, targetName), cancellationToken).ConfigureAwait(false);
                 copied.Add(targetName);
             }
-            string referenceImage = copied.FirstOrDefault(static file =>
-                file.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
-            string[] payloads = copied.Where(static file =>
-                !file.EndsWith(".png", StringComparison.OrdinalIgnoreCase)).ToArray();
             var manifest = new TestCaseManifest(
                 TestCaseManifest.CurrentSchemaVersion, id, string.IsNullOrWhiteSpace(name) ? id : name.Trim(),
                 TestCaseClassification.GetLabel(TestCaseClassification.GetKind(telegramType)), InferProvider(copied),
                 telegramType, eventId, [], string.Empty,
-                DateTimeOffset.UtcNow, payloads, referenceImage,
+                DateTimeOffset.UtcNow, copied,
                 new TestCaseExpectation(string.Empty, string.Empty, null, [], [], [], string.Empty, string.Empty));
             await WriteManifestAsync(caseDirectory, manifest, cancellationToken).ConfigureAwait(false);
             return manifest;
@@ -281,105 +274,6 @@ public sealed partial class FileTestCaseLibrary : ITestCaseLibrary
         return new TestXmlFolderImportResult(imported, skipped);
     }
 
-    public async Task<IReadOnlyList<TestCaseManifest>> ImportDmdataArchiveAsync(
-        string telegramsIndexPath,
-        CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(telegramsIndexPath) || !File.Exists(telegramsIndexPath))
-            throw new FileNotFoundException("dmdataのtelegrams.jsonを確認できません。", telegramsIndexPath);
-        if (!Path.GetExtension(telegramsIndexPath).Equals(".json", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("dmdataの索引にはtelegrams.jsonを指定してください。");
-
-        string sourceDirectory = Path.GetDirectoryName(Path.GetFullPath(telegramsIndexPath))
-            ?? throw new InvalidDataException("dmdata生データの保存場所を確認できません。");
-        await using FileStream indexStream = File.OpenRead(telegramsIndexPath);
-        using JsonDocument index = await JsonDocument.ParseAsync(indexStream, cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
-        if (index.RootElement.ValueKind != JsonValueKind.Array)
-            throw new InvalidDataException("telegrams.jsonのルートが配列ではありません。");
-
-        DmdataIndexEntry[] entries = index.RootElement.EnumerateArray()
-            .Select(ParseDmdataIndexEntry).ToArray();
-        DmdataIndexEntry[] xmlEntries = entries.Where(static entry =>
-            entry.Format.Equals("xml", StringComparison.OrdinalIgnoreCase)).ToArray();
-        if (xmlEntries.Length == 0)
-            throw new InvalidDataException("telegrams.jsonにXML正本が登録されていません。");
-
-        var jsonByOriginalId = entries.Where(static entry =>
-                entry.Format.Equals("json", StringComparison.OrdinalIgnoreCase) &&
-                !string.IsNullOrWhiteSpace(entry.OriginalId))
-            .GroupBy(static entry => entry.OriginalId, StringComparer.Ordinal)
-            .ToDictionary(static group => group.Key, static group => group.First(), StringComparer.Ordinal);
-        var imported = new List<TestCaseManifest>(xmlEntries.Length);
-        var createdDirectories = new List<string>(xmlEntries.Length);
-        try
-        {
-            foreach (DmdataIndexEntry xmlEntry in xmlEntries)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                string xmlSource = ResolveDmdataSourceFile(sourceDirectory, xmlEntry.FileName);
-                ValidatePayload(xmlSource);
-                DmdataIndexEntry? jsonEntry = null;
-                string? jsonSource = null;
-                if (!string.IsNullOrWhiteSpace(xmlEntry.Id) &&
-                    jsonByOriginalId.TryGetValue(xmlEntry.Id, out DmdataIndexEntry? pairedJson))
-                {
-                    jsonEntry = pairedJson;
-                    jsonSource = ResolveDmdataSourceFile(sourceDirectory, pairedJson.FileName);
-                    ValidatePayload(jsonSource);
-                }
-
-                string id = Guid.NewGuid().ToString("N");
-                string caseDirectory = Path.Combine(_directory, id);
-                Directory.CreateDirectory(caseDirectory);
-                createdDirectories.Add(caseDirectory);
-                var copied = new List<string>(2);
-                string xmlTarget = MakeUniqueFileName(caseDirectory, Path.GetFileName(xmlSource));
-                await CopyFileAsync(xmlSource, Path.Combine(caseDirectory, xmlTarget), cancellationToken)
-                    .ConfigureAwait(false);
-                copied.Add(xmlTarget);
-                if (jsonSource is not null)
-                {
-                    string jsonTarget = MakeUniqueFileName(caseDirectory, Path.GetFileName(jsonSource));
-                    await CopyFileAsync(jsonSource, Path.Combine(caseDirectory, jsonTarget), cancellationToken)
-                        .ConfigureAwait(false);
-                    copied.Add(jsonTarget);
-                }
-
-                string[] tags = new[] { "dmdata", xmlEntry.Classification, xmlEntry.TelegramType }
-                    .Where(static value => !string.IsNullOrWhiteSpace(value))
-                    .Distinct(StringComparer.CurrentCultureIgnoreCase).ToArray();
-                string description = jsonEntry is null
-                    ? "dmdataの生データ索引から登録。XML正本だけを表示解析します。"
-                    : "dmdataの生データ索引から登録。XML正本だけを表示解析し、対応する変換JSONは参考データとして保持します。";
-                var manifest = new TestCaseManifest(
-                    TestCaseManifest.CurrentSchemaVersion,
-                    id,
-                    BuildDmdataCaseName(xmlEntry),
-                    string.IsNullOrWhiteSpace(xmlEntry.Classification) ? "dmdata" : xmlEntry.Classification,
-                    DmdataTestProviderName,
-                    xmlEntry.TelegramType,
-                    xmlEntry.EventId,
-                    tags,
-                    description,
-                    DateTimeOffset.UtcNow,
-                    copied,
-                    string.Empty,
-                    new TestCaseExpectation(string.Empty, string.Empty, null, [], [], [], string.Empty, string.Empty));
-                await WriteManifestAsync(caseDirectory, manifest, cancellationToken).ConfigureAwait(false);
-                imported.Add(manifest);
-            }
-
-            return imported;
-        }
-        catch
-        {
-            foreach (string directory in createdDirectories)
-                if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
-            throw;
-        }
-    }
-
     public Task DeleteAsync(string id, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -396,20 +290,6 @@ public sealed partial class FileTestCaseLibrary : ITestCaseLibrary
             cancellationToken.ThrowIfCancellationRequested();
             await DeleteAsync(item.Id, cancellationToken).ConfigureAwait(false);
         }
-    }
-
-    public Task ExportAsync(string id, string zipPath, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        string source = GetCaseDirectory(id);
-        string temporary = Path.Combine(Path.GetTempPath(), $"qtcase-{Guid.NewGuid():N}.zip");
-        try
-        {
-            ZipFile.CreateFromDirectory(source, temporary, CompressionLevel.Optimal, includeBaseDirectory: false);
-            File.Copy(temporary, zipPath, overwrite: true);
-        }
-        finally { if (File.Exists(temporary)) File.Delete(temporary); }
-        return Task.CompletedTask;
     }
 
     public async Task<TestCaseManifest> DuplicateAsync(string id, CancellationToken cancellationToken = default)
@@ -506,7 +386,6 @@ public sealed partial class FileTestCaseLibrary : ITestCaseLibrary
             return XDocument.Load(reader, LoadOptions.PreserveWhitespace);
         }
         if (extension == ".json") { using JsonDocument _ = JsonDocument.Parse(File.ReadAllText(path)); return null; }
-        if (extension == ".png") return null;
         throw new InvalidDataException($"未対応のテストファイルです: {Path.GetFileName(path)}");
     }
 
@@ -529,7 +408,8 @@ public sealed partial class FileTestCaseLibrary : ITestCaseLibrary
 
     private static TestCaseManifest NormalizeManifest(TestCaseManifest manifest)
     {
-        string telegramType = NormalizeTelegramType(manifest.TelegramType, manifest.PayloadFiles);
+        string[] payloadFiles = (manifest.PayloadFiles ?? []).Where(IsTelegramFile).ToArray();
+        string telegramType = NormalizeTelegramType(manifest.TelegramType, payloadFiles);
         string? category = manifest.Category?.Trim();
         return manifest with
         {
@@ -542,8 +422,7 @@ public sealed partial class FileTestCaseLibrary : ITestCaseLibrary
             Tags = manifest.Tags?.Where(static item => !string.IsNullOrWhiteSpace(item))
                 .Select(static item => item.Trim()).Distinct(StringComparer.CurrentCultureIgnoreCase).ToArray() ?? [],
             Description = manifest.Description?.Trim() ?? string.Empty,
-            PayloadFiles = manifest.PayloadFiles ?? [],
-            ReferenceImageFile = manifest.ReferenceImageFile ?? string.Empty,
+            PayloadFiles = payloadFiles,
             Expectation = manifest.Expectation is null
                 ? new TestCaseExpectation(string.Empty, string.Empty, null, [], [], [], string.Empty, string.Empty)
                 : manifest.Expectation with
@@ -560,9 +439,12 @@ public sealed partial class FileTestCaseLibrary : ITestCaseLibrary
         Directory.CreateDirectory(destination);
         foreach (string directory in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
             Directory.CreateDirectory(directory.Replace(source, destination, StringComparison.OrdinalIgnoreCase));
-        foreach (string file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+        foreach (string file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories).Where(IsTelegramFile))
             File.Copy(file, file.Replace(source, destination, StringComparison.OrdinalIgnoreCase));
     }
+
+    private static bool IsTelegramFile(string? file) => file is not null &&
+        (file.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".json", StringComparison.OrdinalIgnoreCase));
 
     private static XElement? ReadReportElement(XElement? parent, string name) =>
         parent?.Elements().FirstOrDefault(element => element.Name.LocalName == name);
@@ -613,78 +495,6 @@ public sealed partial class FileTestCaseLibrary : ITestCaseLibrary
         await using FileStream output = File.Create(destination);
         await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
     }
-
-    private static DmdataIndexEntry ParseDmdataIndexEntry(JsonElement element)
-    {
-        if (element.ValueKind != JsonValueKind.Object)
-            throw new InvalidDataException("telegrams.jsonにオブジェクト以外の項目があります。");
-        string format = GetJsonString(element, "format");
-        string fileName = GetJsonString(element, "filename");
-        if (string.IsNullOrWhiteSpace(format) || string.IsNullOrWhiteSpace(fileName))
-            throw new InvalidDataException("telegrams.jsonにformatまたはfilenameがない項目があります。");
-        JsonElement head = GetJsonObject(element, "head");
-        JsonElement xmlReport = GetJsonObject(element, "xmlReport");
-        JsonElement xmlHead = GetJsonObject(xmlReport, "head");
-        return new DmdataIndexEntry(
-            GetJsonString(element, "id"),
-            GetJsonString(element, "originalId"),
-            format,
-            fileName,
-            GetJsonString(element, "classification"),
-            GetJsonString(head, "type"),
-            GetJsonString(xmlHead, "eventId"),
-            GetJsonString(xmlHead, "serial"));
-    }
-
-    private static string GetJsonString(JsonElement element, string propertyName)
-    {
-        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(propertyName, out JsonElement value))
-            return string.Empty;
-        return value.ValueKind switch
-        {
-            JsonValueKind.String => value.GetString() ?? string.Empty,
-            JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False => value.ToString(),
-            _ => string.Empty,
-        };
-    }
-
-    private static JsonElement GetJsonObject(JsonElement element, string propertyName) =>
-        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(propertyName, out JsonElement value) &&
-        value.ValueKind == JsonValueKind.Object
-            ? value
-            : default;
-
-    private static string ResolveDmdataSourceFile(string sourceDirectory, string fileName)
-    {
-        if (string.IsNullOrWhiteSpace(fileName) || Path.IsPathRooted(fileName) ||
-            !Path.GetFileName(fileName).Equals(fileName, StringComparison.Ordinal))
-            throw new InvalidDataException($"telegrams.jsonに不正なファイル名があります: {fileName}");
-        string root = Path.GetFullPath(sourceDirectory).TrimEnd(Path.DirectorySeparatorChar) +
-            Path.DirectorySeparatorChar;
-        string path = Path.GetFullPath(Path.Combine(root, fileName));
-        if (!path.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !File.Exists(path))
-            throw new InvalidDataException($"dmdata生データの参照先を確認できません: {fileName}");
-        return path;
-    }
-
-    private static string BuildDmdataCaseName(DmdataIndexEntry entry)
-    {
-        string report = string.IsNullOrWhiteSpace(entry.Serial) ? string.Empty : $" 第{entry.Serial}報";
-        string identity = string.IsNullOrWhiteSpace(entry.EventId)
-            ? Path.GetFileNameWithoutExtension(entry.FileName)
-            : entry.EventId;
-        return $"{entry.TelegramType} {identity}{report}".Trim();
-    }
-
-    private sealed record DmdataIndexEntry(
-        string Id,
-        string OriginalId,
-        string Format,
-        string FileName,
-        string Classification,
-        string TelegramType,
-        string EventId,
-        string Serial);
 
     private static string ResolveManagedFile(string directory, string relativePath)
     {

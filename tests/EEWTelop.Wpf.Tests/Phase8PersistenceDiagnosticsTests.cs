@@ -131,6 +131,8 @@ public sealed class Phase8PersistenceDiagnosticsTests
                 WeatherWarningFilePath = "weather-level4-3.mp3",
                 WeatherAdvisoryFilePath = "weather-level2.ogg",
                 WeatherDisasterPreventionBulletinFilePath = "weather-bulletin.wav",
+                VolcanoWarningForecastCue = new AudioCueSetting(true, " volcano-warning.wav "),
+                VolcanoEruptionFlashCue = new AudioCueSetting(false, "volcano-flash.mp3"),
                 TsunamiAdvisoryEnabled = true,
                 TsunamiWarningEnabled = true,
                 TsunamiMajorWarningEnabled = true,
@@ -187,6 +189,8 @@ public sealed class Phase8PersistenceDiagnosticsTests
             actual.Audio.WeatherSpecialWarningFilePath);
         Assert.AreEqual("weather-level4-3.mp3", actual.Audio.WeatherWarningFilePath);
         Assert.AreEqual("weather-level2.ogg", actual.Audio.WeatherAdvisoryFilePath);
+        Assert.AreEqual(new AudioCueSetting(true, "volcano-warning.wav"), actual.Audio.VolcanoWarningForecastCue);
+        Assert.AreEqual(new AudioCueSetting(false, "volcano-flash.mp3"), actual.Audio.VolcanoEruptionFlashCue);
         Assert.AreEqual(
             "weather-bulletin.wav",
             actual.Audio.WeatherDisasterPreventionBulletinFilePath);

@@ -15,6 +15,9 @@
         <SolidColorBrush x:Key="Panel2Brush" Color="#FF202C38" />
         <SolidColorBrush x:Key="AccentBrush" Color="#FFEF5B35" />
         <SolidColorBrush x:Key="MutedBrush" Color="#FF9AA8B7" />
+        <Style x:Key="SettingsTabContent" TargetType="FrameworkElement">
+            <Setter Property="MaxWidth" Value="960" />
+        </Style>
         <Style TargetType="Hyperlink">
             <Setter Property="Foreground" Value="#FF8DDCFF" />
         </Style>
@@ -270,12 +273,18 @@
                                     ToolTip="『念のため津波に注意してください』など、受信前に用意する固定文を編集します。決定後は「保存して反映」を押してください。"
                                     Command="{Binding EditSubtitlePhraseTemplatesCommand}" />
                             <TextBlock Text="種別別に表示を消去" Foreground="{StaticResource MutedBrush}" Margin="0,5,0,2" />
-                            <UniformGrid Columns="4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
                                 <Button Content="地震" Background="#FFB33A2B" Padding="6,8" Command="{Binding ClearQuakeDisplayCommand}" ToolTip="地震情報だけを消去します。受信は継続します。" />
-                                <Button Content="津波" Background="#FFB33A2B" Padding="6,8" Command="{Binding ClearTsunamiDisplayCommand}" ToolTip="津波情報だけを消去します。受信は継続します。" />
-                                <Button Content="EEW" Background="#FFB33A2B" Padding="6,8" Command="{Binding ClearEewDisplayCommand}" ToolTip="緊急地震速報だけを消去します。受信は継続します。" />
-                                <Button Content="気象" Background="#FFB33A2B" Padding="6,8" Command="{Binding ClearWeatherDisplayCommand}" ToolTip="気象情報だけを消去します。受信は継続します。" />
-                            </UniformGrid>
+                                <Button Grid.Column="1" Content="津波" Background="#FFB33A2B" Padding="6,8" Command="{Binding ClearTsunamiDisplayCommand}" ToolTip="津波情報だけを消去します。受信は継続します。" />
+                                <Button x:Name="ClearEewDisplayButton" Grid.Column="2" Content="緊急地震速報" Background="#FFB33A2B" Padding="6,8" Command="{Binding ClearEewDisplayCommand}" ToolTip="緊急地震速報だけを消去します。受信は継続します。" />
+                                <Button Grid.Column="3" Content="気象" Background="#FFB33A2B" Padding="6,8" Command="{Binding ClearWeatherDisplayCommand}" ToolTip="気象情報だけを消去します。受信は継続します。" />
+                            </Grid>
                             <TextBlock Text="OBS Local View" Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0" />
                             <DockPanel LastChildFill="False" Margin="0,3,0,0">
                                 <TextBlock Text="{Binding ObsStatusText}" />
@@ -287,7 +296,7 @@
                             <TextBlock Text="用途別OBS URL" Foreground="{StaticResource MutedBrush}"
                                        Margin="0,5,0,3" />
                             <UniformGrid Columns="1">
-                                <Button Content="地震字幕・音声 URLをコピー"
+                                <Button Content="地震・火山スーパー／音声 URLをコピー"
                                         Command="{Binding CopyObsOutputUrlCommand}"
                                         CommandParameter="{Binding ObsUrlText}"
                                         ToolTip="{Binding ObsUrlText}" Padding="10,4" Margin="0,1" />
@@ -295,11 +304,11 @@
                                         Command="{Binding CopyObsOutputUrlCommand}"
                                         CommandParameter="{Binding EewObsUrlText}"
                                         ToolTip="{Binding EewObsUrlText}" Padding="10,4" Margin="0,1" />
-                                <Button Content="津波字幕・音声 URLをコピー"
+                                <Button Content="津波スーパー／音声 URLをコピー"
                                         Command="{Binding CopyObsOutputUrlCommand}"
                                         CommandParameter="{Binding TsunamiObsUrlText}"
                                         ToolTip="{Binding TsunamiObsUrlText}" Padding="10,4" Margin="0,1" />
-                                 <Button Content="気象情報・音声 URLをコピー"
+                                 <Button Content="気象スーパー／音声 URLをコピー"
                                         Visibility="{Binding IsExtendedFeaturesEnabled, Converter={StaticResource BooleanToVisibilityConverter}}"
                                         Command="{Binding CopyObsOutputUrlCommand}"
                                         CommandParameter="{Binding WeatherObsUrlText}"
@@ -318,7 +327,7 @@
             <TabControl Grid.Column="2" Background="{StaticResource PanelBrush}" BorderBrush="#FF344555">
                 <TabItem Header="受信">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18">
-                        <StackPanel>
+                        <StackPanel Style="{StaticResource SettingsTabContent}">
                             <GroupBox Header="受信元">
                                 <StackPanel>
                                     <CheckBox Content="起動時に受信APIへ自動接続"
@@ -329,7 +338,7 @@
                                                Foreground="#FFFFC66D" TextWrapping="Wrap" Margin="0,3,0,4" />
                                     <Grid Margin="0,4,0,8">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="105" />
+                                            <ColumnDefinition Width="Auto" MinWidth="105" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <Grid.RowDefinitions>
@@ -340,8 +349,9 @@
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="Auto" />
                                         </Grid.RowDefinitions>
-                                        <TextBlock Grid.Row="0" Text="EEW" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="EewSourceLabel" Grid.Row="0" Text="緊急地震速報" VerticalAlignment="Center" />
                                         <ComboBox Grid.Row="0" Grid.Column="1"
+                                                  AutomationProperties.LabeledBy="{Binding ElementName=EewSourceLabel}"
                                                   ItemsSource="{Binding Settings.EewAndQuakeProviderOptions}"
                                                   DisplayMemberPath="Label" SelectedValuePath="Value"
                                                   SelectedValue="{Binding Settings.EewProvider}" />
@@ -369,9 +379,11 @@
                                                   DisplayMemberPath="Label" SelectedValuePath="Value"
                                                   SelectedValue="{Binding Settings.VolcanoProvider}"
                                                   Visibility="{Binding DataContext.IsExtendedFeaturesEnabled, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                        <TextBlock Grid.Row="5" Text="南海トラフ等" VerticalAlignment="Center"
-                                                   ToolTip="Wolfxでは南海トラフの臨時・解説情報と北海道・三陸沖の後発地震注意情報を受信します。" />
-                                        <ComboBox x:Name="NankaiTroughSourceSelector" Grid.Row="5" Grid.Column="1"
+                                        <TextBlock x:Name="SpecialEarthquakeSourceLabel" Grid.Row="5" VerticalAlignment="Center" Margin="0,0,12,0"
+                                                   Text="南海トラフ地震の情報&#10;北海道・三陸沖後発地震注意情報"
+                                                   ToolTip="気象庁XMLとWolfxでは両方の受信元を指定します。DMDATA.JPとAXISの北海道・三陸沖後発地震注意情報は「地震情報」で設定します。" />
+                                        <ComboBox x:Name="NankaiTroughSourceSelector" Grid.Row="5" Grid.Column="1" VerticalAlignment="Center" Margin="0,3,0,3"
+                                                  AutomationProperties.LabeledBy="{Binding ElementName=SpecialEarthquakeSourceLabel}"
                                                   ItemsSource="{Binding Settings.SpecialEarthquakeProviderOptions}"
                                                   DisplayMemberPath="Label" SelectedValuePath="Value"
                                                   SelectedValue="{Binding Settings.NankaiTroughProvider}" />
@@ -382,8 +394,8 @@
                                     <TextBlock Text="YDITSのテスト電文は訓練扱いです。ブラウザーモニターの「受信済み電文の個別確認」で確認できます。字幕や音声は自動送出しません。"
                                                Visibility="{Binding Settings.IsYditsTestProvider, Converter={StaticResource BooleanToVisibilityConverter}}"
                                                TextWrapping="Wrap" Foreground="Orange" Margin="0,8,0,0" />
-                                    <TextBlock Text="気象庁XML：手動選択／接続障害時の自動代替・60秒以上の間隔で巡回。EEWは対象外です。公開の遅延・停止や、長時間の停止中の取りこぼしがあり、即時配信は保証されません。手動接続前の電文は新着表示しません。" TextWrapping="Wrap" Foreground="Orange" Margin="0,8,0,8" />
-                                    <CheckBox Content="接続障害時に気象庁XMLへ自動切替（EEW対象外）" IsChecked="{Binding Settings.JmaXmlAutoFallback}" IsEnabled="{Binding Settings.IsJmaFallbackAvailable}" />
+                                    <TextBlock Text="気象庁XML：手動選択／接続障害時の自動代替・60秒以上の間隔で巡回。緊急地震速報は対象外です。公開の遅延・停止や、長時間の停止中の取りこぼしがあり、即時配信は保証されません。手動接続前の電文は新着表示しません。" TextWrapping="Wrap" Foreground="Orange" Margin="0,8,0,8" />
+                                    <CheckBox Content="接続障害時に気象庁XMLへ自動切替（緊急地震速報対象外）" IsChecked="{Binding Settings.JmaXmlAutoFallback}" IsEnabled="{Binding Settings.IsJmaFallbackAvailable}" />
                                     <TextBlock Text="DMDATA.JP・P2P・AXISの再接続・異常が30秒続いた場合、対応情報を60秒以上の間隔で代替取得します。復旧後は元に戻ります。新着なしだけでは切り替えず、Sandboxは対象外です。" TextWrapping="Wrap" Foreground="Orange" Margin="0,0,0,8" />
                                     <StackPanel Visibility="{Binding Settings.IsP2pProvider, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <TextBlock Text="P2P地震情報 API" FontWeight="Bold" />
@@ -421,7 +433,7 @@
                                                 <Button Content="認証を中止" Click="OnDmdataOAuthCancel" IsEnabled="{Binding IsDmdataOAuthBusy}" />
                                             </WrapPanel>
                                             <TextBlock Text="{Binding DmdataOAuthStatusText}" Foreground="#FFFFC66D" TextWrapping="Wrap" />
-                                            <TextBlock Text="認可は選択した情報種別に必要な権限のみ要求します。情報種別やEEW契約区分を増やす場合は再認証してください。期限の近いトークンは再接続等のAPI要求時に自動更新します。"
+                                            <TextBlock Text="認可は選択した情報種別に必要な権限のみ要求します。情報種別や緊急地震速報の契約区分を増やす場合は再認証してください。期限の近いトークンは再接続等のAPI要求時に自動更新します。"
                                                        Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
                                             <Expander x:Name="DmdataOAuthDetails" Header="詳細設定（独自のOAuthクライアントを使う場合）" IsExpanded="False">
                                                 <StackPanel>
@@ -432,7 +444,7 @@
                                                 </StackPanel>
                                             </Expander>
                                         </StackPanel>
-                                        <TextBlock Text="EEW契約区分（EEWをDMDATA.JPにした場合）"
+                                        <TextBlock Text="緊急地震速報の契約区分（DMDATA.JPを選んだ場合）"
                                                    Foreground="{StaticResource MutedBrush}" />
                                         <ComboBox ItemsSource="{Binding Settings.DmdataEewContractTypes}"
                                                   DisplayMemberPath="Label" SelectedValuePath="Value"
@@ -501,9 +513,9 @@
                                     </StackPanel>
                                     <StackPanel Visibility="{Binding Settings.IsWolfxProvider, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <TextBlock Text="Wolfx（公開API）" FontWeight="Bold" />
-                                        <TextBlock Text="「受信元」でWolfxを選んだ項目を受信します。対応する項目はEEW（警報・取消）、地震情報、津波情報、南海トラフ等です。認証情報は不要です。"
+                                        <TextBlock Text="「受信元」でWolfxを選んだ項目を受信します。対象は緊急地震速報（警報・取消）、地震情報、津波情報、南海トラフ地震の情報、北海道・三陸沖後発地震注意情報です。認証情報は不要です。"
                                                    Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,7" />
-                                        <TextBlock Text="EEW WebSocket URL" Foreground="{StaticResource MutedBrush}" />
+                                        <TextBlock Text="緊急地震速報 WebSocket URL" Foreground="{StaticResource MutedBrush}" />
                                         <TextBox Text="{Binding Settings.WolfxEewWebSocketUrl, UpdateSourceTrigger=PropertyChanged}" />
                                         <TextBlock Text="地震概要 WebSocket URL" Foreground="{StaticResource MutedBrush}" />
                                         <TextBox Text="{Binding Settings.WolfxQuakeWebSocketUrl, UpdateSourceTrigger=PropertyChanged}" />
@@ -534,15 +546,19 @@
 
                 <TabItem Header="フィルター">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18">
-                            <StackPanel>
+                            <StackPanel Style="{StaticResource SettingsTabContent}">
                                 <GroupBox Header="表示フィルター">
                                     <StackPanel>
                                         <CheckBox Content="緊急地震速報" IsChecked="{Binding Settings.FilterEew}" />
                                         <CheckBox Content="地震情報" IsChecked="{Binding Settings.FilterQuake}" />
                                         <StackPanel Margin="18,2,0,8" IsEnabled="{Binding Settings.FilterQuake}">
+                                            <CheckBox Content="南海トラフ地震の情報" IsChecked="{Binding Settings.ShowNankaiTroughInformation}" />
                                             <CheckBox Content="南海トラフの定例解説をテロップに表示"
                                                       IsChecked="{Binding Settings.ShowRoutineNankaiCommentary}"
+                                                      IsEnabled="{Binding Settings.ShowNankaiTroughInformation}"
+                                                      Margin="18,2,8,2"
                                                       ToolTip="初期値はOFFです。保存して反映すると、定例解説の送出・再掲に適用します。確認一覧の表示はブラウザープレビューで選択できます。" />
+                                            <CheckBox Content="北海道・三陸沖後発地震注意情報" IsChecked="{Binding Settings.ShowSubsequentEarthquakeAdvisory}" />
                                             <TextBlock Text="表示しない地震の最大震度（チェックした階級を除外）" />
                                             <ItemsControl ItemsSource="{Binding Settings.QuakeIntensityFilters}">
                                                 <ItemsControl.ItemsPanel>
@@ -554,11 +570,11 @@
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
-                                            <TextBlock Text="地震全体の最大震度で判定します。震度7・震度不明・5弱以上未入電・取消情報はこの設定で除外しません。EEW・津波には適用しません。"
+                                            <TextBlock Text="地震全体の最大震度で判定します。震度7・震度不明・5弱以上未入電・取消情報はこの設定で除外しません。緊急地震速報・津波には適用しません。"
                                                        Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,2,0,8" />
                                             <CheckBox IsChecked="{Binding Settings.ShowQuakeWithEewNoStrongShakingComment}"
-                                                      ToolTip="初期値はOFFです。ONでは「EEWを発表したが強い揺れは観測されなかった」という説明を含む地震情報を、最大震度の非表示設定から除外します。地震情報の表示OFFと都道府県設定は維持します。地震自体を取消扱いにはしません。">
-                                                <TextBlock Text="EEW発表後、強い揺れがなかった地震情報は震度フィルターの例外として表示する"
+                                                      ToolTip="初期値はOFFです。ONでは「緊急地震速報を発表したが強い揺れは観測されなかった」という説明を含む地震情報を、最大震度の非表示設定から除外します。地震情報の表示OFFと都道府県設定は維持します。地震自体を取消扱いにはしません。">
+                                                <TextBlock Text="緊急地震速報発表後、強い揺れがなかった地震情報は震度フィルターの例外として表示する"
                                                            TextWrapping="Wrap" />
                                             </CheckBox>
                                             <TextBlock Text="地震の対象地域（都道府県）" />
@@ -638,7 +654,7 @@
 
                 <TabItem Header="表示">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18">
-                        <Grid>
+                        <Grid Style="{StaticResource SettingsTabContent}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="18" />
@@ -681,13 +697,16 @@
                                         <CheckBox Content="緊急地震速報（警報）を縦型で表示"
                                                   IsChecked="{Binding Settings.UseVerticalEewWarningLayout}"
                                                   ToolTip="初期値はOFF（従来の横型）です。ONでは震源地・対象地域を縦書きで表示します。初期の配置は右側で、下の設定で左側へ切り替えられます。2件同時の警報は横に並べます。取消も縦型、予報は従来表示です。ブラウザプレビュー・OBSに共通で反映し、音声や本番・訓練の区分は変更しません。" />
-                                        <CheckBox Content="縦型EEWを左揃え（OFFは右揃え）"
+                                        <CheckBox Content="縦型の緊急地震速報を左揃え（OFFは右揃え）"
                                                   IsChecked="{Binding Settings.AlignVerticalEewWarningsLeft}"
                                                   IsEnabled="{Binding Settings.UseVerticalEewWarningLayout}"
                                                   ToolTip="初期値はOFF（右揃え）です。ONでは縦型の帯を画面左側へ配置します。2件の帯の並び順・帯の中の配置・色・文字は変えません。保存して反映すると表示中の警報にも適用します。横型には影響しません。" />
                                         <CheckBox Content="緊急地震速報の継続報で更新された地域名をオレンジ色にする"
                                                   IsChecked="{Binding Settings.HighlightEewAreaChanges}"
                                                   ToolTip="初期値はOFFです。同じ警報の前報にもあった地域で、予想震度・到達時刻・警報の状態が変わったものだけを強調します。保存後に受信する継続報から反映します。" />
+                                        <CheckBox Content="緊急地震速報に予想最大震度・推定マグニチュードを表示"
+                                                  IsChecked="{Binding Settings.ShowEewEstimates}"
+                                                  ToolTip="初期値はオフです。有効な場合は、受信した警報に含まれる予想値をプレビューとOBSに表示します。［保存して反映］で適用します。" />
                                         <CheckBox Content="情報種別をバッジではなく字幕で表示"
                                                   IsChecked="{Binding Settings.HideNormalInformationBadges}"
                                                   ToolTip="ONでは本番・訓練・テスト・リハーサル・再掲で情報種別や震度を字幕として表示します。OFFの場合、再掲・訓練・リハーサルには電文確認画面の設定が適用されます。［保存して反映］で適用します。" />
@@ -705,12 +724,12 @@
                                         <CheckBox Content="津波注意報以上の発表中は震度速報を表示しない"
                                                   IsChecked="{Binding Settings.SuppressScalePromptWhenTsunamiWarningActive}"
                                                   ToolTip="初期値はOFFです。津波情報の表示が有効なとき、同じ地震の震度速報を非表示にします。表示中の震度速報も消去し、受信した内容は電文確認に残します。" />
-                                        <TextBlock Text="緊急地震速報（EEW）の自動消去秒（0は消さない）" Foreground="{StaticResource MutedBrush}" />
+                                        <TextBlock Text="緊急地震速報の自動消去秒（0は消さない）" Foreground="{StaticResource MutedBrush}" />
                                         <TextBox Text="{Binding Settings.EewAutoHideSeconds}" />
                                         <Button Content="ページと文字を初期設定に戻す"
                                                 Command="{Binding ResetDisplaySettingsCommand}"
                                                 Margin="0,8,0,0"
-                                                ToolTip="字幕フォント、共通・電文別のページ秒数、EEWの表示と自動消去秒、情報種別の字幕表示、震度階級別ページ分割、津波の表示、受信前の定型文編集を初期化します。" />
+                                                ToolTip="字幕フォント、共通・電文別のページ秒数、緊急地震速報の表示と自動消去秒、情報種別の字幕表示、震度階級別ページ分割、津波の表示、受信前の定型文編集を初期化します。" />
                                     </StackPanel>
                                 </GroupBox>
                             </StackPanel>
@@ -770,7 +789,7 @@
 
                 <TabItem Header="出力">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18">
-                        <Grid>
+                        <Grid Style="{StaticResource SettingsTabContent}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="18" />
@@ -923,13 +942,30 @@
 
                 <TabItem Header="音声">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18">
-                        <Grid>
+                        <Grid Style="{StaticResource SettingsTabContent}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="0" />
                                 <ColumnDefinition Width="0" />
                             </Grid.ColumnDefinitions>
                             <GroupBox Header="音声ファイル" Grid.ColumnSpan="3">
+                                <GroupBox.Resources>
+                                    <DataTemplate x:Key="AudioCueTemplate">
+                                        <StackPanel>
+                                            <CheckBox Content="{Binding Label}" IsChecked="{Binding Enabled}" />
+                                            <DockPanel LastChildFill="True">
+                                                <Button Content="OBS試聴" Padding="10,5"
+                                                        Command="{Binding DataContext.TestAudioCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding Cue}" />
+                                                <Button Content="選択…" Padding="10,5"
+                                                        Command="{Binding DataContext.BrowseAudioFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding Cue}" />
+                                                <TextBox Text="{Binding FilePath, UpdateSourceTrigger=PropertyChanged}"
+                                                         Margin="0,3,8,8" ToolTip="音声ファイルのパス" />
+                                            </DockPanel>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </GroupBox.Resources>
                                 <StackPanel>
                                     <CheckBox Content="ミュート" IsChecked="{Binding Settings.AudioMuted}" />
                                     <CheckBox Content="サンドボックス・訓練でも設定音声を使用"
@@ -956,7 +992,7 @@
                                             <ComboBoxItem Content="新規発表＋格上げ・対象地域追加" Tag="{x:Static configuration:AudioAnnouncementMode.NewAnnouncementOrEscalation}" />
                                         </ComboBox>
                                     </StackPanel>
-                                    <TextBlock Text="初期値は従来方式です。新規方式では同じ地震／津波警報の継続中／同じ発表元・気象種別の継続中を一連の発表として扱います。継続・同レベル更新・訂正・解除・観測更新・自動再掲では鳴らしません。EEWの設定とOBS試聴は変更しません。"
+                                    <TextBlock Text="初期値は従来方式です。新規方式では同じ地震／津波警報の継続中／同じ発表元・気象種別の継続中を一連の発表として扱います。継続・同レベル更新・訂正・解除・観測更新・自動再掲では鳴らしません。緊急地震速報の設定とOBS試聴は変更しません。"
                                                Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,5,0,8" />
 
                                     <TextBlock Text="地震情報"
@@ -966,26 +1002,8 @@
                                                Foreground="{StaticResource MutedBrush}"
                                                TextWrapping="Wrap"
                                                Margin="0,0,8,5" />
-                                    <ItemsControl ItemsSource="{Binding Settings.QuakeAudioCues}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <StackPanel>
-                                                    <CheckBox Content="{Binding Label}"
-                                                              IsChecked="{Binding Enabled}" />
-                                                    <DockPanel LastChildFill="True">
-                                                        <Button Content="OBS試聴" Padding="10,5"
-                                                                Command="{Binding DataContext.TestAudioCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                CommandParameter="{Binding Cue}" />
-                                                        <Button Content="選択…" Padding="10,5"
-                                                                Command="{Binding DataContext.BrowseAudioFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                CommandParameter="{Binding Cue}" />
-                                                        <TextBox Text="{Binding FilePath, UpdateSourceTrigger=PropertyChanged}"
-                                                                 Margin="0,3,8,8" ToolTip="音声ファイルのパス" />
-                                                    </DockPanel>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                    <ItemsControl ItemsSource="{Binding Settings.QuakeAudioCues}"
+                                                  ItemTemplate="{StaticResource AudioCueTemplate}" />
 
                                     <TextBlock Text="津波情報"
                                                FontWeight="Bold"
@@ -995,26 +1013,8 @@
                                                TextWrapping="Wrap"
                                                Margin="0,0,8,5" />
 
-                                    <ItemsControl ItemsSource="{Binding Settings.TsunamiAudioCues}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <StackPanel>
-                                                    <CheckBox Content="{Binding Label}"
-                                                              IsChecked="{Binding Enabled}" />
-                                                    <DockPanel LastChildFill="True">
-                                                        <Button Content="OBS試聴" Padding="10,5"
-                                                                Command="{Binding DataContext.TestAudioCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                CommandParameter="{Binding Cue}" />
-                                                        <Button Content="選択…" Padding="10,5"
-                                                                Command="{Binding DataContext.BrowseAudioFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                CommandParameter="{Binding Cue}" />
-                                                        <TextBox Text="{Binding FilePath, UpdateSourceTrigger=PropertyChanged}"
-                                                                 Margin="0,3,8,8" ToolTip="音声ファイルのパス" />
-                                                    </DockPanel>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                    <ItemsControl ItemsSource="{Binding Settings.TsunamiAudioCues}"
+                                                  ItemTemplate="{StaticResource AudioCueTemplate}" />
 
                                     <StackPanel Visibility="{Binding IsExtendedFeaturesEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <TextBlock Text="気象警報・注意報"
@@ -1029,7 +1029,7 @@
                                     <TextBox Text="{Binding Settings.WeatherAudioCoalescingSeconds, UpdateSourceTrigger=PropertyChanged}"
                                              Margin="0,3,8,5"
                                              ToolTip="この時間内に受信した気象注警報から最も高いレベルの音声だけを再生します。0秒で即時再生します。" />
-                                    <TextBlock Text="初期値は1.5秒です。気象注警報だけに適用し、EEW・地震・津波の音声は遅延させません。"
+                                    <TextBlock Text="初期値は1.5秒です。気象注警報だけに適用し、緊急地震速報・地震・津波の音声は遅延させません。"
                                                Foreground="{StaticResource MutedBrush}"
                                                TextWrapping="Wrap"
                                                Margin="0,0,8,5" />
@@ -1085,6 +1085,12 @@
                                         <TextBox Text="{Binding Settings.WeatherAdvisoryAudioFilePath, UpdateSourceTrigger=PropertyChanged}"
                                                  Margin="0,3,8,8" ToolTip="音声ファイルのパス" />
                                     </DockPanel>
+                                    </StackPanel>
+
+                                    <StackPanel Visibility="{Binding IsExtendedFeaturesEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="火山情報" FontWeight="Bold" Margin="0,8,0,3" />
+                                        <ItemsControl ItemsSource="{Binding Settings.VolcanoAudioCues}"
+                                                      ItemTemplate="{StaticResource AudioCueTemplate}" />
                                     </StackPanel>
 
                                     <CheckBox Content="緊急地震速報・初報"
@@ -1280,17 +1286,14 @@
                                            Text="緊急地震速報（警報／取消）／震度速報（ScalePrompt）／震源・震度情報（DetailScale）／遠地地震／沖合の津波観測に関する情報（VTSE52）／津波13地域／津波解除／大量地点。すべて個別に選択でき、ManualTestとして黄色の訓練バナーを常時表示します。" />
                                 <Separator Margin="0,16" />
                                 <TextBlock Text="生データ・テストライブラリー" FontWeight="Bold" FontSize="18" />
-                                <TextBlock Text="XML、provider.xml、transport.json、dmdata生データ一式と任意の参考PNGを管理領域へコピーします。dmdataはtelegrams.jsonからXML正本ごとに登録し、対応JSONは参考データとして関連付けます。選択実行すると合否判定に加え、未接続でもプレビューとOBSへ訓練表示します。音声・本番履歴・重複キャッシュには影響しません。"
+                                <TextBlock Text="XMLとJSONを登録できます。選択実行すると、合否判定とプレビュー・OBSへの訓練表示を行います。"
                                            Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,8" />
                                 <WrapPanel IsEnabled="{Binding CanEditTestLibrary}">
                                     <Button Content="ファイルを登録" Command="{Binding ImportTestFilesCommand}" />
                                     <Button Content="XMLフォルダーを一括登録" Command="{Binding ImportTestXmlFolderCommand}"
                                             ToolTip="サブフォルダーを含め、XMLファイル1件を1ケースとして登録します。" />
-                                    <Button Content="dmdata一式を登録" Command="{Binding ImportDmdataArchiveCommand}" />
-                                    <Button Content="ZIPを取り込み" Command="{Binding ImportTestPackageCommand}" />
                                     <Button Content="選択実行" Style="{StaticResource PrimaryButton}" Command="{Binding RunLibraryCaseCommand}" />
                                     <Button Content="複製" Command="{Binding DuplicateLibraryCaseCommand}" />
-                                    <Button Content="ZIPを書き出し" Command="{Binding ExportLibraryCaseCommand}" />
                                     <Button Content="削除" Command="{Binding DeleteLibraryCaseCommand}" />
                                     <Button Content="一括削除" Command="{Binding DeleteAllLibraryCasesCommand}"
                                             Style="{StaticResource DangerButton}" />
@@ -1300,10 +1303,10 @@
                                 <UniformGrid Columns="2" Margin="0,6,0,0">
                                     <ComboBox ItemsSource="{Binding TestLibraryKindOptions}" DisplayMemberPath="Label"
                                               SelectedItem="{Binding SelectedTestLibraryKind}"
-                                              AutomationProperties.Name="情報種別で絞り込み" Margin="0,0,6,0" />
+                                              AutomationProperties.Name="情報種別で絞り込み" Margin="0,0,3,0" />
                                     <ComboBox ItemsSource="{Binding TestLibraryTelegramTypes}"
                                               SelectedItem="{Binding SelectedTestLibraryTelegramType}"
-                                              AutomationProperties.Name="電文種別で絞り込み" />
+                                              AutomationProperties.Name="電文種別で絞り込み" Margin="3,0,0,0" />
                                 </UniformGrid>
                                 <TextBlock Text="検索（名前・分類・提供元・電文種別・イベントID・タグ・説明）"
                                            Foreground="{StaticResource MutedBrush}" Margin="0,8,0,2" />
@@ -1464,7 +1467,7 @@
                 </TabItem>
                 <TabItem Header="バージョン情報">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="18">
-                        <StackPanel>
+                        <StackPanel Style="{StaticResource SettingsTabContent}">
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
                                 <Image Source="Assets/CDI-Telopper.png" Width="64" Height="64" Stretch="Uniform" />
                                 <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">

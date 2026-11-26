@@ -464,7 +464,7 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
             string.IsNullOrWhiteSpace(Text(Descendant(reportHead, "EventID")))))
         {
             return NormalizeResult.Invalid(new ValidationIssue("eew.ordering.reviewRequired",
-                "要確認：EEW取消の正式な取消区分またはイベントIDを確認できません。更新を保留し、原文を保存します。",
+                "要確認：緊急地震速報取消の正式な取消区分またはイベントIDを確認できません。更新を保留し、原文を保存します。",
                 ValidationSeverity.Warning));
         }
         if (telegramType == "VXSE45" && !hasWarning && !cancelled)
@@ -484,6 +484,7 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
             CorrectionType.None,
             string.IsNullOrWhiteSpace(serial) ? null : serial,
             infoType);
+        XElement? forecast = Descendant(document, "Forecast");
         var disasterEvent = new EewEvent(
             ReadEventId(reportHead, telegramType, issuedAt),
             raw.Provider,
@@ -493,12 +494,13 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
             raw.SourceMode,
             issue,
             earthquake,
-            ReadEewAreas(document, warningOnly: telegramType == "VXSE45"),
+            ReadEewAreas(forecast, warningOnly: telegramType == "VXSE45"),
             isWarning: hasWarning || cancelled,
             isFinal,
             cancelled,
             isTest)
         {
+            MaximumForecastIntensity = cancelled ? null : ReadEewMaximumForecastIntensity(forecast),
             SourceMessageTime = Descendant(document, "Control") is { } control &&
                 Child(control, "DateTime") is not null
                     ? ReadDateTime(control, "DateTime")
@@ -1202,9 +1204,25 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
                 code is "10" or "11" or "19" or "31";
         });
 
-    private static EewArea[] ReadEewAreas(XContainer document, bool warningOnly = false)
+    private static EewIntensityRange? ReadEewMaximumForecastIntensity(XElement? forecast)
     {
-        XElement? forecast = Descendant(document, "Forecast");
+        if (forecast is null || Child(forecast, "ForecastInt") is not { } intensity)
+        {
+            return null;
+        }
+
+        JmaScale from = ReadScale(Text(Child(intensity, "From")));
+        string upperBound = Text(Child(intensity, "To"));
+        JmaScale to = ReadScale(upperBound);
+        bool isOpenEnded = string.Equals(upperBound, "over", StringComparison.Ordinal);
+        return from is >= JmaScale.Zero and not JmaScale.FiveLowerOrMore &&
+            (isOpenEnded || to >= from && to != JmaScale.FiveLowerOrMore)
+            ? new EewIntensityRange(from, to, isOpenEnded)
+            : null;
+    }
+
+    private static EewArea[] ReadEewAreas(XElement? forecast, bool warningOnly)
+    {
         if (forecast is null)
         {
             return [];

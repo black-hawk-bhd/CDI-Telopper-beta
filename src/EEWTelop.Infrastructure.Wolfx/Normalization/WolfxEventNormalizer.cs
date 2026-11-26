@@ -88,7 +88,7 @@ public sealed partial class WolfxEventNormalizer : IEventNormalizer
         string eventId = ReadValue(root, "EventID").Trim();
         if (eventId.Length == 0)
         {
-            return Invalid("EventID", "Wolfx EEW EventID is required.");
+            return Invalid("EventID", "Wolfxの緊急地震速報にイベントIDがありません。");
         }
 
         bool isCancelled = ReadBoolean(root, "isCancel");
@@ -97,7 +97,7 @@ public sealed partial class WolfxEventNormalizer : IEventNormalizer
         {
             return NormalizeResult.Ignored(new ValidationIssue(
                 "isWarn",
-                "Wolfx forecast-only EEW was ignored because CDI-Telopper displays warnings.",
+                "Wolfxの緊急地震速報の予報のみの電文を表示対象から除外しました。",
                 ValidationSeverity.Warning));
         }
 

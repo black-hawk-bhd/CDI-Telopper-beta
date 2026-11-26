@@ -14,6 +14,36 @@ public sealed class EventIngestionPipelineTests
     private const string ProvisionalTsunamiCaution = "念のため津波に注意してください。";
 
     [TestMethod]
+    [DataRow(SourceMode.Production, 1, false, false, false)]
+    [DataRow(SourceMode.Sandbox, 1, false, false, false)]
+    [DataRow(SourceMode.HistoryRehearsal, 1, false, false, true)]
+    [DataRow(SourceMode.HistoryRehearsal, 0, false, false, false)]
+    [DataRow(SourceMode.HistoryRehearsal, 1, true, false, false)]
+    [DataRow(SourceMode.HistoryRehearsal, 1, false, true, false)]
+    public void HistoricalTsunamiRehearsalChecksValidityAtIssueTimeOnlyForDisplayableReports(
+        SourceMode mode, int validityMinutes, bool explicitlyExpired, bool stateSnapshot, bool displays)
+    {
+        var clock = new FakeClock();
+        DateTimeOffset issuedAt = clock.UtcNow.AddDays(-1);
+        DateTimeOffset expiry = issuedAt.AddMinutes(validityMinutes);
+        TsunamiEvent tsunami = CreateTsunamiReport(issuedAt, TsunamiGrade.Watch, mode, expireAt: expiry) with
+        {
+            IsExpired = explicitlyExpired,
+        };
+        var settings = DisplayEventFactory.Settings;
+        var pipeline = new EventIngestionPipeline(new StubNormalizer(tsunami), new EventVersionCache(),
+            new PageComposer(), new PriorityCoordinator(clock, settings), settings);
+        var raw = new RawProviderMessage(tsunami.Provider, "test", mode, clock.UtcNow) { IsStateSnapshot = stateSnapshot };
+
+        EventIngestionResult result = pipeline.Process(raw);
+
+        Assert.AreEqual(EventIngestionStatus.Accepted, result.Status);
+        Assert.AreEqual(expiry, Assert.IsInstanceOfType<TsunamiEvent>(result.Event).ExpireAt);
+        Assert.AreEqual(displays, result.Program is { Pages.Count: > 0 });
+        Assert.AreEqual(displays, result.Snapshot?.CurrentProgram?.Kind == EventKind.Tsunami);
+    }
+
+    [TestMethod]
     [DataRow(true, true, LinkedQuakeId, SourceMode.Production, TsunamiGrade.Watch, false, QuakeIssueType.ScalePrompt, true)]
     [DataRow(true, true, LinkedQuakeId, SourceMode.Production, TsunamiGrade.MajorWarning, false, QuakeIssueType.ScalePrompt, true)]
     [DataRow(false, true, LinkedQuakeId, SourceMode.Production, TsunamiGrade.Watch, false, QuakeIssueType.ScalePrompt, false)]
@@ -202,6 +232,37 @@ public sealed class EventIngestionPipelineTests
         Assert.AreEqual(displays, coordinator.Evaluate().CurrentProgram is not null);
         if (!displays)
             Assert.IsTrue(result.ReviewProgram is { IsRoutineNankaiCommentary: true });
+    }
+
+    [TestMethod]
+    [DataRow(QuakeIssueType.NankaiTroughTemporaryInformation, false, true, false)]
+    [DataRow(QuakeIssueType.NankaiTroughCommentary, false, true, false)]
+    [DataRow(QuakeIssueType.SubsequentEarthquakeAdvisory, false, true, true)]
+    [DataRow(QuakeIssueType.NankaiTroughTemporaryInformation, true, false, true)]
+    [DataRow(QuakeIssueType.SubsequentEarthquakeAdvisory, true, false, false)]
+    [DataRow(QuakeIssueType.DetailScale, false, false, true)]
+    public void SpecialQuakeFiltersIndependentlySuppressOutputAndPreserveReceivedBulletins(
+        QuakeIssueType issueType, bool showNankai, bool showSubsequent, bool displays)
+    {
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(issueType);
+        var clock = new FakeClock();
+        var coordinator = new PriorityCoordinator(clock, DisplayEventFactory.Settings);
+        FilterSettings filter = AppSettings.CreateDefault().Filter with
+        {
+            ShowNankaiTroughInformation = showNankai,
+            ShowSubsequentEarthquakeAdvisory = showSubsequent,
+        };
+        var pipeline = new EventIngestionPipeline(new StubNormalizer(quake), new EventVersionCache(),
+            new PageComposer(), coordinator, DisplayEventFactory.Settings, filter);
+
+        EventIngestionResult result = pipeline.Process(CreateRaw(clock, "special"));
+
+        Assert.AreEqual(EventIngestionStatus.Accepted, result.Status);
+        Assert.AreSame(quake, result.Event);
+        Assert.AreEqual(displays, result.Program is not null);
+        Assert.AreEqual(displays, coordinator.Evaluate().CurrentProgram is not null);
+        Assert.AreEqual(issueType, (result.Program ?? result.ReviewProgram)?.QuakeIssueType);
+        Assert.AreEqual(displays, result.DisplaySuppressionReason is null);
     }
 
     [TestMethod]

@@ -17,29 +17,31 @@ internal static partial class WeatherWarningPageComposer
             _ => DisplayStyleTokens.WeatherWarning,
         };
         var pages = new List<PageDraft>();
-        void AddText(string badge, IEnumerable<string> lines, string? pageStyle = null)
+        string[] placeNames = flood.Districts
+            .SelectMany(district => new[] { district.City, district.Prefecture })
+            .Append(flood.RiverName)
+            .ToArray();
+        void AddText(string badge, string line, string? pageStyle = null)
         {
-            foreach (string line in lines)
-                foreach (string fragment in WeatherTextPagination.Split(line,
-                    flood.Districts.SelectMany(d => new[] { d.City, d.Prefecture }).Append(flood.RiverName), 78))
-                    pages.Add(CreateTextPage($"{flood.RiverName}｜{badge}", [fragment], pageStyle ?? style));
+            foreach (string fragment in WeatherTextPagination.Split(line, placeNames, 78, preferSentenceEnd: true))
+                pages.Add(CreateTextPage($"{flood.RiverName}｜{badge}", [fragment], pageStyle ?? style));
         }
         if (weather.IsCancelled)
         {
-            AddText("解除", [$"{flood.RiverName}の氾濫注意報は解除されました。"]);
+            AddText("解除", $"{flood.RiverName}の氾濫注意報は解除されました。");
         }
         else
         {
             string headline = Regex.Replace(weather.Headline, "^\\s*【[^】]*】\\s*", string.Empty);
             if (!headline.Contains(flood.RiverName, StringComparison.Ordinal))
                 headline = flood.RiverName + " " + headline;
-            AddText(flood.Badge, [headline]);
+            AddText(flood.Badge, headline);
             RiverFloodDistrict[] districts = flood.Districts.Where(d => weather.Items.Any(i =>
                 i.AreaName == d.Prefecture || (d.PrefectureCode.Length > 0 &&
                 i.AreaCode.StartsWith(d.PrefectureCode, StringComparison.Ordinal)))).ToArray();
             if (districts.Length > 0)
             {
-                AddText(string.Empty, ["氾濫による浸水が想定される地区は次の通りです"]);
+                AddText(string.Empty, "氾濫による浸水が想定される地区は次の通りです");
                 // Keep each municipality attached to its district details, including on continuation pages.
                 foreach (RiverFloodDistrict district in districts.Distinct())
                 {
@@ -84,7 +86,7 @@ internal static partial class WeatherWarningPageComposer
                             _ => DisplayStyleTokens.WeatherWarning,
                         };
                     }
-                    AddText(stationBadge, [mainText], stationStyle);
+                    AddText(stationBadge, mainText, stationStyle);
                 }
             }
         }

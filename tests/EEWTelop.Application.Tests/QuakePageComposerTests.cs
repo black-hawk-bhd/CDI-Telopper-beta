@@ -11,6 +11,31 @@ public sealed class QuakePageComposerTests
     private readonly PageComposer _composer = new();
 
     [TestMethod]
+    public void ForeignTsunamiTableKeepsUnrecognizedMeasurementsInTheOriginalText()
+    {
+        const string source = """
+            国・地域名　検潮所名　津波の高さ
+            チリ　コラル　０．９ｍ
+            チリ　タルカワノ　調査中
+
+            国・地域名　検潮所名　津波の高さ
+            米国  Pago Pago  ２０ｃｍ未満
+            """;
+        QuakeEvent quake = DisplayEventFactory.CreateQuake(QuakeIssueType.Foreign, comment: source);
+
+        DisplayProgram program = Compose(quake);
+
+        DisplayBlock[] blocks = program.Pages.SelectMany(ContentBlocks).ToArray();
+        DisplayBlock observation = blocks.Single(block => block.StyleToken == DisplayStyleTokens.OverseasTsunamiObservation);
+        Assert.AreEqual("米国・Pago Pago", observation.PrimaryText);
+        Assert.AreEqual("20 cm未満", observation.SecondaryText);
+        string narrative = string.Join('\n', blocks.Select(block => block.PrimaryText));
+        StringAssert.Contains(narrative, "検潮所名");
+        StringAssert.Contains(narrative, "０．９ｍ");
+        StringAssert.Contains(narrative, "調査中");
+    }
+
+    [TestMethod]
     [DataRow(QuakeIssueType.ScalePrompt)]
     [DataRow(QuakeIssueType.DetailScale)]
     [DataRow(QuakeIssueType.ScaleAndDestination)]
@@ -390,12 +415,43 @@ public sealed class QuakePageComposerTests
         Assert.IsTrue(commentPages.All(page => ContentBlocks(page)
             .Where(block => block.StyleToken == DisplayStyleTokens.Comment)
             .Sum(block => EstimateVisualLines(block.PrimaryText)) <= 3));
+        Assert.EndsWith("、", ContentBlocks(commentPages[0])[^1].PrimaryText);
         Assert.AreEqual(
             comment,
             string.Concat(commentPages
                 .SelectMany(ContentBlocks)
                 .Where(block => block.StyleToken == DisplayStyleTokens.Comment)
                 .Select(block => block.PrimaryText)));
+    }
+
+    [TestMethod]
+    public void NankaiNarrativeKeepsShortSentencesTogetherAndBreaksAtTheLastPeriodThatFits()
+    {
+        const string firstPage = "身の安全を確保してください。避難経路の状況や安全を確認してください。";
+        const string nextPage = "避難が必要な方は、自治体が発表する避難情報を確認し、落ち着いて行動してください。";
+        DisplayProgram program = Compose(DisplayEventFactory.CreateQuake(
+            QuakeIssueType.NankaiTroughTemporaryInformation,
+            rawType: "VYSE50",
+            headline: firstPage + nextPage));
+
+        Assert.HasCount(3, program.Pages);
+        Assert.AreEqual(firstPage, ContentBlocks(program.Pages[1]).Single().PrimaryText);
+        Assert.AreEqual(nextPage, ContentBlocks(program.Pages[2]).Single().PrimaryText);
+    }
+
+    [TestMethod]
+    public void NankaiNarrativeDoesNotLeaveAPeriodAtTheStartOfAPage()
+    {
+        string firstSentence = new string('あ', 72) + "。";
+        const string secondSentence = "身の安全を確保してください。";
+        DisplayProgram program = Compose(DisplayEventFactory.CreateQuake(
+            QuakeIssueType.NankaiTroughTemporaryInformation,
+            rawType: "VYSE50",
+            headline: firstSentence + secondSentence));
+
+        Assert.HasCount(3, program.Pages);
+        Assert.AreEqual(firstSentence[..^2], ContentBlocks(program.Pages[1]).Single().PrimaryText);
+        Assert.AreEqual(firstSentence[^2..] + secondSentence, ContentBlocks(program.Pages[2]).Single().PrimaryText);
     }
 
     private static int EstimateVisualLines(string value) => value

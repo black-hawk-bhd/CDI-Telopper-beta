@@ -58,7 +58,7 @@
         <Border Grid.Row="1" Background="#FF202C38" CornerRadius="6" Padding="10" Margin="0,12,0,12">
             <StackPanel>
                 <TextBlock Text="{Binding TelegramReviewStatusText}" TextWrapping="Wrap" />
-                <Expander Header="取得元と再掲・訓練の表示設定" Foreground="White" Margin="0,8,0,0">
+                <Expander Header="取得元と再掲の表示設定" Foreground="White" Margin="0,8,0,0">
                     <ScrollViewer MaxHeight="280" VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="4,8,12,0">
                             <TextBlock Text="過去電文の取得元（取得だけでは字幕・音声は送出しません）" />
@@ -70,7 +70,7 @@
                                           SelectedValuePath="Value" SelectedValue="{Binding Settings.JmaHistoryContent}" />
                                 <TextBlock Text="気象庁の個別XML URL（任意・指定時はその1件のみ）" Margin="0,5,0,0" />
                                 <TextBox Text="{Binding Settings.JmaHistoryReportUrl, UpdateSourceTrigger=PropertyChanged}" MaxLength="2048" />
-                                <TextBlock Text="公式の長期フィードは数日分・毎時更新。EEWは対象外です。それ以前はNIIまたは保存済みXMLを利用してください。"
+                                <TextBlock Text="公式の長期フィードは数日分・毎時更新。緊急地震速報は対象外です。それ以前はNIIまたは保存済みXMLを利用してください。"
                                            TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
                             </StackPanel>
                             <Expander Header="NII・外部XMLの設定" Foreground="White" Margin="0,8,0,0">
@@ -95,15 +95,13 @@
                                 <TextBlock Text="取得件数（1～100）" VerticalAlignment="Center" />
                                 <TextBox Text="{Binding Settings.HistoryLimit}" Width="65" Margin="8,0,0,0" />
                             </StackPanel>
-                            <CheckBox Content="再掲・訓練・リハーサル時、上部の区分バッジを非表示"
-                                      Foreground="White" IsChecked="{Binding Settings.HideReplayModeBanner}" />
-                            <CheckBox Content="再掲・訓練・リハーサル時、情報種別をバッジではなく字幕で表示"
+                            <CheckBox Content="情報種別をバッジではなく字幕で表示"
                                       Foreground="White" IsChecked="{Binding Settings.HideReplayInformationBadges}"
-                                      ToolTip="メイン画面の［表示］で情報種別の字幕表示がOFFの場合に、再掲・訓練・リハーサルの表示方法を指定します。メイン画面でONの場合は、すべての表示で字幕を使います。" />
+                                      ToolTip="メイン画面の［表示］で情報種別の字幕表示がオフの場合に適用します。" />
                             <CheckBox Content="再掲の最終ページに「これは○月○日○時○分発表の情報です」を追加"
                                       Foreground="White" IsChecked="{Binding Settings.AppendReplayIssuedAtPage}" />
-                            <TextBlock Text="非表示にすると本番と見分けにくくなります。誤送出に注意してください。内部の訓練区分・元電文は変わりません。新着本番には適用しません。設定の保存はメイン画面の［保存して反映］で行います。"
-                                       Foreground="#FFFFC66D" TextWrapping="Wrap" Margin="0,6,0,0" />
+                            <TextBlock Text="設定の保存はメイン画面の［保存して反映］で行います。"
+                                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,6,0,0" />
                         </StackPanel>
                     </ScrollViewer>
                 </Expander>

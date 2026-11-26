@@ -31,7 +31,7 @@ let outputTransform = {
 const allowedStyles = new Set([
   "correction", "eew-header", "eew-header-cancel", "eew-header-test",
   "eew-warning", "eew-areas", "summary", "advisory",
-  "intensity", "comment", "tsunami", "tsunami-cancel", "weather-advisory",
+  "intensity", "comment", "tsunami", "tsunami-cancel", "overseas-tsunami-observation", "weather-advisory",
   "weather-warning", "weather-danger-warning", "weather-special-warning", "weather-cancel",
   "volcano-forecast", "volcano-warning", "eruption-flash", "empty"
 ]);
@@ -148,11 +148,14 @@ function renderBlock(item, previousBadge, alignsCaption) {
   if (item.secondaryText) {
     texts.appendChild(textNode("secondary", item.secondaryText));
   }
+  if (item.eewEstimateText) {
+    texts.appendChild(textNode("eew-estimates", item.eewEstimateText));
+  }
   block.appendChild(texts);
   return block;
 }
 
-function renderVerticalEewCard(card, areaLabels) {
+function renderVerticalEewCard(card, areaLabels, estimateText) {
   const panel = document.createElement("article");
   panel.className = `vertical-eew-card${card.isCancelled ? " cancelled" : ""}`;
   const areas = document.createElement("div");
@@ -173,6 +176,10 @@ function renderVerticalEewCard(card, areaLabels) {
   if (!card.isCancelled) rail.appendChild(textNode("vertical-eew-message", card.message));
   panel.appendChild(rail);
   panel.appendChild(textNode("vertical-eew-instruction", card.instruction));
+  if (!card.isCancelled && estimateText) {
+    panel.classList.add("has-estimates");
+    panel.appendChild(textNode("vertical-eew-estimates", estimateText));
+  }
   return panel;
 }
 
@@ -181,7 +188,7 @@ function fitVerticalEew() {
   // No region is discarded to avoid overlap, and fitting never changes the source text.
   for (const panel of blocks.querySelectorAll(".vertical-eew-card")) {
     for (const [selector, maximum] of [[".vertical-eew-title", 56], [".vertical-eew-message", 42],
-      [".vertical-eew-areas", 48], [".vertical-eew-instruction", 24]]) {
+      [".vertical-eew-areas", 48], [".vertical-eew-instruction", 24], [".vertical-eew-estimates", 22]]) {
       const node = panel.querySelector(selector);
       if (!node) continue;
       node.style.fontSize = `${maximum}px`;
@@ -236,18 +243,26 @@ function applySnapshot(state) {
   blocks.replaceChildren();
   blocks.classList.remove("aligned-labels");
   const items = state.blocks ?? [];
+  blocks.classList.toggle("overseas-tsunami-observations",
+    items.some(item => item.styleToken === "overseas-tsunami-observation"));
   const isEew = items.some(item => String(item.styleToken ?? "").startsWith("eew-"));
   const eewHeaderCount = items.filter(item => {
     const style = String(item.styleToken ?? "");
     return style === "eew-header" || style === "eew-header-cancel" || style === "eew-header-test";
   }).length;
-  const cards = items.filter(item => item.eewCard);
+  const cards = [];
+  for (const item of items) {
+    if (item.eewCard) cards.push({ item, estimateText: null });
+    if (item.eewEstimateText && cards.length > 0) cards.at(-1).estimateText = item.eewEstimateText;
+  }
   const vertical = isEew && state.useVerticalEewWarningLayout === true &&
     cards.length > 0 && cards.length === eewHeaderCount;
   const alignLeft = vertical && state.alignVerticalEewWarningsLeft === true;
   content.className = `${isEew ? "eew" : "subtitle"}${eewHeaderCount > 1 ? " concurrent" : ""}${vertical ? " vertical" : ""}${alignLeft ? " left-aligned" : ""}${state.rehearsalLabel ? " has-banner" : ""}`;
   if (vertical) {
-    for (const item of cards) blocks.appendChild(renderVerticalEewCard(item.eewCard, item.eewAreaLabels));
+    for (const { item, estimateText } of cards) {
+      blocks.appendChild(renderVerticalEewCard(item.eewCard, item.eewAreaLabels, estimateText));
+    }
     fitVerticalEew();
   } else {
     let previousBadge = "";

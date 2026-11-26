@@ -1,11 +1,15 @@
 using EEWTelop.Application.Configuration;
+using EEWTelop.Application.Display;
 using EEWTelop.Domain.Events;
 
 namespace EEWTelop.Application.Events;
 
 public static class EventDisplayFilter
 {
-    internal const string RoutineCommentarySuppressionReason = "南海トラフの定例解説をテロップに表示しない設定";
+    public const string WeatherSeveritySuppressionReason = "警戒レベルフィルター";
+
+    private const string QuakeSuppressionReason = "種別フィルター:地震情報";
+    private const string RoutineCommentarySuppressionReason = "南海トラフの定例解説をテロップに表示しない設定";
 
     public static DisasterEvent? Apply(FilterSettings filter, DisasterEvent disasterEvent)
     {
@@ -178,7 +182,7 @@ public static class EventDisplayFilter
 
     private static QuakeEvent? FilterQuakeInformation(FilterSettings filter, QuakeEvent quake)
     {
-        if (!filter.Quake || IsRoutineNankaiCommentarySuppressed(filter, quake))
+        if (!filter.Quake || GetSpecialQuakeSuppressionReason(filter, quake) is not null)
         {
             return null;
         }
@@ -231,8 +235,36 @@ public static class EventDisplayFilter
                 : longPeriod with { Areas = areas });
     }
 
-    public static bool IsRoutineNankaiCommentarySuppressed(FilterSettings filter, DisasterEvent disasterEvent) =>
-        !filter.ShowRoutineNankaiCommentary && disasterEvent is QuakeEvent { IsRoutineNankaiCommentary: true };
+    public static string? GetSpecialQuakeSuppressionReason(FilterSettings filter, DisasterEvent disasterEvent) =>
+        disasterEvent is QuakeEvent quake
+            ? GetSpecialQuakeSuppressionReason(filter, quake.IssueType, quake.IsRoutineNankaiCommentary)
+            : null;
+
+    public static string? GetSpecialQuakeSuppressionReason(FilterSettings filter, DisplayProgram program) =>
+        program.Kind == EventKind.Quake
+            ? GetSpecialQuakeSuppressionReason(filter, program.QuakeIssueType, program.IsRoutineNankaiCommentary)
+            : null;
+
+    private static string? GetSpecialQuakeSuppressionReason(
+        FilterSettings filter, QuakeIssueType? issueType, bool isRoutineNankaiCommentary)
+    {
+        if (isRoutineNankaiCommentary || issueType is
+            QuakeIssueType.NankaiTroughTemporaryInformation or QuakeIssueType.NankaiTroughCommentary)
+        {
+            if (!filter.Quake) return QuakeSuppressionReason;
+            if (!filter.ShowNankaiTroughInformation) return "種別フィルター:南海トラフ地震の情報";
+            if (isRoutineNankaiCommentary && !filter.ShowRoutineNankaiCommentary)
+                return RoutineCommentarySuppressionReason;
+        }
+
+        if (issueType == QuakeIssueType.SubsequentEarthquakeAdvisory)
+        {
+            if (!filter.Quake) return QuakeSuppressionReason;
+            if (!filter.ShowSubsequentEarthquakeAdvisory) return "種別フィルター:北海道・三陸沖後発地震注意情報";
+        }
+
+        return null;
+    }
 
     public static string DescribeSuppression(
         FilterSettings filter,
@@ -243,8 +275,8 @@ public static class EventDisplayFilter
         return disasterEvent switch
         {
             EewEvent when !filter.Eew => "種別フィルター:緊急地震速報",
-            QuakeEvent when !filter.Quake => "種別フィルター:地震情報",
-            QuakeEvent quake when IsRoutineNankaiCommentarySuppressed(filter, quake) => RoutineCommentarySuppressionReason,
+            QuakeEvent when !filter.Quake => QuakeSuppressionReason,
+            QuakeEvent quake when GetSpecialQuakeSuppressionReason(filter, quake) is { } reason => reason,
             QuakeEvent quake when !IsQuakeIntensityEnabled(filter, quake) => "最大震度フィルター",
             QuakeEvent => "地震の都道府県フィルター",
             TsunamiEvent when !filter.Tsunami => "種別フィルター:津波情報",
@@ -280,7 +312,7 @@ public static class EventDisplayFilter
 
         if (weather.Items.All(item => !IsWeatherItemEnabled(filter, weather, item)))
         {
-            return "警戒レベルフィルター";
+            return WeatherSeveritySuppressionReason;
         }
 
         WeatherWarningItem[] visibleItems = weather.Items

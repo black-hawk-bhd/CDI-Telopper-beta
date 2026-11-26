@@ -14,34 +14,36 @@ namespace EEWTelop.Wpf.Tests;
 public sealed class ReplaySettingsTests
 {
     [TestMethod]
-    public void LegacySettingsDefaultOffAndAllChoicesRoundTripAndReset()
+    public void RetiredBannerSettingIsIgnoredAndReplayChoicesRoundTripAndReset()
     {
-        var history = JsonSerializer.Deserialize<HistorySettings>("{\"Api\":0,\"Limit\":10,\"IntervalSeconds\":4}")!;
-        Assert.IsFalse(history.HideModeBanner);
+        var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        var history = JsonSerializer.Deserialize<HistorySettings>(
+            """{"api":0,"limit":10,"intervalSeconds":4,"hideModeBanner":true}""", json)!;
         Assert.IsFalse(history.HideInformationBadges);
         Assert.IsFalse(history.AppendIssuedAtPage);
-        var defaults = AppSettings.CreateDefault();
+        var defaults = AppSettings.CreateDefault() with { History = history };
         var editor = new SettingsEditorViewModel(defaults)
         {
             HistoryApi = HistoryApi.JmaXml, JmaHistoryContent = JmaHistoryContent.Tsunami,
             JmaHistoryReportUrl = " https://www.data.jma.go.jp/developer/xml/data/sample.xml ",
-            HideReplayModeBanner = true, HideReplayInformationBadges = true, AppendReplayIssuedAtPage = true,
+            HideReplayInformationBadges = true, AppendReplayIssuedAtPage = true,
         };
-        var saved = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(editor.ToSettings(defaults)))!;
+        string savedJson = JsonSerializer.Serialize(editor.ToSettings(defaults), json);
+        Assert.DoesNotContain("hideModeBanner", savedJson);
+        var saved = JsonSerializer.Deserialize<AppSettings>(savedJson, json)!;
         var loaded = new SettingsEditorViewModel(saved);
         Assert.AreEqual(HistoryApi.JmaXml, loaded.HistoryApi);
         Assert.AreEqual(JmaHistoryContent.Tsunami, loaded.JmaHistoryContent);
-        Assert.IsTrue(loaded.HideReplayModeBanner && loaded.HideReplayInformationBadges && loaded.AppendReplayIssuedAtPage);
+        Assert.IsTrue(loaded.HideReplayInformationBadges && loaded.AppendReplayIssuedAtPage);
         Assert.AreEqual("https://www.data.jma.go.jp/developer/xml/data/sample.xml", loaded.JmaHistoryReportUrl);
         loaded.ResetHistorySettings();
-        Assert.IsFalse(loaded.HideReplayModeBanner || loaded.HideReplayInformationBadges || loaded.AppendReplayIssuedAtPage);
+        Assert.IsFalse(loaded.HideReplayInformationBadges || loaded.AppendReplayIssuedAtPage);
     }
 
     [TestMethod]
-    [DataRow(false, true)]
-    [DataRow(true, false)]
-    [DataRow(true, true)]
-    public void ObsAndWpfRenderChoicesConsistentlyWithoutLosingWeatherHeading(bool hideBanner, bool hideBadge)
+    [DataRow(false)]
+    [DataRow(true)]
+    public void ObsAndWpfRetainReplayBannerAndWeatherHeading(bool hideBadge)
     {
         var settings = AppSettings.CreateDefault();
         var source = new DisplayProgram("history", EventId.Create("history"), EventKind.WeatherWarning,
@@ -49,15 +51,16 @@ public sealed class ReplaySettingsTests
             [new DisplayPage(1, [new DisplayBlock("大雨警報", "渋谷区", "", DisplayStyleTokens.WeatherWarning)
                 { WeatherHeading = "東京都｜継続中" }], "大雨警報 東京都｜継続中 渋谷区", null)],
             DateTimeOffset.UnixEpoch, EndPolicy.AutoHide, "過去情報");
-        var program = ReplayPresentation.Apply(source, settings.History with
-            { HideModeBanner = hideBanner, HideInformationBadges = hideBadge }, source.IssuedAt, true, true);
+        var history = JsonSerializer.Deserialize<HistorySettings>("""{"HideModeBanner":true}""")! with
+            { HideInformationBadges = hideBadge };
+        var program = ReplayPresentation.Apply(source, history, source.IssuedAt, true, true);
         var coordinator = new PriorityCoordinator(new Clock(), settings.Display);
         var snapshot = coordinator.Apply(program);
         var store = new ObsSnapshotStore(settings.Display, DateTimeOffset.UnixEpoch);
         ObsViewSnapshot obs = store.Publish(snapshot, settings.Display, DateTimeOffset.UnixEpoch);
         var overlay = new OverlayViewModel();
         overlay.Apply(snapshot, settings.Display);
-        Assert.AreEqual(hideBanner ? string.Empty : "過去情報", obs.RehearsalLabel);
+        Assert.AreEqual("過去情報", obs.RehearsalLabel);
         Assert.AreEqual(obs.RehearsalLabel, overlay.RehearsalLabel);
         Assert.AreEqual(hideBadge, obs.Blocks[0].HideBadge);
         Assert.AreEqual(!hideBadge, overlay.Blocks[0].IsBadgeVisible);

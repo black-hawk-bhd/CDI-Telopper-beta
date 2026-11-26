@@ -12,15 +12,14 @@ public sealed class DisplayBadgeVisibilityTests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public void NormalSubtitleSettingDoesNotHideTheBannerOrMutateProgram(bool badges)
+    public void NormalSubtitleSettingDoesNotMutateProgram(bool badges)
     {
         var display = AppSettings.CreateDefault().Display with
             { HideNormalInformationBadges = badges };
         DisplayProgram program = Program(SourceMode.Production);
-        Assert.IsFalse(DisplayBadgeVisibility.HideModeBanner(program));
         Assert.AreEqual(badges, DisplayBadgeVisibility.HideInformationBadges(program, display));
         Assert.AreEqual(SourceMode.Production, program.SourceMode);
-        Assert.IsFalse(program.HideReplayModeBanner || program.HideInformationBadges);
+        Assert.IsFalse(program.HideInformationBadges);
         Assert.AreEqual("大雨警報", program.Pages[0].Blocks[0].Badge);
     }
 
@@ -28,15 +27,13 @@ public sealed class DisplayBadgeVisibilityTests
     [DataRow(SourceMode.ManualTest)]
     [DataRow(SourceMode.HistoryRehearsal)]
     [DataRow(SourceMode.Sandbox)]
-    public void SharedSubtitleSettingAppliesToTrainingWithoutHidingItsBanner(SourceMode mode)
+    public void SharedSubtitleSettingAlsoAppliesToTraining(SourceMode mode)
     {
         var display = AppSettings.CreateDefault().Display with
             { HideNormalInformationBadges = true };
         DisplayProgram program = Program(mode);
-        Assert.IsFalse(DisplayBadgeVisibility.HideModeBanner(program));
         Assert.IsTrue(DisplayBadgeVisibility.HideInformationBadges(program, display));
-        program = program with { HideReplayModeBanner = true, HideInformationBadges = true };
-        Assert.IsTrue(DisplayBadgeVisibility.HideModeBanner(program));
+        program = program with { HideInformationBadges = true };
         Assert.IsTrue(DisplayBadgeVisibility.HideInformationBadges(program, AppSettings.CreateDefault().Display));
     }
 
@@ -51,19 +48,17 @@ public sealed class DisplayBadgeVisibilityTests
         Assert.IsTrue(DisplayBadgeVisibility.HideInformationBadges(replay, settings.Display with
             { HideNormalInformationBadges = true }));
         var hiddenReplay = ReplayPresentation.Apply(source, settings.History with
-            { HideInformationBadges = true, HideModeBanner = true }, source.IssuedAt, true, true);
+            { HideInformationBadges = true }, source.IssuedAt, true, true);
         Assert.IsTrue(DisplayBadgeVisibility.HideInformationBadges(hiddenReplay, settings.Display));
-        Assert.IsTrue(DisplayBadgeVisibility.HideModeBanner(hiddenReplay));
         Assert.AreEqual(SourceMode.Production, hiddenReplay.SourceMode);
     }
 
     [TestMethod]
-    public void ProductionSourceTestUsesGlobalSubtitleSettingAndKeepsTrainingLabel()
+    public void ProductionSourceTestUsesGlobalSubtitleSetting()
     {
         var display = AppSettings.CreateDefault().Display with
             { HideNormalInformationBadges = true };
         var program = Program(SourceMode.Production) with { RehearsalLabel = "操作テスト／訓練" };
-        Assert.IsFalse(DisplayBadgeVisibility.HideModeBanner(program));
         Assert.IsTrue(DisplayBadgeVisibility.HideInformationBadges(program, display));
     }
 
@@ -146,7 +141,6 @@ public sealed class DisplayBadgeVisibilityTests
             DisplayBadgeVisibility.FormatBlockForOutput(unreported, program, settings).PrimaryText);
         Assert.AreEqual(mode, program.SourceMode);
         Assert.AreEqual(replay, program.IsReplayPresentation);
-        Assert.IsFalse(DisplayBadgeVisibility.HideModeBanner(program));
         var badgeMode = program with { HideInformationBadges = false };
         Assert.AreSame(warning, DisplayBadgeVisibility.FormatBlockForOutput(warning, badgeMode, settings));
         var forcedSubtitles = DisplayBadgeVisibility.FormatBlockForOutput(warning, badgeMode,

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using EEWTelop.Application.Configuration;
 using EEWTelop.Application.Coordination;
 using EEWTelop.Application.Display;
@@ -16,6 +17,19 @@ namespace EEWTelop.Wpf.Tests;
 [TestClass]
 public sealed class OperationalFeaturesTests
 {
+    private static readonly int[] OverseasTsunamiSampleRowsPerPage = [1, 2, 2, 2, 2];
+    private static readonly string[] OverseasTsunamiSampleObservations =
+    [
+        "エクアドル・ガラパゴス諸島サンタクルス島|0.7 m",
+        "チリ・タルカワノ|2.3 m",
+        "チリ・バルパライソ|1.3 m",
+        "チリ・コキンボ|1.3 m",
+        "チリ・コラル|0.9 m",
+        "チリ・アンクド|0.6 m",
+        "チリ・アントファガスタ|0.5 m",
+        "チリ・イースター島|0.4 m",
+        "仏領マルキーズ諸島・ヒバオア島|1.8 m",
+    ];
     private string _directory = string.Empty;
 
     [TestInitialize]
@@ -150,6 +164,37 @@ public sealed class OperationalFeaturesTests
     }
 
     [TestMethod]
+    public async Task TestLibraryStillReadsOldDmdataCasesWithReferenceImages()
+    {
+        string root = Path.Combine(_directory, "library");
+        var library = new FileTestCaseLibrary(root);
+        string xml = Path.Combine(_directory, "sample_VXSE53.xml");
+        string json = Path.Combine(_directory, "reference.json");
+        await File.WriteAllTextAsync(xml, "<Report />");
+        await File.WriteAllTextAsync(json, "{}");
+        TestCaseManifest original = await library.ImportFilesAsync("旧dmdataケース", [xml, json]);
+        string originalFolder = Path.Combine(root, original.Id);
+        string referencePath = Path.Combine(originalFolder, "reference.png");
+        await File.WriteAllBytesAsync(referencePath, [0]);
+        string manifestPath = Path.Combine(originalFolder, "manifest.json");
+        var legacyManifest = JsonNode.Parse(await File.ReadAllTextAsync(manifestPath))!.AsObject();
+        legacyManifest["provider"] = FileTestCaseLibrary.DmdataTestProviderName;
+        legacyManifest["referenceImageFile"] = "reference.png";
+        await File.WriteAllTextAsync(manifestPath, legacyManifest.ToJsonString());
+
+        RawProviderMessage message = library.LoadMessages(original.Id, SourceMode.HistoryRehearsal).Single();
+        Assert.AreEqual(RawProviderContentFormat.JmaXml, message.ContentFormat);
+        Assert.AreEqual("<Report />", message.Payload);
+        TestCaseManifest copy = await library.DuplicateAsync(original.Id);
+        Assert.HasCount(2, copy.PayloadFiles);
+        Assert.IsFalse(File.Exists(Path.Combine(root, copy.Id, "reference.png")));
+        Assert.IsTrue(File.Exists(referencePath));
+
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(() => library.ImportFilesAsync("画像", [xml, referencePath]));
+        Assert.HasCount(2, library.List());
+    }
+
+    [TestMethod]
     public async Task TestLibraryRunsEveryLegacyVphw50RawXmlThroughDisplayPipeline()
     {
         string? sample = FindOptionalRepositoryFile(
@@ -222,6 +267,132 @@ public sealed class OperationalFeaturesTests
                 "竜巻注意情報",
                 Path.GetFileName(source));
         }
+    }
+
+    [TestMethod]
+    public async Task BundledVyse50SampleKeepsTheAudienceAndSafetyInstructionOnTheSamePage()
+    {
+        string? sample = FindOptionalRepositoryFile("jmaxml_20261118_CDI-Telopper", "地震情報", "VYSE50",
+            "74_01_01_200512_VYSE50.xml");
+        Assert.IsNotNull(sample);
+        var library = new FileTestCaseLibrary(Path.Combine(_directory, "nankai-sample"));
+        TestCaseManifest manifest = await library.ImportFilesAsync("調査中", [sample]);
+        RawProviderMessage message = library.LoadMessages(manifest.Id, SourceMode.HistoryRehearsal).Single();
+        AppSettings settings = AppSettings.CreateDefault();
+        var pipeline = new EventIngestionPipeline(
+            new JmaXmlEventNormalizer(new EventSignatureBuilder()), new EventVersionCache(), new PageComposer(),
+            new PriorityCoordinator(new SystemClock(), settings.Display), settings.Display, settings.Filter);
+
+        EventIngestionResult result = pipeline.Process(message);
+
+        Assert.AreEqual(EventIngestionStatus.Accepted, result.Status);
+        Assert.IsNotNull(result.Program);
+        Assert.HasCount(3, result.Program.Pages);
+        Assert.EndsWith("調査を開始しました。", result.Program.Pages[1].Blocks
+            .Single(block => block.StyleToken == DisplayStyleTokens.Advisory).PrimaryText);
+        Assert.AreEqual("南海トラフ地震で被害が想定される地域の方は、個々の状況に応じて、身の安全を守る行動を取ってください。",
+            result.Program.Pages[2].Blocks.Single(block => block.StyleToken == DisplayStyleTokens.Advisory).PrimaryText);
+    }
+
+    [TestMethod]
+    public async Task BundledForeignEarthquakeDisplaysAllOverseasTsunamiObservationsInSourceOrder()
+    {
+        string? sample = FindOptionalRepositoryFile("jmaxml_20261118_CDI-Telopper", "地震情報", "VXSE53",
+            "32-39_05_06_100831_VXSE53.xml");
+        Assert.IsNotNull(sample);
+        var library = new FileTestCaseLibrary(Path.Combine(_directory, "foreign-tsunami-sample"));
+        TestCaseManifest manifest = await library.ImportFilesAsync("遠地地震", [sample]);
+        RawProviderMessage message = library.LoadMessages(manifest.Id, SourceMode.HistoryRehearsal).Single();
+        AppSettings settings = AppSettings.CreateDefault();
+        var pipeline = new EventIngestionPipeline(
+            new JmaXmlEventNormalizer(new EventSignatureBuilder()), new EventVersionCache(), new PageComposer(),
+            new PriorityCoordinator(new SystemClock(), settings.Display), settings.Display, settings.Filter);
+
+        EventIngestionResult result = pipeline.Process(message);
+
+        Assert.AreEqual(EventIngestionStatus.Accepted, result.Status);
+        Assert.IsNotNull(result.Program);
+        Assert.AreEqual(SourceMode.HistoryRehearsal, result.Program.SourceMode);
+        DisplayPage[] pages = result.Program.Pages.Where(page => page.Blocks.Any(IsObservation)).ToArray();
+        Assert.HasCount(5, pages);
+        Assert.IsTrue(pages.All(page => page.Blocks[0].PrimaryText == "海外の津波観測"));
+        CollectionAssert.AreEqual(OverseasTsunamiSampleRowsPerPage,
+            pages.Select(page => page.Blocks.Count(IsObservation)).ToArray());
+        CollectionAssert.AreEqual(
+            OverseasTsunamiSampleObservations,
+            pages.SelectMany(page => page.Blocks).Where(IsObservation)
+                .Select(block => $"{block.PrimaryText}|{block.SecondaryText}").ToArray());
+        string attribution = string.Concat(result.Program.Pages
+            .Skip(pages[0].Index).Take(pages[1].Index - pages[0].Index - 1)
+            .SelectMany(page => page.Blocks).Select(block => block.PrimaryText));
+        StringAssert.Contains(attribution, "太平洋津波警報センター");
+        string lastPageText = string.Concat(result.Program.Pages[^1].Blocks.Select(block => block.PrimaryText));
+        StringAssert.Contains(lastPageText, "津波情報を発表しています");
+
+        static bool IsObservation(DisplayBlock block) => block.StyleToken == DisplayStyleTokens.OverseasTsunamiObservation;
+    }
+
+    [TestMethod]
+    [DataRow("32-39_11_13_250206_VTSE41.xml")]
+    [DataRow("32-39_12_13_250206_VTSE41.xml")]
+    public async Task TestLibraryRehearsesBundledVtse41ReleaseAfterTheOriginalValidityPeriod(string fileName)
+    {
+        string sample = FindRepositoryFile("jmaxml_20261118_CDI-Telopper", "津波情報", "VTSE41", fileName);
+        var library = new FileTestCaseLibrary(Path.Combine(_directory, "tsunami-release"));
+        TestCaseManifest manifest = await library.ImportFilesAsync("津波解除", [sample]);
+        RawProviderMessage message = library.LoadMessages(manifest.Id, SourceMode.HistoryRehearsal).Single() with
+        {
+            ReceivedAt = new DateTimeOffset(2026, 11, 26, 0, 0, 0, TimeSpan.Zero),
+        };
+        AppSettings settings = AppSettings.CreateDefault();
+        var pipeline = new EventIngestionPipeline(
+            new JmaXmlEventNormalizer(new EventSignatureBuilder()), new EventVersionCache(), new PageComposer(),
+            new PriorityCoordinator(new SystemClock(), settings.Display), settings.Display, settings.Filter);
+
+        EventIngestionResult result = pipeline.Process(message);
+
+        Assert.AreEqual(EventIngestionStatus.Accepted, result.Status);
+        TsunamiEvent tsunami = Assert.IsInstanceOfType<TsunamiEvent>(result.Event);
+        Assert.AreEqual("VTSE41", tsunami.Issue.RawType);
+        Assert.AreEqual(SourceMode.HistoryRehearsal, tsunami.SourceMode);
+        Assert.AreEqual(message.ReceivedAt, tsunami.ReceivedAt);
+        Assert.IsTrue(tsunami.ExpireAt > tsunami.IssuedAt && tsunami.ExpireAt < message.ReceivedAt);
+        Assert.IsTrue(tsunami.IsCancelled);
+        Assert.IsNotNull(result.Program, result.DisplaySuppressionReason);
+        Assert.AreEqual(SourceMode.HistoryRehearsal, result.Program.SourceMode);
+        Assert.AreEqual(EndPolicy.AutoHide, result.Program.EndPolicy);
+        DisplayPage page = result.Program.Pages.Single();
+        Assert.AreEqual(DisplayStyleTokens.TsunamiCancel, page.Blocks[0].StyleToken);
+        StringAssert.Contains(page.AccessibleText, "解除されました");
+    }
+
+    [TestMethod]
+    public async Task BundledRiverFloodContinuesAtTheNextSentenceWithTheSameStationBadge()
+    {
+        string sample = FindRepositoryFile("jmaxml_20261118_CDI-Telopper", "気象情報", "VXKOXX",
+            "16_06_01_220728_VXKOii.xml");
+        var library = new FileTestCaseLibrary(Path.Combine(_directory, "river-flood-sample"));
+        TestCaseManifest manifest = await library.ImportFilesAsync("指定河川洪水予報", [sample]);
+        RawProviderMessage raw = library.LoadMessages(manifest.Id, SourceMode.HistoryRehearsal).Single();
+        AppSettings settings = AppSettings.CreateDefault();
+        var pipeline = new EventIngestionPipeline(
+            new JmaXmlEventNormalizer(new EventSignatureBuilder()), new EventVersionCache(), new PageComposer(),
+            new PriorityCoordinator(new SystemClock(), settings.Display), settings.Display, settings.Filter);
+
+        EventIngestionResult result = pipeline.Process(raw);
+
+        Assert.AreEqual(EventIngestionStatus.Accepted, result.Status);
+        WeatherWarningEvent weather = Assert.IsInstanceOfType<WeatherWarningEvent>(result.Event);
+        Assert.IsNotNull(weather.RiverFlood);
+        Assert.IsNotNull(result.Program);
+        DisplayBlock[] stationPages = result.Program.Pages.Select(page => page.Blocks[0])
+            .Where(block => block.Badge == "○○川上流｜警戒レベル３相当").ToArray();
+        Assert.HasCount(2, stationPages);
+        Assert.EndsWith("「避難判断水位」に到達しました。", stationPages[0].PrimaryText);
+        Assert.StartsWith("今後、水位はさらに上昇する見込みです。", stationPages[1].PrimaryText);
+        Assert.IsTrue(stationPages.All(block => block.StyleToken == DisplayStyleTokens.WeatherWarning));
+        string original = weather.RiverFlood.MainTexts.Single(text => text.StartsWith("【警戒レベル３相当】", StringComparison.Ordinal));
+        Assert.AreEqual(original, string.Concat(stationPages.Select(block => block.PrimaryText)));
     }
 
     [TestMethod]
@@ -511,85 +682,6 @@ public sealed class OperationalFeaturesTests
     }
 
     [TestMethod]
-    public async Task DmdataArchiveCreatesOneCasePerOfficialXmlAndKeepsJsonAsReferenceOnly()
-    {
-        string source = Path.Combine(_directory, "dmdata");
-        Directory.CreateDirectory(source);
-        string xmlFile = "VXSE43_RJTD_20240101070614227_sample.xml";
-        string jsonFile = "VXSE43_RJTD_20240101070614234_sample.json";
-        await File.WriteAllTextAsync(Path.Combine(source, xmlFile),
-            "<Report><Control><Title>緊急地震速報（警報）</Title></Control><Head><EventID>20240101160608</EventID></Head></Report>");
-        await File.WriteAllTextAsync(Path.Combine(source, jsonFile),
-            "{\"_originalId\":\"official-xml-1\",\"type\":\"VXSE43\"}");
-        object[] index =
-        [
-            new
-            {
-                id = "official-xml-1",
-                classification = "eew.warning",
-                head = new { type = "VXSE43" },
-                xmlReport = new { head = new { eventId = "20240101160608", serial = 1 } },
-                format = "xml",
-                filename = xmlFile,
-            },
-            new
-            {
-                id = "converted-json-1",
-                originalId = "official-xml-1",
-                classification = "eew.warning",
-                head = new { type = "VXSE43" },
-                xmlReport = new { head = new { eventId = "20240101160608", serial = 1 } },
-                format = "json",
-                filename = jsonFile,
-            },
-        ];
-        string telegrams = Path.Combine(source, "telegrams.json");
-        await File.WriteAllTextAsync(telegrams, JsonSerializer.Serialize(index));
-        var library = new FileTestCaseLibrary(Path.Combine(_directory, "library"));
-
-        IReadOnlyList<TestCaseManifest> imported = await library.ImportDmdataArchiveAsync(telegrams);
-
-        Assert.AreEqual(1, imported.Count);
-        Assert.AreEqual(FileTestCaseLibrary.DmdataTestProviderName, imported[0].Provider);
-        Assert.AreEqual("VXSE43", imported[0].TelegramType);
-        Assert.AreEqual("20240101160608", imported[0].EventId);
-        Assert.AreEqual(2, imported[0].PayloadFiles.Count);
-        IReadOnlyList<RawProviderMessage> messages = library.LoadMessages(
-            imported[0].Id, EEWTelop.Domain.Events.SourceMode.HistoryRehearsal);
-        Assert.AreEqual(1, messages.Count);
-        Assert.AreEqual(RawProviderContentFormat.JmaXml, messages[0].ContentFormat);
-        Assert.IsTrue(messages[0].Payload.Contains("<Report>", StringComparison.Ordinal));
-        Assert.IsFalse(messages[0].Payload.Contains("_originalId", StringComparison.Ordinal));
-    }
-
-    [TestMethod]
-    public async Task DmdataArchiveRejectsIndexPathTraversalWithoutLeavingCases()
-    {
-        string source = Path.Combine(_directory, "dmdata-invalid");
-        Directory.CreateDirectory(source);
-        object[] index =
-        [
-            new
-            {
-                id = "official-xml-1",
-                classification = "eew.warning",
-                head = new { type = "VXSE43" },
-                xmlReport = new { head = new { eventId = "event", serial = 1 } },
-                format = "xml",
-                filename = "../outside.xml",
-            },
-        ];
-        string telegrams = Path.Combine(source, "telegrams.json");
-        await File.WriteAllTextAsync(telegrams, JsonSerializer.Serialize(index));
-        var library = new FileTestCaseLibrary(Path.Combine(_directory, "library"));
-
-        await Assert.ThrowsExactlyAsync<InvalidDataException>(() =>
-            library.ImportDmdataArchiveAsync(telegrams));
-
-        Assert.AreEqual(0, library.List().Count);
-    }
-
-    [TestMethod]
     public void SourceComparisonIncludesSelectedAudioCueWithoutDelayingResult()
     {
         QuakeEvent sample = (QuakeEvent)TestScenarioCatalog.Create(DateTimeOffset.UtcNow)
@@ -642,7 +734,7 @@ public sealed class OperationalFeaturesTests
         source.Issue, source.IssueType, source.Earthquake, source.Points, source.FreeFormComment,
         source.LongPeriodIntensity);
 
-    private static string FindRepositoryFile(params string[] pathSegments)
+    internal static string FindRepositoryFile(params string[] pathSegments)
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
         while (directory is not null)

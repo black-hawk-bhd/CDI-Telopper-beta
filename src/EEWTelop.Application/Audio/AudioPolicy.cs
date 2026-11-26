@@ -30,6 +30,8 @@ public enum AudioCueId
     QuakeIntensity7,
     TsunamiForecast,
     WeatherDisasterPreventionBulletin,
+    VolcanoWarningForecast,
+    VolcanoEruptionFlash,
 }
 
 public sealed record AudioDecision(
@@ -41,6 +43,9 @@ public sealed record AudioDecision(
 public interface IAudioPolicy
 {
     AudioDecision Evaluate(DisasterEvent disasterEvent, AudioSettings settings);
+
+    // Comparison runs reuse sample reports. Keep their playback history scoped to each run.
+    IAudioPolicy CreateComparisonPolicy() => this;
 
     // Silent receptions still update the announcement baseline. Existing
     // alternative policies can keep the default no-op implementation.
@@ -54,6 +59,8 @@ public sealed class AudioPolicy : IAudioPolicy
     private readonly Dictionary<(SourceMode Mode, bool IsTest, EventId Id), EewAudioReport> _eewReports = [];
     private readonly Queue<(SourceMode Mode, bool IsTest, EventId Id)> _eewReportOrder = [];
     private readonly NewAnnouncementTracker _announcements = new();
+
+    public IAudioPolicy CreateComparisonPolicy() => new AudioPolicy();
 
     public void Observe(DisasterEvent disasterEvent)
     {
@@ -78,20 +85,20 @@ public sealed class AudioPolicy : IAudioPolicy
             AudioAnnouncementMode mode = settings.GetAnnouncementMode(disasterEvent.Kind);
             if (settings.Muted)
             {
-                return Skip("Audio is muted.");
+                return Skip("ミュート中です。");
             }
 
             bool rehearsal = disasterEvent.SourceMode != SourceMode.Production ||
                 disasterEvent is EewEvent { IsTest: true };
             if (rehearsal && !settings.TestUsesProductionSound)
             {
-                return Skip("Audio is disabled for training and rehearsal events.");
+                return Skip("訓練での設定音声が無効です。");
             }
 
             if (mode != AudioAnnouncementMode.Legacy &&
                 (change.AreaKeys.Count == 0 || (mode == AudioAnnouncementMode.FirstAnnouncementOnly && !change.IsFirst)))
             {
-                return Skip("The report is not a new announcement eligible for the selected audio timing.");
+                return Skip("選択した再生条件の対象になる新規発表や更新がありません。");
             }
             (AudioCueId Cue, string FilePath)? selected = mode == AudioAnnouncementMode.Legacy
                 ? SelectCue(disasterEvent, settings, eewCue)
@@ -108,9 +115,14 @@ public sealed class AudioPolicy : IAudioPolicy
                             change.AreaKeys.Contains(NewAnnouncementTracker.AreaKey(area)))),
                     _ => SelectCue(disasterEvent, settings, eewCue),
                 };
-            if (selected is null || string.IsNullOrWhiteSpace(selected.Value.FilePath))
+            if (selected is null)
             {
-                return Skip("The event or configured audio category is silent.");
+                return Skip("この電文は音声の対象外か、該当区分の音声が無効です。");
+            }
+
+            if (string.IsNullOrWhiteSpace(selected.Value.FilePath))
+            {
+                return Skip($"音声ファイルが選択されていません。区分={selected.Value.Cue}");
             }
 
             if (disasterEvent.SourceMode == SourceMode.ManualTest && mode == AudioAnnouncementMode.Legacy)
@@ -128,7 +140,7 @@ public sealed class AudioPolicy : IAudioPolicy
                 : $"{disasterEvent.SourceMode}:{disasterEvent.Kind}:{baseKey}:{disasterEvent.IssuedAt.UtcTicks}:{disasterEvent.Signature}";
             if (!_played.Add(key))
             {
-                return Skip("This alert cue already played for the event report.");
+                return Skip("同じ電文の音声は再生済みです。");
             }
 
             // A weather report that contains a newly issued or updated area is
@@ -169,6 +181,8 @@ public sealed class AudioPolicy : IAudioPolicy
         TsunamiEvent tsunami => SelectTsunamiCue(tsunami, settings),
         EewEvent => SelectEewCue(eewCue, settings),
         WeatherWarningEvent weather => SelectWeatherCue(weather, settings),
+        VolcanoEvent { IsCancelled: false, IsTelegramCancellation: false, IsExpired: false } volcano =>
+            SelectVolcanoCue(volcano.InformationType, settings),
         _ => null,
     };
 
@@ -264,6 +278,16 @@ public sealed class AudioPolicy : IAudioPolicy
         };
     }
 
+    private static (AudioCueId Cue, string FilePath)? SelectVolcanoCue(
+        VolcanoInformationType type, AudioSettings settings) => type switch
+    {
+        VolcanoInformationType.WarningForecast when settings.VolcanoWarningForecastCue is { Enabled: true } warning =>
+            (AudioCueId.VolcanoWarningForecast, warning.FilePath),
+        VolcanoInformationType.EruptionFlash when settings.VolcanoEruptionFlashCue is { Enabled: true } flash =>
+            (AudioCueId.VolcanoEruptionFlash, flash.FilePath),
+        _ => null,
+    };
+
     private static string BuildPlaybackKey(
         DisasterEvent disasterEvent,
         string baseKey)
@@ -271,6 +295,11 @@ public sealed class AudioPolicy : IAudioPolicy
         if (disasterEvent is EewEvent eew)
         {
             return $"{eew.SourceMode}:{eew.IsTest}:{baseKey}:{GetReportIdentity(eew.Issue.Serial, eew.Signature)}";
+        }
+
+        if (disasterEvent is VolcanoEvent volcano)
+        {
+            return $"{volcano.SourceMode}:{baseKey}:{volcano.IssuedAt.UtcTicks}:{GetReportIdentity(volcano.Issue.Serial, volcano.Signature)}";
         }
 
         if (disasterEvent is WeatherWarningEvent weather &&

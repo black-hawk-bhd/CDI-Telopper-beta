@@ -39,6 +39,7 @@ public sealed record DisplayProgram(
 {
     public int? MaximumDisplayCycles { get; init; }
     public DateTimeOffset? ExpiresAtUtc { get; init; }
+    public QuakeIssueType? QuakeIssueType { get; init; }
     public bool IsRoutineNankaiCommentary { get; init; }
     public string? TelegramPageDurationKey { get; init; }
     public EventId? ScalePromptEarthquakeId { get; init; }
@@ -46,9 +47,6 @@ public sealed record DisplayProgram(
     // Session-only presentation option. Never persisted or used to reclassify training data.
     [System.Text.Json.Serialization.JsonIgnore]
     public bool HideSimulatorTrainingBanner { get; init; }
-
-    [System.Text.Json.Serialization.JsonIgnore]
-    public bool HideReplayModeBanner { get; init; }
 
     [System.Text.Json.Serialization.JsonIgnore]
     public bool HideInformationBadges { get; init; }
@@ -74,6 +72,7 @@ public sealed record DisplayBlock(
     // Structured presentation data avoids splitting hypocenter/area names in the browser.
     public EewWarningCard? EewCard { get; init; }
     public IReadOnlyList<EewAreaLabel>? EewAreaLabels { get; init; }
+    public string? EewEstimateText { get; init; }
 }
 
 public sealed record EewAreaLabel(string Name, bool IsChanged);
@@ -99,6 +98,7 @@ public static class DisplayStyleTokens
     public const string Comment = "comment";
     public const string Tsunami = "tsunami";
     public const string TsunamiCancel = "tsunami-cancel";
+    public const string OverseasTsunamiObservation = "overseas-tsunami-observation";
     public const string WeatherAdvisory = "weather-advisory";
     public const string WeatherWarning = "weather-warning";
     public const string WeatherDangerWarning = "weather-danger-warning";

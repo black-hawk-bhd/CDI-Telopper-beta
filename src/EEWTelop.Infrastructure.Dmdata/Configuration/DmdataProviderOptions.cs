@@ -190,7 +190,7 @@ public sealed record DmdataProviderOptions(
 
         if (!Enum.IsDefined(EewContractType))
         {
-            errors.Add("DMDATA.JP EEW contract type is invalid.");
+            errors.Add("DMDATA.JPの緊急地震速報の契約区分が無効です。");
         }
 
         if (Classifications.Count == 0 || TelegramTypes.Count == 0)

@@ -100,7 +100,8 @@ internal static class DisasterSimulatorDecoder
                     SeismicAreaName = Text(p, "seismicAreaName"), SeismicAreaCode = TextAlias(p, "seismicAreaCode", "areaCode"),
                     StationCode = Text(p, "stationCode"), Latitude = Number(p, "latitude"), Longitude = Number(p, "longitude"),
                 }).ToArray(), Text(item, "comment"), longPeriodIntensity: DecodeLongPeriodIntensity(item),
-                isCancelled: cancelled, headline: Text(item, "headline")),
+                isCancelled: cancelled, headline: Text(item, "headline"))
+                { JmaEarthquakeId = EventId.FromJmaEarthquakeId(id.Trim()) },
             "eew" => new EewEvent(eventId, provider, issued, receivedAt, "", SourceMode.ManualTest, issue,
                 earthquake, Array(item, "areas").Select(a =>
                 {
@@ -131,7 +132,11 @@ internal static class DisasterSimulatorDecoder
                             HighTideAt = Time(a, "highTideAt") };
                 }).ToArray(),
                 cancelled || Flag(item, "isTelegramCancellation"), Time(item, "expiresAt"), Time(item, "observationAsOf"),
-                Text(item, "headline"), Text(item, "comment")),
+                Text(item, "headline"), Text(item, "comment"))
+                {
+                    JmaEarthquakeIds = id.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(EventId.FromJmaEarthquakeId).OfType<EventId>().ToArray(),
+                },
             _ => throw new FormatException("未対応のシミュレーター情報種別です。"),
         };
         return result with { IsExpired = Flag(item, "isExpired") };

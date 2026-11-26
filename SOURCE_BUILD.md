@@ -42,13 +42,6 @@ remaining unsupported content encodings before opening the body. Brotli decoding
 is disabled as defense in depth for CVE-2026-111497; the runtime update is still
 required. Existing response size limits, timeouts and initial-sync behavior remain.
 
-Test-case ZIP imports are limited to 64 MiB compressed, 1,024 entries (including
-directories), 2 MiB of metadata reads, 32 MiB per expanded file, 128 MiB total
-expanded data and a 1 MiB manifest. Actual streamed sizes are checked as well as
-declared sizes. Existing exported payloads and additional images are retained.
-The sum of compressed entry sizes is also capped at 64 MiB to prevent repeated
-decompression of overlapping compressed ranges in malformed archives.
-
 Provider reception merge buffers (including the Wolfx socket merger) wait rather
 than drop accepted messages when full. Each stage retains at most 256 messages
 and an estimated 128 MiB of UTF-16 payload/transport strings plus per-item overhead,
@@ -66,7 +59,7 @@ stream instead of being retained as a complete batch before delivery.
 After verification succeeds, build the next unified beta release:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.75
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.76
 ```
 
 Starting with beta.75, place both ZIPs in the same GitHub release and list the
@@ -77,7 +70,7 @@ self-contained package first in the download instructions.
 
 Both ZIPs include the JMA training XML and its attribution in `TrainingSamples`.
 Both ZIPs, `version.json`, and `SHA256SUMS.txt` are written to
-`artifacts\release\2.0.0-beta.75\win-x64`. The script restores each deployment
+`artifacts\release\2.0.0-beta.76\win-x64`. The script restores each deployment
 mode, verifies its runtime configuration, and checks startup. For the lightweight
 startup check, install the required Desktop Runtime on the build PC. Use
 `-OutputLabel` for local verification builds and `-PackageMode Both` when

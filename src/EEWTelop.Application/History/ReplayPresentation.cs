@@ -18,7 +18,6 @@ public static class ReplayPresentation
         ArgumentNullException.ThrowIfNull(settings);
         program = program with
         {
-            HideReplayModeBanner = settings.HideModeBanner,
             HideInformationBadges = settings.HideInformationBadges,
             IsReplayPresentation = isReplay,
         };

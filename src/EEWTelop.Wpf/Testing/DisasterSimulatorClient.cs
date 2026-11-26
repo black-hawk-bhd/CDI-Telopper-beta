@@ -24,7 +24,7 @@ internal sealed class DisasterSimulatorClient
 
     internal static async Task RunAsync(string address, string token,
         Func<IReadOnlyList<DisasterEvent>, bool, Task> onUpdate, Action connected, CancellationToken ct,
-        Action<IReadOnlyList<DisasterEvent>, bool>? onState = null)
+        Action<IReadOnlyList<DisasterEvent>, TsunamiEvent?, bool>? onState = null)
     {
         var uri = ValidateEndpoint(address);
         if (string.IsNullOrWhiteSpace(token) || token.Length > 4096 || token.Any(char.IsControl))
@@ -67,7 +67,8 @@ internal sealed class DisasterSimulatorClient
             } while (!part.EndOfMessage);
             using var json = JsonDocument.Parse(message.ToArray());
             var update = tracker.Read(json.RootElement, DateTimeOffset.UtcNow);
-            if (tracker.AcceptedFrame && tracker.SnapshotChanged) onState?.Invoke(tracker.Snapshot, update.Reset);
+            if (tracker.AcceptedFrame && tracker.SnapshotChanged)
+                onState?.Invoke(tracker.Snapshot, tracker.TsunamiForecast, update.Reset);
             if (update.Reset || update.Events.Count > 0)
                 await onUpdate(update.Events, update.Reset).ConfigureAwait(false);
         }
@@ -83,6 +84,7 @@ internal sealed class SimulatorUpdateTracker
     internal bool AcceptedFrame { get; private set; }
     internal bool SnapshotChanged { get; private set; }
     internal IReadOnlyList<DisasterEvent> Snapshot { get; private set; } = [];
+    internal TsunamiEvent? TsunamiForecast { get; private set; }
     internal (IReadOnlyList<DisasterEvent> Events, bool Reset) Read(JsonElement root, DateTimeOffset now)
     {
         AcceptedFrame = false;
@@ -98,6 +100,7 @@ internal sealed class SimulatorUpdateTracker
         var current = new Dictionary<string, string>();
         var events = new List<DisasterEvent>();
         var snapshot = new List<DisasterEvent>();
+        TsunamiForecast = null;
         void Add(string key, string kind, JsonElement item)
         {
             if (item.ValueKind != JsonValueKind.Object) return;
@@ -105,6 +108,7 @@ internal sealed class SimulatorUpdateTracker
             current[key] = raw;
             var decoded = Decode(kind, item, now);
             snapshot.Add(decoded);
+            if (key == "forecast") TsunamiForecast = (TsunamiEvent)decoded;
             if (!initial && type != "snapshot" && (!_previous.TryGetValue(key, out var old) || old != raw))
                 events.Add(decoded);
         }

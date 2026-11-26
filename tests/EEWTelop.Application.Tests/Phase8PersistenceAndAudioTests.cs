@@ -37,6 +37,22 @@ public sealed class Phase8PersistenceAndAudioTests
     }
 
     [TestMethod]
+    [DataRow("VYSE50", QuakeIssueType.NankaiTroughTemporaryInformation)]
+    [DataRow("VYSE51", QuakeIssueType.NankaiTroughCommentary)]
+    [DataRow("VYSE52", QuakeIssueType.NankaiTroughCommentary)]
+    [DataRow("VYSE60", QuakeIssueType.SubsequentEarthquakeAdvisory)]
+    public void StoredSpecialQuakeRetainsItsIssueTypeAcrossVersions(string code, QuakeIssueType type)
+    {
+        QuakeEvent bulletin = DisplayEventFactory.CreateQuake(type, rawType: code);
+        var program = new PageComposer().Compose(bulletin, DisplayEventFactory.Settings);
+        StoredDisplayProgram stored = StoredDisplayProgram.From(program, bulletin.ReceivedAt);
+
+        Assert.AreEqual(type, stored.QuakeIssueType);
+        Assert.IsTrue((stored with { QuakeIssueType = null }).TryToProgram(out DisplayProgram? restored));
+        Assert.AreEqual(type, restored?.QuakeIssueType);
+    }
+
+    [TestMethod]
     public void AudioPolicyUsesSeparateTsunamiFilesAndAllowsEscalationCue()
     {
         var policy = new AudioPolicy();
@@ -403,6 +419,45 @@ public sealed class Phase8PersistenceAndAudioTests
             Assert.AreEqual(cue, decision.Cue, scenarioId);
             Assert.IsTrue(decision.ShouldPlay, scenarioId);
         }
+    }
+
+    [TestMethod]
+    [DataRow(VolcanoInformationType.WarningForecast, AudioCueId.VolcanoWarningForecast, "VFVO50", "warning.wav")]
+    [DataRow(VolcanoInformationType.EruptionFlash, AudioCueId.VolcanoEruptionFlash, "VFVO56", "eruption.mp3")]
+    public void VolcanoAudioUsesSeparateFilesAndPlaysEachNewReportOnce(
+        VolcanoInformationType type, AudioCueId cue, string telegramType, string filePath)
+    {
+        AudioSettings settings = AudioSettings.Disabled with
+        {
+            VolcanoWarningForecastCue = new AudioCueSetting(true, "warning.wav"),
+            VolcanoEruptionFlashCue = new AudioCueSetting(true, "eruption.mp3"),
+        };
+        VolcanoEvent first = CreateReport(1);
+        VolcanoEvent update = CreateReport(2);
+        var policy = new AudioPolicy();
+
+        Assert.IsFalse(policy.Evaluate(first, AudioSettings.Disabled).ShouldPlay);
+        Assert.IsFalse(policy.Evaluate(first, settings with { Muted = true }).ShouldPlay);
+        Assert.IsFalse(policy.Evaluate(first with { IsExpired = true }, settings).ShouldPlay);
+        Assert.IsFalse(policy.Evaluate(CreateReport(1, isRelease: true), settings).ShouldPlay);
+        Assert.IsFalse(policy.Evaluate(CreateReport(1, isTelegramCancellation: true), settings).ShouldPlay);
+        Assert.IsFalse(policy.Evaluate(CreateReport(1, sourceMode: SourceMode.HistoryRehearsal),
+            settings with { TestUsesProductionSound = false }).ShouldPlay);
+
+        AudioDecision decision = policy.Evaluate(first, settings);
+        Assert.IsTrue(decision.ShouldPlay);
+        Assert.AreEqual(cue, decision.Cue);
+        Assert.AreEqual(filePath, decision.FilePath);
+        Assert.IsFalse(policy.Evaluate(first, settings).ShouldPlay);
+        Assert.IsTrue(policy.Evaluate(update, settings).ShouldPlay);
+        Assert.IsFalse(policy.Evaluate(update, settings).ShouldPlay);
+
+        VolcanoEvent CreateReport(int report, bool isRelease = false, bool isTelegramCancellation = false,
+            SourceMode sourceMode = SourceMode.Production) => new(
+            EventId.Create("volcano-audio"), "dmdata.jp", Now.AddSeconds(report), Now.AddSeconds(report),
+            $"volcano-report-{report}", sourceMode, new IssueInfo("気象庁", Now.AddSeconds(report), telegramType, CorrectionType.None),
+            type, "桜島", "506", VolcanoAlertLevel.Level3, string.Empty, string.Empty, string.Empty, string.Empty,
+            [], null, isRelease, isTelegramCancellation: isTelegramCancellation);
     }
 
     [TestMethod]

@@ -17,26 +17,23 @@ public sealed class ReplayPresentationTests
         DisplayProgram result = ReplayPresentation.Apply(source, settings.History, source.IssuedAt, true, true);
         Assert.AreSame(source.Pages, result.Pages);
         Assert.AreEqual(source.RehearsalLabel, result.RehearsalLabel);
-        Assert.IsFalse(result.HideReplayModeBanner);
         Assert.IsFalse(result.HideInformationBadges);
     }
 
     [TestMethod]
-    [DataRow(false, true)]
-    [DataRow(true, false)]
-    [DataRow(true, true)]
-    public void BadgeOptionsAreIndependentAndDoNotEraseMetadata(bool banner, bool badges)
+    [DataRow(false)]
+    [DataRow(true)]
+    public void InformationBadgeOptionRetainsSourceMetadata(bool badges)
     {
         DisplayProgram source = CreateProgram();
-        var options = AppSettings.CreateDefault().History with { HideModeBanner = banner, HideInformationBadges = badges };
+        var options = AppSettings.CreateDefault().History with { HideInformationBadges = badges };
         DisplayProgram result = ReplayPresentation.Apply(source, options, source.IssuedAt, false, true);
-        Assert.AreEqual(banner, result.HideReplayModeBanner);
         Assert.AreEqual(badges, result.HideInformationBadges);
         Assert.AreEqual(SourceMode.HistoryRehearsal, result.SourceMode);
         Assert.AreEqual("過去情報／訓練", result.RehearsalLabel);
         Assert.AreEqual("大雨警報", result.Pages[0].Blocks[0].Badge);
         Assert.AreEqual(source.Pages[0].AccessibleText, result.Pages[0].AccessibleText);
-        Assert.IsFalse(source.HideReplayModeBanner);
+        Assert.IsFalse(source.HideInformationBadges);
     }
 
     [TestMethod]

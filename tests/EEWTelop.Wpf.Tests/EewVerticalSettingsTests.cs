@@ -27,13 +27,16 @@ public sealed class EewVerticalSettingsTests
         var json = JsonNode.Parse(JsonSerializer.Serialize(defaults.Display))!.AsObject();
         json.Remove(nameof(DisplaySettings.UseVerticalEewWarningLayout));
         json.Remove(nameof(DisplaySettings.HighlightEewAreaChanges));
+        json.Remove(nameof(DisplaySettings.ShowEewEstimates));
         var legacy = JsonSerializer.Deserialize<DisplaySettings>(json.ToJsonString())!;
         Assert.IsFalse(legacy.UseVerticalEewWarningLayout);
         Assert.IsFalse(legacy.HighlightEewAreaChanges);
+        Assert.IsFalse(legacy.ShowEewEstimates);
         var editor = new SettingsEditorViewModel(defaults)
         {
             UseVerticalEewWarningLayout = true,
             HighlightEewAreaChanges = true,
+            ShowEewEstimates = true,
         };
         var saved = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(editor.ToSettings(defaults)))!;
         Assert.IsTrue(JsonSettingsStore.NormalizeDocument(saved).Display.UseVerticalEewWarningLayout);
@@ -41,10 +44,51 @@ public sealed class EewVerticalSettingsTests
         var reloaded = new SettingsEditorViewModel(saved);
         Assert.IsTrue(reloaded.UseVerticalEewWarningLayout);
         Assert.IsTrue(reloaded.HighlightEewAreaChanges);
+        Assert.IsTrue(reloaded.ShowEewEstimates);
         reloaded.ResetDisplaySettings();
         DisplaySettings reset = reloaded.ToSettings(saved).Display;
         Assert.IsFalse(reset.UseVerticalEewWarningLayout);
         Assert.IsFalse(reset.HighlightEewAreaChanges);
+        Assert.IsFalse(reset.ShowEewEstimates);
+    }
+
+    [TestMethod]
+    public void ExistingWarningEstimatesFollowTheCurrentSettingAndDoNotSurviveCancellation()
+    {
+        var settings = AppSettings.CreateDefault().Display;
+        var enabled = settings with { ShowEewEstimates = true };
+        var scenarios = TestScenarioCatalog.Create(Now);
+        var warning = (EewEvent)scenarios.Single(item => item.Id == "eew-warning").Event;
+        var cancellation = (EewEvent)scenarios.Single(item => item.Id == "eew-cancel").Event;
+        var composer = new PageComposer();
+        var program = composer.Compose(warning, settings);
+        var coordinator = new PriorityCoordinator(new Clock(), settings);
+        var snapshot = coordinator.Apply(program);
+        var store = new ObsSnapshotStore(settings, Now);
+        var overlay = new OverlayViewModel();
+        store.AddMonitorTelegram(warning, program, settings, "訓練表示");
+        overlay.Apply(snapshot, settings);
+        Assert.IsNull(overlay.Blocks.Single(block => block.StyleToken == DisplayStyleTokens.EewAreas).EewEstimateText);
+        var disabled = store.Publish(snapshot, settings, Now);
+        Assert.DoesNotContain("eewEstimateText", JsonSerializer.Serialize(disabled, ObsJsonContext.Default.ObsViewSnapshot));
+
+        const string expected = "予想最大震度 6弱　推定M 6.4";
+        Assert.AreEqual(expected, store.PublishSettings(enabled, Now).Blocks
+            .Single(block => block.StyleToken == DisplayStyleTokens.EewAreas).EewEstimateText);
+        Assert.AreEqual(expected, store.Read(ObsViewChannel.Eew, Now).Blocks
+            .Single(block => block.StyleToken == DisplayStyleTokens.EewAreas).EewEstimateText);
+        Assert.AreEqual(expected, store.ReadMonitorTelegram(1, Now)![0].Blocks
+            .Single(block => block.StyleToken == DisplayStyleTokens.EewAreas).EewEstimateText);
+        overlay.Apply(snapshot, enabled);
+        Assert.AreEqual(expected, overlay.Blocks.Single(block => block.StyleToken == DisplayStyleTokens.EewAreas).EewEstimateText);
+
+        Assert.IsTrue(store.PublishSettings(settings, Now).Blocks.All(block => block.EewEstimateText is null));
+        Assert.IsTrue(store.Read(ObsViewChannel.Eew, Now).Blocks.All(block => block.EewEstimateText is null));
+        Assert.IsTrue(store.ReadMonitorTelegram(1, Now)![0].Blocks.All(block => block.EewEstimateText is null));
+        var cancelled = store.Publish(
+            coordinator.Apply(composer.Compose(cancellation, enabled)), enabled, Now);
+        Assert.IsTrue(cancelled.Blocks.Any(block => block.EewCard is { IsCancelled: true }));
+        Assert.IsTrue(cancelled.Blocks.All(block => block.EewEstimateText is null));
     }
 
     [TestMethod]

@@ -127,7 +127,7 @@ public sealed class WolfxEventSource : IEventSource, IProviderConfigurableEventS
         if (options.ReceiveEew)
         {
             branches.Add(RunBranchAsync(
-                "EEW",
+                "緊急地震速報",
                 options.EewWebSocketUri,
                 "jma_eew",
                 channel,

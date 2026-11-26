@@ -135,6 +135,26 @@ public sealed class DisasterSimulatorTests
     }
 
     [TestMethod]
+    public void SimulatorTracksTheForecastFromTheFullSnapshotAndClearsItOnReset()
+    {
+        var tracker = new SimulatorUpdateTracker();
+        using var snapshot = JsonDocument.Parse("""
+            {"apiVersion":"1","type":"snapshot","sessionId":"one","sequence":1,
+             "tsunami":{"hasInformation":true,"forecast":{"eventId":"warning"},"observation":{"eventId":"observation"}}}
+            """);
+        using var reset = JsonDocument.Parse("""
+            {"apiVersion":"1","type":"update","sessionId":"two","sequence":1,
+             "tsunami":{"hasInformation":true,"observation":{"eventId":"observation"}}}
+            """);
+
+        Assert.IsEmpty(tracker.Read(snapshot.RootElement, DateTimeOffset.UtcNow).Events);
+        Assert.AreEqual("simulator:warning", tracker.TsunamiForecast?.Id.Value);
+        Assert.IsTrue(tracker.Read(reset.RootElement, DateTimeOffset.UtcNow).Reset);
+        Assert.IsNull(tracker.TsunamiForecast);
+        Assert.HasCount(1, tracker.Snapshot);
+    }
+
+    [TestMethod]
     public void CancellationAndExpirationArePreserved()
     {
         using var json = JsonDocument.Parse("""

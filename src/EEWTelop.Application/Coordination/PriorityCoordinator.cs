@@ -1,5 +1,6 @@
 using EEWTelop.Application.Abstractions;
 using EEWTelop.Application.Configuration;
+using EEWTelop.Application.Events;
 using EEWTelop.Application.Display;
 using EEWTelop.Domain.Events;
 
@@ -16,7 +17,7 @@ public sealed class PriorityCoordinator : IDisplayCoordinator
     private ScheduledProgram? _current;
     private ScheduledProgram? _persistentTsunami;
     private long _nextSequence;
-    private bool _showRoutineNankaiCommentary = true;
+    private FilterSettings? _specialQuakeFilters;
 
     public PriorityCoordinator(IClock clock, DisplaySettings settings)
         : this(clock, settings, new PageClock())
@@ -40,10 +41,11 @@ public sealed class PriorityCoordinator : IDisplayCoordinator
         lock (_gate)
         {
             EvaluateCurrentAndPromote(resynchronizeFromUtc: false);
-            if (!_showRoutineNankaiCommentary && program.IsRoutineNankaiCommentary)
+            if (_specialQuakeFilters is { } filter &&
+                EventDisplayFilter.GetSpecialQuakeSuppressionReason(filter, program) is { } reason)
             {
                 return BuildSnapshot(new CoordinatorDecision(CoordinatorDecisionKind.IgnoredFilteredProgram,
-                    "Routine Nankai Trough commentary is disabled.", program.ProgramId),
+                    reason, program.ProgramId),
                     rehearsalStopped: false, resynchronizeFromUtc: false);
             }
             if (program.Pages.Count == 0)
@@ -347,24 +349,20 @@ public sealed class PriorityCoordinator : IDisplayCoordinator
         }
     }
 
-    public void SetRoutineNankaiCommentaryEnabled(bool enabled)
+    public void SetSpecialQuakeFilters(FilterSettings filter)
     {
+        ArgumentNullException.ThrowIfNull(filter);
         lock (_gate)
         {
-            _showRoutineNankaiCommentary = enabled;
-            RemoveSuppressedRoutineCommentary();
+            _specialQuakeFilters = filter;
+            RemoveSuppressedSpecialQuakePrograms();
         }
     }
 
-    private void RemoveSuppressedRoutineCommentary()
+    private void RemoveSuppressedSpecialQuakePrograms()
     {
-        if (_showRoutineNankaiCommentary) return;
-
-        if (_current?.Program.IsRoutineNankaiCommentary == true)
-            _current = null;
-        if (_pendingByKind.TryGetValue(EventKind.Quake, out ScheduledProgram? pending) &&
-            pending.Program.IsRoutineNankaiCommentary)
-            _pendingByKind.Remove(EventKind.Quake);
+        if (_specialQuakeFilters is { } filter)
+            RemoveQuakePrograms(program => EventDisplayFilter.GetSpecialQuakeSuppressionReason(filter, program) is not null);
     }
 
     public void ClearTestPrograms()
@@ -420,7 +418,7 @@ public sealed class PriorityCoordinator : IDisplayCoordinator
                 }
             }
 
-            RemoveSuppressedRoutineCommentary();
+            RemoveSuppressedSpecialQuakePrograms();
             CoordinatorDecision evaluation = EvaluateCurrentAndPromote(resynchronizeFromUtc: true);
             return BuildSnapshot(
                 new CoordinatorDecision(

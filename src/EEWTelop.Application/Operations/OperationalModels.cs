@@ -493,7 +493,6 @@ public sealed record TestCaseManifest(
     string Description,
     DateTimeOffset CreatedAtUtc,
     IReadOnlyList<string> PayloadFiles,
-    string ReferenceImageFile,
     TestCaseExpectation Expectation)
 {
     public const int CurrentSchemaVersion = 1;
@@ -504,11 +503,8 @@ public interface ITestCaseLibrary
     IReadOnlyList<TestCaseManifest> List();
     Task<TestCaseManifest> ImportFilesAsync(string name, IReadOnlyList<string> paths, CancellationToken cancellationToken = default);
     Task<TestXmlFolderImportResult> ImportXmlFolderAsync(string directory, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<TestCaseManifest>> ImportDmdataArchiveAsync(string telegramsIndexPath, CancellationToken cancellationToken = default);
     Task DeleteAsync(string id, CancellationToken cancellationToken = default);
     Task DeleteAllAsync(CancellationToken cancellationToken = default);
-    Task ExportAsync(string id, string zipPath, CancellationToken cancellationToken = default);
-    Task<TestCaseManifest> ImportPackageAsync(string zipPath, CancellationToken cancellationToken = default);
     Task<TestCaseManifest> DuplicateAsync(string id, CancellationToken cancellationToken = default);
     Task<TestCaseManifest> UpdateAsync(TestCaseManifest manifest, CancellationToken cancellationToken = default);
     IReadOnlyList<RawProviderMessage> LoadMessages(string id, SourceMode mode);

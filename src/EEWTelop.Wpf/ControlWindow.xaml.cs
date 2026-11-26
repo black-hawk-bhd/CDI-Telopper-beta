@@ -131,9 +131,6 @@ public partial class ControlWindow : Window, IAsyncDisposable
         _viewModel.ExportProfileRequested += OnExportProfileRequested;
         _viewModel.ImportTestFilesRequested += OnImportTestFilesRequested;
         _viewModel.ImportTestXmlFolderRequested += OnImportTestXmlFolderRequested;
-        _viewModel.ImportDmdataArchiveRequested += OnImportDmdataArchiveRequested;
-        _viewModel.ImportTestPackageRequested += OnImportTestPackageRequested;
-        _viewModel.ExportTestPackageRequested += OnExportTestPackageRequested;
         _viewModel.OperatorNotificationRequested += OnOperatorNotificationRequested;
         _viewModel.SettingsEditorChanged += OnSettingsEditorChanged;
         _e2eTestPipeServer = E2ETestPipeServer.StartIfEnabled(
@@ -179,9 +176,6 @@ public partial class ControlWindow : Window, IAsyncDisposable
         _viewModel.ExportProfileRequested -= OnExportProfileRequested;
         _viewModel.ImportTestFilesRequested -= OnImportTestFilesRequested;
         _viewModel.ImportTestXmlFolderRequested -= OnImportTestXmlFolderRequested;
-        _viewModel.ImportDmdataArchiveRequested -= OnImportDmdataArchiveRequested;
-        _viewModel.ImportTestPackageRequested -= OnImportTestPackageRequested;
-        _viewModel.ExportTestPackageRequested -= OnExportTestPackageRequested;
         _viewModel.OperatorNotificationRequested -= OnOperatorNotificationRequested;
         _viewModel.SettingsEditorChanged -= OnSettingsEditorChanged;
         _viewModel.Settings.PropertyChanged -= OnSettingsPropertyChanged;
@@ -316,20 +310,8 @@ public partial class ControlWindow : Window, IAsyncDisposable
 
     private async void OnImportTestFilesRequested()
     {
-        var dialog = new OpenFileDialog { Title = "生データをテストライブラリーへ登録", Filter = "対応ファイル|*.xml;*.json;*.png", Multiselect = true };
+        var dialog = new OpenFileDialog { Title = "生データをテストライブラリーへ登録", Filter = "対応ファイル|*.xml;*.json", Multiselect = true };
         if (dialog.ShowDialog(this) == true) await RunDialogOperationAsync(() => _viewModel.ImportTestFilesAsync(dialog.FileNames));
-    }
-
-    private async void OnImportDmdataArchiveRequested()
-    {
-        var dialog = new OpenFileDialog
-        {
-            Title = "dmdata生データのtelegrams.jsonを選択",
-            Filter = "dmdata index (telegrams.json)|telegrams.json|JSON (*.json)|*.json",
-            FileName = "telegrams.json",
-        };
-        if (dialog.ShowDialog(this) == true)
-            await RunDialogOperationAsync(() => _viewModel.ImportDmdataArchiveAsync(dialog.FileName));
     }
 
     private async void OnImportTestXmlFolderRequested()
@@ -337,18 +319,6 @@ public partial class ControlWindow : Window, IAsyncDisposable
         var dialog = new OpenFolderDialog { Title = "訓練用XMLが入ったフォルダーを選択" };
         if (dialog.ShowDialog(this) == true)
             await RunDialogOperationAsync(() => _viewModel.ImportTestXmlFolderAsync(dialog.FolderName));
-    }
-
-    private async void OnImportTestPackageRequested()
-    {
-        var dialog = new OpenFileDialog { Title = "テストケースZIPを取り込む", Filter = "ZIP archive (*.zip)|*.zip" };
-        if (dialog.ShowDialog(this) == true) await RunDialogOperationAsync(() => _viewModel.ImportTestPackageAsync(dialog.FileName));
-    }
-
-    private async void OnExportTestPackageRequested(OperationalTestCaseViewModel item)
-    {
-        var dialog = new SaveFileDialog { Title = "テストケースを書き出す", Filter = "ZIP archive (*.zip)|*.zip", FileName = item.Manifest.Name + ".zip" };
-        if (dialog.ShowDialog(this) == true) await RunDialogOperationAsync(() => _viewModel.ExportTestPackageAsync(item.Manifest.Id, dialog.FileName));
     }
 
     private void OnOperatorNotificationRequested(OperationalAlert alert) =>

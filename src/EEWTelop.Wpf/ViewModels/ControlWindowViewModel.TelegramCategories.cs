@@ -21,7 +21,7 @@ public sealed partial class ControlWindowViewModel
         new(TelegramReviewCategory.TsunamiForecast, "津波予報・注意報・警報・大津波警報"),
         new(TelegramReviewCategory.TsunamiObservation, "津波観測情報"),
         new(TelegramReviewCategory.Volcano, "火山"),
-        new(TelegramReviewCategory.Eew, "EEW"),
+        new(TelegramReviewCategory.Eew, "緊急地震速報"),
         new(TelegramReviewCategory.Other, "その他（南海トラフ等）"),
     ];
 

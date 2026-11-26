@@ -438,8 +438,14 @@ public sealed class JsonSettingsStore : ISettingsStore
         {
             QuakeScaleCues = quake,
             TsunamiGradeCues = tsunami,
+            VolcanoWarningForecastCue = NormalizeAudioCue(audio.VolcanoWarningForecastCue),
+            VolcanoEruptionFlashCue = NormalizeAudioCue(audio.VolcanoEruptionFlashCue),
         };
     }
+
+    private static AudioCueSetting NormalizeAudioCue(AudioCueSetting? cue) => cue is null
+        ? AudioCueSetting.Disabled
+        : new AudioCueSetting(cue.Enabled, (cue.FilePath ?? string.Empty).Trim());
 
     private static Dictionary<JmaScale, AudioCueSetting> NormalizeQuakeCues(
         Dictionary<JmaScale, AudioCueSetting>? source)

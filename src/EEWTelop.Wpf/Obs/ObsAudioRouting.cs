@@ -16,7 +16,8 @@ internal static class ObsAudioRouting
         AudioCueId.QuakeIntensity3 or AudioCueId.QuakeIntensity4 or
         AudioCueId.QuakeIntensity5Lower or AudioCueId.QuakeIntensity5Upper or
         AudioCueId.QuakeIntensity6Lower or AudioCueId.QuakeIntensity6Upper or
-        AudioCueId.QuakeIntensity7 => ObsViewChannel.General,
+        AudioCueId.QuakeIntensity7 or
+        AudioCueId.VolcanoWarningForecast or AudioCueId.VolcanoEruptionFlash => ObsViewChannel.General,
         AudioCueId.EewInitial or AudioCueId.EewContinuation or
         AudioCueId.EewCancellation => ObsViewChannel.Eew,
         AudioCueId.Tsunami or AudioCueId.TsunamiForecast or

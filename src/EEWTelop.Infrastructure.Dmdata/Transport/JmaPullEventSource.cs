@@ -11,7 +11,7 @@ using EEWTelop.Domain.Events;
 
 namespace EEWTelop.Infrastructure.Dmdata.Transport;
 
-/// <summary>Shared official minute feeds for manual selection and failover; never EEW.</summary>
+/// <summary>Shared official minute feeds for manual selection and failover; never 緊急地震速報.</summary>
 public sealed class JmaPullEventSource : IEventSource, IProviderConfigurableEventSource
 {
     private readonly HttpClient _http;
@@ -79,7 +79,7 @@ public sealed class JmaPullEventSource : IEventSource, IProviderConfigurableEven
                 {
                     SetState(ProviderConnectionState.Connecting, "気象庁XMLを確認中");
                     messages = await PollAsync(_since.Value, reader.Token).ConfigureAwait(false);
-                    if (!_pollFailed) SetState(ProviderConnectionState.Connected, "気象庁XML：60秒間隔で巡回（EEW対象外）");
+                    if (!_pollFailed) SetState(ProviderConnectionState.Connected, "気象庁XML：60秒間隔で巡回（緊急地震速報対象外）");
                 }
                 catch (OperationCanceledException) when (reader.IsCancellationRequested) { yield break; }
                 catch (Exception ex) when (ex is HttpRequestException or IOException or XmlException or OperationCanceledException)

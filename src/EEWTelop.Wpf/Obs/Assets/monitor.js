@@ -1,7 +1,7 @@
 "use strict";
 const token = new URLSearchParams(location.search).get("token") ?? "";
 const endpoint = path => `${path}${path.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
-const kinds = { Quake: "地震", Eew: "EEW", Tsunami: "津波", WeatherWarning: "気象", Volcano: "火山" };
+const kinds = { Quake: "地震", Eew: "緊急地震速報", Tsunami: "津波", WeatherWarning: "気象", Volcano: "火山" };
 const source = mode => mode === "Production" ? "本番受信" : mode === "HistoryRehearsal" ? "過去情報／訓練" : "訓練";
 const connectionNames = {Connected:"接続済み",Stopped:"停止中",Connecting:"接続中",Reconnecting:"再接続中",Stale:"通信停滞",Faulted:"接続異常",Unavailable:"状態不明"};
 const time = value => new Date(value).toLocaleString("ja-JP");

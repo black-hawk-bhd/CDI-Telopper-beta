@@ -304,21 +304,23 @@ public sealed class Phase7ObsLocalViewTests
             var clock = new TestClock();
             foreach (AudioCueId cue in Enum.GetValues<AudioCueId>())
             {
+                string cueName = cue.ToString();
                 var store = new ObsSnapshotStore(AppSettings.CreateDefault().Display, clock.UtcNow);
-                ObsViewSnapshot published = store.PublishAudio(cue.ToString(), audioPath, clock.UtcNow);
+                ObsViewSnapshot published = store.PublishAudio(cueName, audioPath, clock.UtcNow);
                 // Independently specify the expected family rather than echoing
                 // the routing method under test.
-                ObsViewChannel expected = cue.ToString().StartsWith("Quake", StringComparison.Ordinal)
+                ObsViewChannel expected = cueName.StartsWith("Quake", StringComparison.Ordinal) ||
+                    cueName.StartsWith("Volcano", StringComparison.Ordinal)
                     ? ObsViewChannel.General
-                    : cue.ToString().StartsWith("Eew", StringComparison.Ordinal) ? ObsViewChannel.Eew
-                    : cue.ToString().StartsWith("Tsunami", StringComparison.Ordinal) ? ObsViewChannel.Tsunami
+                    : cueName.StartsWith("Eew", StringComparison.Ordinal) ? ObsViewChannel.Eew
+                    : cueName.StartsWith("Tsunami", StringComparison.Ordinal) ? ObsViewChannel.Tsunami
                     : ObsViewChannel.Weather;
                 foreach (ObsViewChannel channel in Enum.GetValues<ObsViewChannel>())
                 {
                     ObsViewSnapshot snapshot = store.Read(channel, clock.UtcNow);
-                    Assert.AreEqual(channel == expected ? published.AudioSequence : 0, snapshot.AudioSequence, cue.ToString());
-                    Assert.AreEqual(channel == expected ? "play" : string.Empty, snapshot.AudioAction, cue.ToString());
-                    Assert.AreEqual(channel == expected ? cue.ToString() : string.Empty, snapshot.AudioCue, cue.ToString());
+                    Assert.AreEqual(channel == expected ? published.AudioSequence : 0, snapshot.AudioSequence, cueName);
+                    Assert.AreEqual(channel == expected ? "play" : string.Empty, snapshot.AudioAction, cueName);
+                    Assert.AreEqual(channel == expected ? cueName : string.Empty, snapshot.AudioCue, cueName);
                 }
             }
         }

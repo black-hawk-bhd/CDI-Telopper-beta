@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using EEWTelop.Application.Display;
+using EEWTelop.Domain.Events;
 using EEWTelop.Wpf.Mvvm;
 
 namespace EEWTelop.Wpf.ViewModels;
@@ -33,7 +34,7 @@ public sealed class SubtitleEditorViewModel : ObservableObject
     }
 
     public string ProgramDescription =>
-        $"{_sourceProgram.Kind} / {_sourceProgram.Pages.Count}ページ";
+        $"{(_sourceProgram.Kind == EventKind.Eew ? "緊急地震速報" : _sourceProgram.Kind.ToString())} / {_sourceProgram.Pages.Count}ページ";
 
     public DisplayProgram BuildEditedProgram()
     {

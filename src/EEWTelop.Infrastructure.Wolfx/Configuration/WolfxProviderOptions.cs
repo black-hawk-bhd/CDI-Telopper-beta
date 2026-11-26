@@ -32,8 +32,8 @@ public sealed record WolfxProviderOptions(
     public IReadOnlyList<string> Validate()
     {
         var errors = new List<string>();
-        ValidateUri(EewWebSocketUri, "EEW", errors);
-        ValidateUri(QuakeWebSocketUri, "earthquake", errors);
+        ValidateUri(EewWebSocketUri, "緊急地震速報", errors);
+        ValidateUri(QuakeWebSocketUri, "地震情報", errors);
         if (!ReceiveEew && !ReceiveQuake && !ReceiveTsunami && !ReceiveSpecialEarthquake)
         {
             errors.Add("At least one Wolfx information category must be selected.");
@@ -46,7 +46,7 @@ public sealed record WolfxProviderOptions(
     {
         if (!uri.IsAbsoluteUri || uri.Scheme != Uri.UriSchemeWss)
         {
-            errors.Add($"The Wolfx {category} endpoint must be an absolute wss URL.");
+            errors.Add($"Wolfxの{category}には、wssで始まる絶対URLを指定してください。");
         }
     }
 }

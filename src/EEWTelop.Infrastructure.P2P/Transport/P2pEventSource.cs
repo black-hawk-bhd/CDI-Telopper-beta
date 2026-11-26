@@ -267,7 +267,7 @@ public sealed class P2pEventSource : IEventSource, IProviderConfigurableEventSou
                     await LogAsync(
                         AppLogLevel.Information,
                         "EewRecoveryUnavailable",
-                        "Code 556 EEW messages cannot be recovered after a disconnect.",
+                        "P2P地震情報の緊急地震速報（コード556）は、切断中の電文を復旧できません。",
                         null,
                         runToken).ConfigureAwait(false);
                 }

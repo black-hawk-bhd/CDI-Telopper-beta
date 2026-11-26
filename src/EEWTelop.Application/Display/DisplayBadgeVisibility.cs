@@ -6,9 +6,6 @@ namespace EEWTelop.Application.Display;
 /// <summary>Resolve output-only visibility without changing original badges, source metadata or pages.</summary>
 public static class DisplayBadgeVisibility
 {
-    public static bool HideModeBanner(DisplayProgram program) =>
-        !IsNormalProduction(program) && program.HideReplayModeBanner;
-
     public static bool HideInformationBadges(DisplayProgram program, DisplaySettings settings) =>
         settings.HideNormalInformationBadges || (!IsNormalProduction(program) && program.HideInformationBadges);
 

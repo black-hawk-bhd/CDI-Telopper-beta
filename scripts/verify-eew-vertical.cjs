@@ -39,7 +39,7 @@ function checkFit() {
   for (const panel of nodes) {
     const box = panel.getBoundingClientRect();
     assert(box.left >= 0 && box.right <= 1921 && box.top >= 0 && box.bottom <= 1081, 'Panel outside canvas');
-    for (const node of panel.querySelectorAll('.vertical-eew-title,.vertical-eew-message,.vertical-eew-areas,.vertical-eew-instruction')) {
+    for (const node of panel.querySelectorAll('.vertical-eew-title,.vertical-eew-message,.vertical-eew-areas,.vertical-eew-instruction,.vertical-eew-estimates')) {
       assert(node.clientWidth > 0 && node.clientHeight > 0, 'Zero-sized content');
       assert(node.scrollWidth <= node.clientWidth + 1 && node.scrollHeight <= node.clientHeight + 1,
         'Overflow: ' + node.className + ' ' + node.textContent);
@@ -138,6 +138,28 @@ run('left alignment moves the group without changing its contents or inner layou
     assert(getComputedStyle(panel).backgroundColor === horizontalStyle.background, 'Color changed');
   });
 });
+run('estimates are attached to their own warning in both layouts', () => {
+  const firstDetails = '予想最大震度 7　推定M 9.9';
+  const secondDetails = '予想最大震度 5弱〜5強　推定M 6.6';
+  const firstBlocks = warning(first);
+  const secondBlocks = warning(second);
+  firstBlocks[2].eewEstimateText = firstDetails;
+  secondBlocks[2].eewEstimateText = secondDetails;
+  const combined = [...firstBlocks, ...secondBlocks];
+  applySnapshot({ ...base, useVerticalEewWarningLayout: false, blocks: combined });
+  const horizontal = [...blocks.querySelectorAll('.eew-areas .eew-estimates')].map(node => node.textContent);
+  assert(horizontal[0] === firstDetails && horizontal[1] === secondDetails, 'Horizontal estimates missing or mixed');
+  applySnapshot({ ...base, blocks: combined });
+  const vertical = checkFit().map(node => node.querySelector('.vertical-eew-estimates')?.textContent);
+  assert(vertical[0] === firstDetails && vertical[1] === secondDetails, 'Vertical estimates missing or mixed');
+  const cancel = card('先ほどの、緊急地震速報を取り消します', [], true);
+  applySnapshot({ ...base, blocks: [...warning(cancel), ...secondBlocks] });
+  const panels = checkFit();
+  assert(!panels[0].querySelector('.vertical-eew-estimates'), 'Cancelled warning still shows estimates');
+  assert(panels[1].querySelector('.vertical-eew-estimates')?.textContent === secondDetails, 'Other warning lost estimates');
+  applySnapshot(base);
+  assert(!blocks.querySelector('.vertical-eew-estimates'), 'An omitted estimate left its row visible');
+});
 run('cancellation replaces its card only', () => {
   const cancel = card('先ほどの、緊急地震速報を取り消します', [], true);
   applySnapshot({ ...base, blocks: [...warning(cancel), ...warning(first)] });
@@ -217,21 +239,33 @@ run('earthquake captions align across different badge widths', () => {
   checkCaptionColumns([caption('intensity', '震度5弱以上 未入電', '石川県輪島市'),
     caption('intensity', '震度3', '富山県富山市')], 2, []);
 });
-run('intensity badge is centered on the first location line', () => {
-  for (const [fontScale, lineSpacing, location, wraps] of [
-    [1, 1, '石川県能登', false],
-    [1.2, 1.25, '石川県能登　'.repeat(9), true]
+function checkCaptionBadgeCenter(style, label, body, note = '') {
+  for (const [fontScale, lineSpacing, subtitle, wraps] of [
+    [1, 1, body, false],
+    [1.2, 1.25, (body + '　').repeat(9), true]
   ]) {
-    applySnapshot({ ...base, fontScale, lineSpacing, blocks: [caption('intensity', '震度4', location)] });
+    applySnapshot({ ...base, fontScale, lineSpacing, blocks: [caption(style, label, subtitle, false, note)] });
     const badge = blocks.querySelector('.badge').getBoundingClientRect();
     const text = blocks.querySelector('.texts .primary');
     const scale = new DOMMatrixReadOnly(getComputedStyle(canvas).transform).a;
     const lineHeight = parseFloat(getComputedStyle(text).lineHeight) * scale;
     const box = text.getBoundingClientRect();
-    assert((box.height > lineHeight * 1.5) === wraps, 'Unexpected location wrapping');
+    assert((box.height > lineHeight * 1.5) === wraps, style + ': unexpected subtitle wrapping');
     const offset = Math.abs((badge.top + badge.height / 2) - (box.top + lineHeight / 2));
-    assert(offset < 0.75, 'Badge and first line differ by ' + offset.toFixed(2) + 'px');
+    assert(offset < 0.75, style + ': badge and first line differ by ' + offset.toFixed(2) + 'px');
   }
+}
+run('intensity badge is centered on the first location line', () => {
+  checkCaptionBadgeCenter('intensity', '震度4', '石川県能登');
+});
+run('tsunami badge is centered on the first subtitle line', () => {
+  checkCaptionBadgeCenter('tsunami', '津波情報', '津波情報が変更されました');
+  checkCaptionBadgeCenter('tsunami', '津波注意報', '岩手県沿岸北部', '〔1m〕');
+});
+run('volcano badges are centered on the first subtitle line', () => {
+  checkCaptionBadgeCenter('volcano-forecast', '噴火予報', '桜島の噴火予報');
+  checkCaptionBadgeCenter('volcano-warning', '噴火警報', '桜島の火口周辺に警戒');
+  checkCaptionBadgeCenter('eruption-flash', '噴火速報', '桜島で噴火が発生しました');
 });
 run('earthquake plain severity keeps continuation rows aligned', () => {
   checkCaptionColumns([caption('intensity', '震度5弱', '石川県輪島市', true),
@@ -242,6 +276,31 @@ run('tsunami captions align with or without badges', () => {
     checkCaptionColumns([caption('tsunami', '津波注意報', '岩手県', hideBadge, '〔1m〕'),
       caption('tsunami', '', '宮城県', hideBadge, '〔1m〕')], hideBadge ? 0 : 1, hideBadge ? ['津波注意報'] : []);
   }
+});
+run('overseas tsunami heights use the longest location on each page', () => {
+  const heading = { styleToken: 'comment', primaryText: '海外の津波観測' };
+  const row = (primaryText, secondaryText) => ({ styleToken: 'overseas-tsunami-observation', primaryText, secondaryText });
+  const short = row('チリ・コラル', '0.9 m');
+  const long = row('仏領マルキーズ諸島・ヒバオア島', '1.8 m');
+  const textBox = node => {
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    return range.getBoundingClientRect();
+  };
+  for (const rows of [[short], [short, long], [short]]) {
+    applySnapshot({ ...base, blocks: [heading, ...rows] });
+    const labels = [...blocks.querySelectorAll('.overseas-tsunami-observation .primary')].map(textBox);
+    const heights = [...blocks.querySelectorAll('.overseas-tsunami-observation .secondary')].map(textBox);
+    assert(heights.length === rows.length, 'Missing tsunami observation');
+    assert(Math.abs(heights[0].top - labels[0].top) < 1, 'Location and height are on different lines');
+    const gap = heights[0].left - Math.max(...labels.map(label => label.right));
+    assert(gap >= 20 && gap <= 38, 'Unexpected gap after the longest location: ' + gap.toFixed(2) + 'px');
+    if (rows.length > 1) {
+      assert(heights[0].left === heights[1].left && heights[1].top > heights[0].bottom, 'Heights do not align across rows');
+    }
+  }
+  applySnapshot({ ...base, blocks: [heading] });
+  assert(!blocks.classList.contains('overseas-tsunami-observations'), 'Observation layout applied to narrative page');
 });
 run('weather area headings retain their position beside the badge', () => {
   applySnapshot({ ...base, blocks: [{ ...caption('weather-warning', '大雨警報', '千代田区'), weatherHeading: '東京都｜発表' }] });

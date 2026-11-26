@@ -5,7 +5,7 @@ internal static class WeatherTextPagination
     internal static double Width(string text) => text.Sum(c => c <= 127 ? .55 : 1);
 
     // Protected spans may exceed the estimate: preserve their meaning instead of truncating them.
-    internal static IEnumerable<string> Split(string text, IEnumerable<string> names, int columns)
+    internal static IEnumerable<string> Split(string text, IEnumerable<string> names, int columns, bool preferSentenceEnd = false)
     {
         var protectedBoundaries = new bool[text.Length + 1];
         foreach (string name in names.Where(n => !string.IsNullOrWhiteSpace(n)).Distinct())
@@ -38,19 +38,37 @@ internal static class WeatherTextPagination
                 candidate = Math.Max(end, offset + 1);
                 while (candidate < text.Length && protectedBoundaries[candidate]) candidate++;
             }
-            // Prefer punctuation outside protected spans, without dropping any source text.
-            for (int i = candidate; i > offset; i--)
-                if (!protectedBoundaries[i] && "、。；;，,　 ".Contains(text[i - 1]))
-                { candidate = i; break; }
-            foreach (string phrase in new[] { "最大級の警戒", "レベル５", "レベル４", "レベル３", "レベル２", "レベル5", "レベル4", "レベル3", "レベル2" })
+            int sentenceEnd = preferSentenceEnd ? FindSentenceEnd(text, protectedBoundaries, offset, candidate) : -1;
+            if (sentenceEnd > offset)
             {
-                int index = text.IndexOf(phrase, offset + 1, StringComparison.Ordinal);
-                if (index > offset && index <= end && !protectedBoundaries[index])
-                { candidate = index; break; }
+                candidate = sentenceEnd;
+            }
+            else
+            {
+                // Prefer punctuation outside protected spans, without dropping any source text.
+                for (int i = candidate; i > offset; i--)
+                    if (!protectedBoundaries[i] && "、。；;，,　 ".Contains(text[i - 1]))
+                    { candidate = i; break; }
+                foreach (string phrase in new[] { "最大級の警戒", "レベル５", "レベル４", "レベル３", "レベル２", "レベル5", "レベル4", "レベル3", "レベル2" })
+                {
+                    int index = text.IndexOf(phrase, offset + 1, StringComparison.Ordinal);
+                    if (index > offset && index <= end && !protectedBoundaries[index])
+                    { candidate = index; break; }
+                }
             }
             yield return text[offset..candidate].Trim();
             offset = candidate;
         }
+    }
+
+    private static int FindSentenceEnd(string text, bool[] protectedBoundaries, int offset, int limit)
+    {
+        for (int i = limit; i > offset; i--)
+        {
+            if (text[i - 1] == '。' && !protectedBoundaries[i]) return i;
+        }
+
+        return -1;
     }
 
     internal static IEnumerable<string> Group(string[] names, int count, Func<string[], string> format)

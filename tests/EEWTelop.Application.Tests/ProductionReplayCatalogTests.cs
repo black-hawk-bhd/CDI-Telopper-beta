@@ -19,10 +19,10 @@ public sealed class ProductionReplayCatalogTests
         };
         TsunamiEvent tsunami = DisplayEventFactory.CreateTsunami([DisplayEventFactory.TsunamiArea(1, TsunamiGrade.Warning)]);
         DateTimeOffset now = routine.ReceivedAt;
-        catalog.Update(routine, CreateProgram(routine, OverlayPriority.Quake), settings, now);
+        catalog.Update(routine, new PageComposer().Compose(routine, DisplayEventFactory.Settings), settings, now);
         catalog.Update(tsunami, CreateProgram(tsunami, OverlayPriority.TsunamiWarning), settings, now);
 
-        catalog.RemoveRoutineNankaiCommentary();
+        catalog.RemoveQuakePrograms(static program => program.IsRoutineNankaiCommentary);
 
         var selection = catalog.SelectNext(settings, now);
         Assert.IsNotNull(selection);

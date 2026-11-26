@@ -63,6 +63,8 @@ public sealed record EewArea(
     EewWarningKind WarningKind,
     DateTimeOffset? ArrivalTime);
 
+public sealed record EewIntensityRange(JmaScale From, JmaScale To, bool IsOpenEnded);
+
 public sealed record TsunamiFirstHeight(
     DateTimeOffset? ArrivalTime,
     string Condition);

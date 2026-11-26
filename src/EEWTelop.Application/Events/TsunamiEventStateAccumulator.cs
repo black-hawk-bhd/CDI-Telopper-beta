@@ -47,13 +47,15 @@ public sealed class TsunamiEventStateAccumulator
         lock (_gate)
         {
             return _latestWarningReports.TryGetValue(sourceMode, out TsunamiEvent? warning) &&
-                !warning.IsCancelled && !warning.IsExpired &&
-                (warning.ExpireAt is null || warning.ExpireAt > now) &&
-                warning.JmaEarthquakeIds.Contains(id) && warning.Areas.Any(static area =>
-                    area.Role == TsunamiInformationRole.ForecastArea &&
-                    area.Grade is TsunamiGrade.Watch or TsunamiGrade.Warning or TsunamiGrade.MajorWarning);
+                warning.JmaEarthquakeIds.Contains(id) && HasActiveWarning(warning, now);
         }
     }
+
+    public static bool HasActiveWarning(TsunamiEvent warning, DateTimeOffset referenceTime) =>
+        !warning.IsCancelled && !warning.IsExpired &&
+        (warning.ExpireAt is null || warning.ExpireAt > referenceTime) && warning.Areas.Any(static area =>
+            area.Role == TsunamiInformationRole.ForecastArea &&
+            area.Grade is TsunamiGrade.Watch or TsunamiGrade.Warning or TsunamiGrade.MajorWarning);
 
     public TsunamiEvent Merge(TsunamiEvent incoming)
     {

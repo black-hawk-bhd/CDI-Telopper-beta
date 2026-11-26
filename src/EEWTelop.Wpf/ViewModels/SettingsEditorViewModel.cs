@@ -65,6 +65,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private QuakePrefectureFilterMode _quakePrefectureMode;
     private bool _showQuakeWithEewNoStrongShakingComment;
     private bool _showRoutineNankaiCommentary;
+    private bool _showNankaiTroughInformation;
+    private bool _showSubsequentEarthquakeAdvisory;
     private bool _showLowIntensityPointsInStrongQuakes;
     private bool _hideNonJmaIntensityStations;
     private double _pageDurationSeconds;
@@ -77,6 +79,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private bool _limitActiveWeatherAreaRowsToTwo;
     private bool _useVerticalEewWarningLayout;
     private bool _highlightEewAreaChanges;
+    private bool _showEewEstimates;
     private bool _alignVerticalEewWarningsLeft;
     private double _outputScale;
     private double _outputOffsetX;
@@ -160,7 +163,6 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private bool _historyRepeat;
     private JmaHistoryContent _jmaHistoryContent;
     private string _jmaHistoryReportUrl;
-    private bool _hideReplayModeBanner;
     private bool _hideReplayInformationBadges;
     private bool _appendReplayIssuedAtPage;
     private bool _enrichQuakeById;
@@ -244,6 +246,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
             ? settings.Filter.QuakePrefectureMode : QuakePrefectureFilterMode.EventAndPoints;
         _showQuakeWithEewNoStrongShakingComment = settings.Filter.ShowQuakeWithEewNoStrongShakingComment;
         _showRoutineNankaiCommentary = settings.Filter.ShowRoutineNankaiCommentary;
+        _showNankaiTroughInformation = settings.Filter.ShowNankaiTroughInformation;
+        _showSubsequentEarthquakeAdvisory = settings.Filter.ShowSubsequentEarthquakeAdvisory;
         _showLowIntensityPointsInStrongQuakes = settings.Display.ShowLowIntensityPointsInStrongQuakes;
         _hideNonJmaIntensityStations = settings.Display.HideNonJmaIntensityStations;
         _pageDurationSeconds = settings.Display.PageDurationSeconds;
@@ -253,7 +257,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
             .ToArray();
         SubtitleImages =
         [
-            MakeSubtitleImageEditor(EventKind.Eew, "緊急地震速報（EEW）"),
+            MakeSubtitleImageEditor(EventKind.Eew, "緊急地震速報"),
             MakeSubtitleImageEditor(EventKind.Quake, "地震情報"),
             MakeSubtitleImageEditor(EventKind.Tsunami, "津波情報"),
             MakeSubtitleImageEditor(EventKind.WeatherWarning, "気象情報"),
@@ -270,6 +274,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _limitActiveWeatherAreaRowsToTwo = settings.Display.LimitActiveWeatherAreaRowsToTwo;
         _useVerticalEewWarningLayout = settings.Display.UseVerticalEewWarningLayout;
         _highlightEewAreaChanges = settings.Display.HighlightEewAreaChanges;
+        _showEewEstimates = settings.Display.ShowEewEstimates;
         _alignVerticalEewWarningsLeft = settings.Display.AlignVerticalEewWarningsLeft;
         _outputScale = OutputTransformSettings.Default.Scale;
         _outputOffsetX = OutputTransformSettings.Default.OffsetX;
@@ -379,6 +384,15 @@ public sealed class SettingsEditorViewModel : ObservableObject
             settings.Audio.WeatherDisasterPreventionBulletinFilePath ?? string.Empty;
         QuakeAudioCues = CreateQuakeAudioCues(settings.Audio);
         TsunamiAudioCues = CreateTsunamiAudioCues(settings.Audio);
+        AudioCueSetting warningForecast = settings.Audio.VolcanoWarningForecastCue ?? AudioCueSetting.Disabled;
+        AudioCueSetting eruptionFlash = settings.Audio.VolcanoEruptionFlashCue ?? AudioCueSetting.Disabled;
+        VolcanoAudioCues =
+        [
+            new(AudioCueId.VolcanoWarningForecast, "噴火警報・予報（VFVO50）", warningForecast.Enabled,
+                warningForecast.FilePath ?? string.Empty, quakeScale: null, tsunamiGrade: null),
+            new(AudioCueId.VolcanoEruptionFlash, "噴火速報（VFVO56）", eruptionFlash.Enabled,
+                eruptionFlash.FilePath ?? string.Empty, quakeScale: null, tsunamiGrade: null),
+        ];
         _historyApi = settings.History.Api;
         _historyLimit = settings.History.Limit;
         _historyIntervalSeconds = settings.History.IntervalSeconds;
@@ -389,7 +403,6 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _historyRepeat = settings.History.Repeat;
         _jmaHistoryContent = settings.History.JmaContent;
         _jmaHistoryReportUrl = settings.History.JmaReportUrl ?? string.Empty;
-        _hideReplayModeBanner = settings.History.HideModeBanner;
         _hideReplayInformationBadges = settings.History.HideInformationBadges;
         _appendReplayIssuedAtPage = settings.History.AppendIssuedAtPage;
         _enrichQuakeById = settings.Compatibility.EnrichQuakeById;
@@ -471,26 +484,28 @@ public sealed class SettingsEditorViewModel : ObservableObject
 
     public ObservableCollection<AudioCueOptionViewModel> TsunamiAudioCues { get; }
 
+    public IReadOnlyList<AudioCueOptionViewModel> VolcanoAudioCues { get; }
+
     public IReadOnlyList<HistoryApiOption> HistoryApis { get; } = (
         BuildFeatures.ExtendedFeaturesEnabled
             ?
             new HistoryApiOption[] {
                 new(HistoryApi.JmaQuake, "P2P地震情報（jma/quake）"),
-                new(HistoryApi.History, "P2P履歴（地震・津波・EEW）"),
+                new(HistoryApi.History, "P2P履歴（地震・津波・緊急地震速報）"),
                 new(HistoryApi.NiiJmaXml, "気象庁防災情報XML DB（NII）"),
                 new(HistoryApi.LocalJmaXml, "外部JMA XMLファイル"),
             }
             :
             new HistoryApiOption[] {
                 new(HistoryApi.JmaQuake, "P2P地震情報（jma/quake）"),
-                new(HistoryApi.History, "P2P履歴（地震・津波・EEW）"),
+                new(HistoryApi.History, "P2P履歴（地震・津波・緊急地震速報）"),
             }).Concat(BuildFeatures.DmdataProviderEnabled
                 ? new[] { new HistoryApiOption(HistoryApi.JmaXml, "気象庁XML（公式・数日分／毎時更新）") }
                 : Array.Empty<HistoryApiOption>()).ToArray();
 
     public IReadOnlyList<JmaHistoryContentOption> JmaHistoryContents { get; } =
     [
-        new(JmaHistoryContent.AllSupported, "対応する全種別（EEW対象外）"),
+        new(JmaHistoryContent.AllSupported, "対応する全種別（緊急地震速報対象外）"),
         new(JmaHistoryContent.Quake, "地震・南海トラフ等"),
         new(JmaHistoryContent.Tsunami, "津波"),
         new(JmaHistoryContent.Weather, "気象"),
@@ -737,6 +752,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public QuakePrefectureFilterMode QuakePrefectureMode { get => _quakePrefectureMode; set => SetProperty(ref _quakePrefectureMode, value); }
     public bool ShowQuakeWithEewNoStrongShakingComment { get => _showQuakeWithEewNoStrongShakingComment; set => SetProperty(ref _showQuakeWithEewNoStrongShakingComment, value); }
     public bool ShowRoutineNankaiCommentary { get => _showRoutineNankaiCommentary; set => SetProperty(ref _showRoutineNankaiCommentary, value); }
+    public bool ShowNankaiTroughInformation { get => _showNankaiTroughInformation; set => SetProperty(ref _showNankaiTroughInformation, value); }
+    public bool ShowSubsequentEarthquakeAdvisory { get => _showSubsequentEarthquakeAdvisory; set => SetProperty(ref _showSubsequentEarthquakeAdvisory, value); }
     public bool ShowLowIntensityPointsInStrongQuakes { get => _showLowIntensityPointsInStrongQuakes; set => SetProperty(ref _showLowIntensityPointsInStrongQuakes, value); }
     public bool HideNonJmaIntensityStations { get => _hideNonJmaIntensityStations; set => SetProperty(ref _hideNonJmaIntensityStations, value); }
     public double PageDurationSeconds { get => _pageDurationSeconds; set => SetProperty(ref _pageDurationSeconds, value); }
@@ -763,6 +780,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public bool LimitActiveWeatherAreaRowsToTwo { get => _limitActiveWeatherAreaRowsToTwo; set => SetProperty(ref _limitActiveWeatherAreaRowsToTwo, value); }
     public bool UseVerticalEewWarningLayout { get => _useVerticalEewWarningLayout; set => SetProperty(ref _useVerticalEewWarningLayout, value); }
     public bool HighlightEewAreaChanges { get => _highlightEewAreaChanges; set => SetProperty(ref _highlightEewAreaChanges, value); }
+    public bool ShowEewEstimates { get => _showEewEstimates; set => SetProperty(ref _showEewEstimates, value); }
     public bool AlignVerticalEewWarningsLeft { get => _alignVerticalEewWarningsLeft; set => SetProperty(ref _alignVerticalEewWarningsLeft, value); }
     public double OutputScale { get => _outputScale; set => SetProperty(ref _outputScale, OutputTransformSettings.Default.Scale); }
     public double OutputOffsetX { get => _outputOffsetX; set => SetProperty(ref _outputOffsetX, OutputTransformSettings.Default.OffsetX); }
@@ -895,7 +913,6 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public bool IsLocalHistoryApi => HistoryApi == HistoryApi.LocalJmaXml;
     public JmaHistoryContent JmaHistoryContent { get => _jmaHistoryContent; set => SetProperty(ref _jmaHistoryContent, value); }
     public string JmaHistoryReportUrl { get => _jmaHistoryReportUrl; set => SetProperty(ref _jmaHistoryReportUrl, value); }
-    public bool HideReplayModeBanner { get => _hideReplayModeBanner; set => SetProperty(ref _hideReplayModeBanner, value); }
     public bool HideReplayInformationBadges { get => _hideReplayInformationBadges; set => SetProperty(ref _hideReplayInformationBadges, value); }
     public bool AppendReplayIssuedAtPage { get => _appendReplayIssuedAtPage; set => SetProperty(ref _appendReplayIssuedAtPage, value); }
 
@@ -979,6 +996,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 QuakePrefectureMode = QuakePrefectureMode,
                 ShowQuakeWithEewNoStrongShakingComment = ShowQuakeWithEewNoStrongShakingComment,
                 ShowRoutineNankaiCommentary = ShowRoutineNankaiCommentary,
+                ShowNankaiTroughInformation = ShowNankaiTroughInformation,
+                ShowSubsequentEarthquakeAdvisory = ShowSubsequentEarthquakeAdvisory,
                 WeatherWarning = FilterWeatherWarning,
                 WeatherPrefectureCodes = _weatherPrefectureCodes.ToArray(),
                 WeatherPrefectureCode = _weatherPrefectureCodes.Length == 1
@@ -1022,6 +1041,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 LimitActiveWeatherAreaRowsToTwo = LimitActiveWeatherAreaRowsToTwo,
                 UseVerticalEewWarningLayout = UseVerticalEewWarningLayout,
                 HighlightEewAreaChanges = HighlightEewAreaChanges,
+                ShowEewEstimates = ShowEewEstimates,
                 AlignVerticalEewWarningsLeft = AlignVerticalEewWarningsLeft,
                 SubtitlePhraseOverrides = new Dictionary<string, string>(
                     _subtitlePhraseOverrides,
@@ -1121,6 +1141,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 WeatherAdvisoryFilePath = WeatherAdvisoryAudioFilePath.Trim(),
                 WeatherDisasterPreventionBulletinFilePath =
                     WeatherDisasterPreventionBulletinAudioFilePath.Trim(),
+                VolcanoWarningForecastCue = ReadVolcanoCueSettings(AudioCueId.VolcanoWarningForecast),
+                VolcanoEruptionFlashCue = ReadVolcanoCueSettings(AudioCueId.VolcanoEruptionFlash),
                 WeatherCoalescingSeconds = double.IsFinite(WeatherAudioCoalescingSeconds)
                     ? Math.Clamp(
                         WeatherAudioCoalescingSeconds,
@@ -1155,7 +1177,6 @@ public sealed class SettingsEditorViewModel : ObservableObject
                 Repeat = HistoryRepeat,
                 JmaContent = JmaHistoryContent,
                 JmaReportUrl = JmaHistoryReportUrl.Trim(),
-                HideModeBanner = HideReplayModeBanner,
                 HideInformationBadges = HideReplayInformationBadges,
                 AppendIssuedAtPage = AppendReplayIssuedAtPage,
             },
@@ -1275,6 +1296,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
         AudioCueId.TsunamiForecast or AudioCueId.TsunamiAdvisory or
         AudioCueId.TsunamiWarning or AudioCueId.TsunamiMajorWarning =>
             FindAudioCue(TsunamiAudioCues, cue)?.FilePath ?? string.Empty,
+        AudioCueId.VolcanoWarningForecast or AudioCueId.VolcanoEruptionFlash =>
+            FindAudioCue(VolcanoAudioCues, cue)?.FilePath ?? string.Empty,
         AudioCueId.QuakeIntensity3OrMore => QuakeAudioFilePath,
         AudioCueId.Tsunami => TsunamiWarningAudioFilePath,
         AudioCueId.EewInitial => EewInitialAudioFilePath,
@@ -1292,7 +1315,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
         AudioCueOptionViewModel? individual =
-            FindAudioCue(QuakeAudioCues, cue) ?? FindAudioCue(TsunamiAudioCues, cue);
+            FindAudioCue(QuakeAudioCues, cue) ?? FindAudioCue(TsunamiAudioCues, cue) ?? FindAudioCue(VolcanoAudioCues, cue);
         if (individual is not null)
         {
             individual.FilePath = filePath;
@@ -1382,6 +1405,12 @@ public sealed class SettingsEditorViewModel : ObservableObject
             cue.FilePath = string.Empty;
         }
 
+        foreach (AudioCueOptionViewModel cue in VolcanoAudioCues)
+        {
+            cue.Enabled = false;
+            cue.FilePath = string.Empty;
+        }
+
         EewInitialAudioEnabled = defaults.EewInitialEnabled;
         EewContinuationAudioEnabled = defaults.EewContinuationEnabled;
         EewCancellationAudioEnabled = defaults.EewCancellationEnabled;
@@ -1456,6 +1485,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
         QuakePrefectureMode = defaults.QuakePrefectureMode;
         ShowQuakeWithEewNoStrongShakingComment = defaults.ShowQuakeWithEewNoStrongShakingComment;
         ShowRoutineNankaiCommentary = defaults.ShowRoutineNankaiCommentary;
+        ShowNankaiTroughInformation = defaults.ShowNankaiTroughInformation;
+        ShowSubsequentEarthquakeAdvisory = defaults.ShowSubsequentEarthquakeAdvisory;
         ShowLowIntensityPointsInStrongQuakes = AppSettings.CreateDefault().Display.ShowLowIntensityPointsInStrongQuakes;
         HideNonJmaIntensityStations = AppSettings.CreateDefault().Display.HideNonJmaIntensityStations;
         SetWeatherPrefectureCodes(defaults.WeatherPrefectureCodes);
@@ -1496,6 +1527,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         LimitActiveWeatherAreaRowsToTwo = defaults.LimitActiveWeatherAreaRowsToTwo;
         UseVerticalEewWarningLayout = defaults.UseVerticalEewWarningLayout;
         HighlightEewAreaChanges = defaults.HighlightEewAreaChanges;
+        ShowEewEstimates = defaults.ShowEewEstimates;
         AlignVerticalEewWarningsLeft = defaults.AlignVerticalEewWarningsLeft;
         LetterSpacingEm = defaults.LetterSpacingEm;
         LineSpacing = defaults.LineSpacing;
@@ -1564,7 +1596,6 @@ public sealed class SettingsEditorViewModel : ObservableObject
         HistoryRepeat = defaults.Repeat;
         JmaHistoryContent = defaults.JmaContent;
         JmaHistoryReportUrl = defaults.JmaReportUrl;
-        HideReplayModeBanner = defaults.HideModeBanner;
         HideReplayInformationBadges = defaults.HideInformationBadges;
         AppendReplayIssuedAtPage = defaults.AppendIssuedAtPage;
     }
@@ -1612,6 +1643,12 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private static AudioCueOptionViewModel? FindAudioCue(
         IEnumerable<AudioCueOptionViewModel> items,
         AudioCueId cue) => items.FirstOrDefault(item => item.Cue == cue);
+
+    private AudioCueSetting ReadVolcanoCueSettings(AudioCueId cue)
+    {
+        AudioCueOptionViewModel option = VolcanoAudioCues.Single(item => item.Cue == cue);
+        return new AudioCueSetting(option.Enabled, option.FilePath.Trim());
+    }
 
     private static ObservableCollection<AudioCueOptionViewModel> CreateQuakeAudioCues(
         AudioSettings audio)

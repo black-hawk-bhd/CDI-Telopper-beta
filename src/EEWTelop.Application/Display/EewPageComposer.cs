@@ -1,4 +1,6 @@
+using System.Globalization;
 using EEWTelop.Application.Configuration;
+using EEWTelop.Application.Formatting;
 using EEWTelop.Domain.Events;
 
 namespace EEWTelop.Application.Display;
@@ -54,7 +56,10 @@ internal static class EewPageComposer
                 string.Empty,
                 areaLabels.Count == 0 ? "対象地域情報なし" : string.Join('　', areaLabels),
                 string.Empty,
-                DisplayStyleTokens.EewAreas));
+                DisplayStyleTokens.EewAreas)
+            {
+                EewEstimateText = eew.IsWarning ? FormatEstimates(eew) : null,
+            });
         }
 
         return PageComposerSupport.CreateProgram(
@@ -63,5 +68,29 @@ internal static class EewPageComposer
             OverlayPriority.Eew,
             EndPolicy.AutoHide,
             [new PageDraft(blocks)]);
+    }
+
+    private static string? FormatEstimates(EewEvent eew)
+    {
+        var details = new List<string>(2);
+        if (eew.MaximumForecastIntensity is { } range)
+        {
+            string lower = ScaleFormatter.Format(range.From);
+            string intensity = range.IsOpenEnded ? lower + "以上" :
+                range.From == range.To ? lower : $"{lower}〜{ScaleFormatter.Format(range.To)}";
+            details.Add($"予想最大震度 {intensity}");
+        }
+        else if (eew.Earthquake?.MaximumScale is { } scale && scale != JmaScale.Unknown &&
+                 scale != JmaScale.FiveLowerOrMore)
+        {
+            details.Add($"予想最大震度 {ScaleFormatter.Format(scale)}");
+        }
+
+        if (eew.Earthquake?.Hypocenter?.Magnitude is { } magnitude && double.IsFinite(magnitude) && magnitude > 0)
+        {
+            details.Add("推定M " + magnitude.ToString("0.0", CultureInfo.InvariantCulture));
+        }
+
+        return details.Count == 0 ? null : string.Join("　", details);
     }
 }

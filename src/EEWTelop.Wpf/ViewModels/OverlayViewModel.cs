@@ -199,8 +199,7 @@ public sealed class OverlayViewModel : ObservableObject
                 DisplayStyleTokens.EewHeaderTest) > 1;
         IsSubtitleProgram = program.Kind != EventKind.Eew;
         ProgramId = program.ProgramId;
-        RehearsalLabel = DisplayBadgeVisibility.HideModeBanner(program) ||
-            program.HideSimulatorTrainingBanner && program.SourceMode == SourceMode.ManualTest
+        RehearsalLabel = program.HideSimulatorTrainingBanner && program.SourceMode == SourceMode.ManualTest
             ? string.Empty : program.RehearsalLabel;
         PageIndicator = settings.ShowPageIndicator && program.Pages.Count > 1
             ? $"{snapshot.CurrentPageIndex + 1} / {program.Pages.Count}"
@@ -240,6 +239,7 @@ public sealed class OverlayViewModel : ObservableObject
                 SharesCaptionColumn = alignsCaption,
                 SubtitleBodyText = subtitleBody,
                 EewAreaLabels = block.StyleToken == DisplayStyleTokens.EewAreas ? block.EewAreaLabels : null,
+                EewEstimateText = settings.ShowEewEstimates ? block.EewEstimateText : null,
             });
         }
     }
@@ -311,6 +311,8 @@ public sealed record OverlayBlockViewModel(
     public bool SharesCaptionColumn { get; init; }
     public string? SubtitleBodyText { get; init; }
     public IReadOnlyList<EewAreaLabel>? EewAreaLabels { get; init; }
+    public string? EewEstimateText { get; init; }
+    public bool HasEewEstimateText => EewEstimateText is not null;
     public string? CaptionColumnGroup => SharesCaptionColumn ? "CaptionLabel" : null;
     public bool HasLabelColumn => HasBadgeColumn || SharesCaptionColumn;
     public string SubtitleLabel => SubtitleBodyText is null ? string.Empty : Badge;

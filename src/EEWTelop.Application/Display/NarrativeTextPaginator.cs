@@ -1,12 +1,10 @@
-using System.Text.RegularExpressions;
-
 namespace EEWTelop.Application.Display;
 
 /// <summary>
 /// OBS/WPFの実表示幅を概算し、説明文が指定行数を超えないようにページ分割する。
 /// 地域・観測点などの構造化一覧には使用しない。
 /// </summary>
-internal static partial class NarrativeTextPaginator
+internal static class NarrativeTextPaginator
 {
     internal const int EstimatedColumnsPerVisualLine = 24;
     internal const int DefaultMaximumVisualLines = 3;
@@ -84,70 +82,55 @@ internal static partial class NarrativeTextPaginator
             yield break;
         }
 
-        double maximumColumns = EstimatedColumnsPerVisualLine * maximumVisualLines;
-        string[] clauses = ClauseBoundaryPattern()
-            .Split(value)
-            .Where(static clause => !string.IsNullOrWhiteSpace(clause))
-            .ToArray();
-        string current = string.Empty;
-        foreach (string clause in clauses)
+        double maximumColumns = (double)EstimatedColumnsPerVisualLine * maximumVisualLines;
+        int start = 0;
+        while (start < value.Length)
         {
-            if (EstimateDisplayColumns(clause) > maximumColumns)
+            int end = start;
+            double columns = 0;
+            while (end < value.Length)
             {
-                if (!string.IsNullOrWhiteSpace(current))
+                double characterColumns = GetCharacterColumns(value[end]);
+                if (columns + characterColumns > maximumColumns)
                 {
-                    yield return current.Trim();
-                    current = string.Empty;
+                    break;
                 }
 
-                foreach (string fragment in SplitAtDisplayWidth(clause, maximumColumns))
-                {
-                    yield return fragment;
-                }
-
-                continue;
+                columns += characterColumns;
+                end++;
             }
 
-            string candidate = current + clause;
-            if (!string.IsNullOrWhiteSpace(current) &&
-                EstimateDisplayColumns(candidate) > maximumColumns)
+            if (end < value.Length)
             {
-                yield return current.Trim();
-                current = clause;
+                int limit = end;
+                while (end > start && IsTrailingPunctuation(value[end])) end--;
+                if (end == start) end = limit;
+                if (char.IsSurrogatePair(value, end - 1)) end--;
+                end = start + FindPageBreak(value.AsSpan(start, end - start));
             }
-            else
-            {
-                current = candidate;
-            }
-        }
 
-        if (!string.IsNullOrWhiteSpace(current))
-        {
-            yield return current.Trim();
+            yield return value[start..end].Trim();
+            start = end;
         }
     }
 
-    private static IEnumerable<string> SplitAtDisplayWidth(string value, double maximumColumns)
+    private static int FindPageBreak(ReadOnlySpan<char> text)
     {
-        int start = 0;
-        double columns = 0;
-        for (int index = 0; index < value.Length; index++)
+        int sentenceEnd = text.LastIndexOf('。');
+        if (sentenceEnd >= 0)
         {
-            double characterColumns = GetCharacterColumns(value[index]);
-            if (index > start && columns + characterColumns > maximumColumns)
-            {
-                yield return value[start..index].Trim();
-                start = index;
-                columns = 0;
-            }
-
-            columns += characterColumns;
+            while (sentenceEnd + 1 < text.Length && IsTrailingPunctuation(text[sentenceEnd + 1])) sentenceEnd++;
+            return sentenceEnd + 1;
         }
 
-        if (start < value.Length)
+        int clauseEnd = text.LastIndexOfAny("、,，；;");
+        if (clauseEnd >= 0)
         {
-            yield return value[start..].Trim();
+            return clauseEnd + 1;
         }
+
+        int space = text.LastIndexOfAny(" 　\t");
+        return space > 0 ? space + 1 : text.Length;
     }
 
     private static double EstimateDisplayColumns(string value) =>
@@ -155,6 +138,6 @@ internal static partial class NarrativeTextPaginator
 
     private static double GetCharacterColumns(char character) => character <= 0x7f ? 0.55 : 1;
 
-    [GeneratedRegex(@"(?<=[、,，；;])", RegexOptions.CultureInvariant)]
-    private static partial Regex ClauseBoundaryPattern();
+    private static bool IsTrailingPunctuation(char character) =>
+        character is '。' or '、' or '，' or ',' or '；' or ';' or '」' or '』' or '）' or ')' or '】' or ']';
 }

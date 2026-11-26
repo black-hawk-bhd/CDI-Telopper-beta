@@ -64,7 +64,7 @@ public sealed class EventReceptionService
             EventProcessed?.Invoke(this, result);
             if (result.RequiresReview)
                 _alerts?.Raise(new OperationalAlert("eew-ordering-review", OperationalAlertSeverity.Warning,
-                    "EEW電文の確認が必要", string.Join(" ", result.Issues.Select(issue => issue.Message)), DateTimeOffset.UtcNow));
+                    "緊急地震速報電文の確認が必要", string.Join(" ", result.Issues.Select(issue => issue.Message)), DateTimeOffset.UtcNow));
             _comparisonService?.Observe(raw, result, DateTimeOffset.UtcNow);
             return result;
         }

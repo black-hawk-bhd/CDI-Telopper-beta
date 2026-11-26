@@ -179,9 +179,6 @@ public sealed class ProductionReplayCatalog
         }
     }
 
-    public void RemoveRoutineNankaiCommentary() =>
-        RemoveEntries(static entry => entry.Event is QuakeEvent { IsRoutineNankaiCommentary: true });
-
     public void RemoveQuakePrograms(Predicate<DisplayProgram> matches) =>
         RemoveEntries(entry => entry.Event.Kind == EventKind.Quake && matches(entry.Program));
 

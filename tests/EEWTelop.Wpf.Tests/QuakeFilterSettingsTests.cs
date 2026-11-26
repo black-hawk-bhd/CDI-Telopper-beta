@@ -24,6 +24,8 @@ public sealed class QuakeFilterSettingsTests
         Assert.IsFalse(editor.HideNonJmaIntensityStations);
         Assert.IsFalse(editor.ShowQuakeWithEewNoStrongShakingComment);
         Assert.IsFalse(editor.ShowRoutineNankaiCommentary);
+        Assert.IsTrue(editor.ShowNankaiTroughInformation);
+        Assert.IsTrue(editor.ShowSubsequentEarthquakeAdvisory);
     }
 
     [TestMethod]
@@ -40,6 +42,8 @@ public sealed class QuakeFilterSettingsTests
         editor.HideNonJmaIntensityStations = true;
         editor.ShowQuakeWithEewNoStrongShakingComment = true;
         editor.ShowRoutineNankaiCommentary = true;
+        editor.ShowNankaiTroughInformation = false;
+        editor.ShowSubsequentEarthquakeAdvisory = false;
         AppSettings saved = editor.ToSettings(defaults);
         Assert.HasCount(2, saved.Filter.ExcludedQuakeMaximumScales!);
         Assert.IsFalse(saved.Filter.HideQuakeBelowIntensity3);
@@ -54,6 +58,8 @@ public sealed class QuakeFilterSettingsTests
         Assert.IsTrue(restored.HideNonJmaIntensityStations);
         Assert.IsTrue(restored.ShowQuakeWithEewNoStrongShakingComment);
         Assert.IsTrue(restored.ShowRoutineNankaiCommentary);
+        Assert.IsFalse(restored.ShowNankaiTroughInformation);
+        Assert.IsFalse(restored.ShowSubsequentEarthquakeAdvisory);
         Assert.AreEqual(2, restored.QuakeIntensityFilters.Count(option => option.IsExcluded));
         restored.ResetFilterSettings();
         Assert.IsTrue(restored.QuakeIntensityFilters.All(option => !option.IsExcluded));
@@ -63,6 +69,8 @@ public sealed class QuakeFilterSettingsTests
         Assert.IsFalse(restored.HideNonJmaIntensityStations);
         Assert.IsFalse(restored.ShowQuakeWithEewNoStrongShakingComment);
         Assert.IsFalse(restored.ShowRoutineNankaiCommentary);
+        Assert.IsTrue(restored.ShowNankaiTroughInformation);
+        Assert.IsTrue(restored.ShowSubsequentEarthquakeAdvisory);
     }
 
     [TestMethod]
@@ -134,12 +142,16 @@ public sealed class QuakeFilterSettingsTests
             JsonObject filter = document["filter"]!.AsObject();
             Assert.IsTrue(filter.Remove("showQuakeWithEewNoStrongShakingComment"));
             Assert.IsTrue(filter.Remove("showRoutineNankaiCommentary"));
+            Assert.IsTrue(filter.Remove("showNankaiTroughInformation"));
+            Assert.IsTrue(filter.Remove("showSubsequentEarthquakeAdvisory"));
             Assert.IsTrue(document["display"]!.AsObject().Remove("hideNonJmaIntensityStations"));
             await File.WriteAllTextAsync(path, document.ToJsonString());
 
             AppSettings loaded = await store.LoadAsync();
             Assert.IsFalse(loaded.Filter.ShowQuakeWithEewNoStrongShakingComment);
             Assert.IsFalse(loaded.Filter.ShowRoutineNankaiCommentary);
+            Assert.IsTrue(loaded.Filter.ShowNankaiTroughInformation);
+            Assert.IsTrue(loaded.Filter.ShowSubsequentEarthquakeAdvisory);
             Assert.IsFalse(loaded.Display.HideNonJmaIntensityStations);
             Assert.HasCount(2, loaded.Filter.ExcludedQuakeMaximumScales!);
         }
@@ -169,6 +181,8 @@ public sealed class QuakeFilterSettingsTests
                     QuakePrefectureCodes = ["13", "14"], QuakePrefectureMode = mode,
                     ShowQuakeWithEewNoStrongShakingComment = true,
                     ShowRoutineNankaiCommentary = true,
+                    ShowNankaiTroughInformation = false,
+                    ShowSubsequentEarthquakeAdvisory = false,
                 },
                 Display = defaults.Display with
                 {
@@ -182,6 +196,8 @@ public sealed class QuakeFilterSettingsTests
             Assert.AreEqual(mode, actual.Filter.QuakePrefectureMode);
             Assert.IsTrue(actual.Filter.ShowQuakeWithEewNoStrongShakingComment);
             Assert.IsTrue(actual.Filter.ShowRoutineNankaiCommentary);
+            Assert.IsFalse(actual.Filter.ShowNankaiTroughInformation);
+            Assert.IsFalse(actual.Filter.ShowSubsequentEarthquakeAdvisory);
             Assert.IsTrue(actual.Display.ShowLowIntensityPointsInStrongQuakes);
             Assert.IsTrue(actual.Display.HideNonJmaIntensityStations);
         }

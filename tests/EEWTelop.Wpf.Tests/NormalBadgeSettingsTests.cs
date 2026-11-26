@@ -28,7 +28,7 @@ public sealed class NormalBadgeSettingsTests
         var editor = new SettingsEditorViewModel(defaults with { Display = legacy })
         {
             HideNormalInformationBadges = true,
-            HideReplayModeBanner = true, HideReplayInformationBadges = true,
+            HideReplayInformationBadges = true,
         };
         string savedJson = JsonSerializer.Serialize(editor.ToSettings(defaults));
         Assert.DoesNotContain(retiredSetting, savedJson);
@@ -37,7 +37,7 @@ public sealed class NormalBadgeSettingsTests
         Assert.IsTrue(reloaded.HideNormalInformationBadges);
         reloaded.ResetDisplaySettings();
         Assert.IsFalse(reloaded.HideNormalInformationBadges);
-        Assert.IsTrue(reloaded.HideReplayModeBanner && reloaded.HideReplayInformationBadges);
+        Assert.IsTrue(reloaded.HideReplayInformationBadges);
         reloaded.HideNormalInformationBadges = true;
         reloaded.ResetHistorySettings();
         Assert.IsTrue(reloaded.HideNormalInformationBadges);

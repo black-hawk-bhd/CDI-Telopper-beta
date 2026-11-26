@@ -43,6 +43,34 @@ public sealed class ProviderSelectionRoutingTests
     }
 
     [TestMethod]
+    [DataRow("jma-xml", ReceptionProvider.JmaXml, true)]
+    [DataRow("wolfx", ReceptionProvider.Wolfx, true)]
+    [DataRow("dmdata.jp", ReceptionProvider.Dmdata, false)]
+    [DataRow("axis", ReceptionProvider.Axis, false)]
+    public void SubsequentEarthquakeAdvisoryUsesItsConfiguredSource(
+        string providerName, ReceptionProvider source, bool usesSpecialEarthquakeSetting)
+    {
+        ProviderSettings defaults = AppSettings.CreateDefault().Provider;
+        ProviderSettings provider = defaults with
+        {
+            Routing = defaults.Routing with { Quake = ReceptionProvider.Disabled, NankaiTrough = source },
+        };
+        var normalizer = new ProviderSelectionEventNormalizer(
+            new StubNormalizer(CreateQuake(QuakeIssueType.SubsequentEarthquakeAdvisory)), provider);
+
+        Assert.AreEqual(usesSpecialEarthquakeSetting ? NormalizeStatus.Success : NormalizeStatus.Ignored,
+            normalizer.Normalize(Message(providerName)).Status);
+
+        normalizer.UpdateProviderSelection(provider with
+        {
+            Routing = provider.Routing with { Quake = source, NankaiTrough = ReceptionProvider.Disabled },
+        });
+
+        Assert.AreEqual(usesSpecialEarthquakeSetting ? NormalizeStatus.Ignored : NormalizeStatus.Success,
+            normalizer.Normalize(Message(providerName)).Status);
+    }
+
+    [TestMethod]
     public void ProviderSelectionCanBeUpdatedWithoutReplacingNormalizer()
     {
         ProviderSettings provider = AppSettings.CreateDefault().Provider with
@@ -243,9 +271,12 @@ public sealed class ProviderSelectionRoutingTests
         var issue = new IssueInfo(
             "気象庁",
             Now,
-            issueType == QuakeIssueType.NankaiTroughTemporaryInformation
-                ? "VYSE50"
-                : "VXSE53",
+            issueType switch
+            {
+                QuakeIssueType.NankaiTroughTemporaryInformation => "VYSE50",
+                QuakeIssueType.SubsequentEarthquakeAdvisory => "VYSE60",
+                _ => "VXSE53",
+            },
             CorrectionType.None);
         var earthquake = new EarthquakeInfo(
             Now,

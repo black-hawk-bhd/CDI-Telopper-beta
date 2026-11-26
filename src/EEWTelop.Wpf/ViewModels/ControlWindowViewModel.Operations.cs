@@ -4,6 +4,7 @@ using System.Reflection;
 using EEWTelop.Application.Audio;
 using EEWTelop.Application.Configuration;
 using EEWTelop.Application.Coordination;
+using EEWTelop.Application.Display;
 using EEWTelop.Application.Events;
 using EEWTelop.Application.Operations;
 using EEWTelop.Domain.Events;
@@ -47,9 +48,6 @@ public sealed partial class ControlWindowViewModel
     public event Action<string>? ExportProfileRequested;
     public event Action? ImportTestFilesRequested;
     public event Action? ImportTestXmlFolderRequested;
-    public event Action? ImportDmdataArchiveRequested;
-    public event Action? ImportTestPackageRequested;
-    public event Action<OperationalTestCaseViewModel>? ExportTestPackageRequested;
     public event Action<OperationalAlert>? OperatorNotificationRequested;
     public event Action<SettingsEditorViewModel, SettingsEditorViewModel>? SettingsEditorChanged;
 
@@ -117,7 +115,6 @@ public sealed partial class ControlWindowViewModel
             {
                 RunLibraryCaseCommand.RaiseCanExecuteChanged();
                 DeleteLibraryCaseCommand.RaiseCanExecuteChanged();
-                ExportLibraryCaseCommand.RaiseCanExecuteChanged();
                 DuplicateLibraryCaseCommand.RaiseCanExecuteChanged();
             }
         }
@@ -147,9 +144,6 @@ public sealed partial class ControlWindowViewModel
     public RelayCommand ExportProfileCommand { get; private set; } = null!;
     public RelayCommand ImportTestFilesCommand { get; private set; } = null!;
     public RelayCommand ImportTestXmlFolderCommand { get; private set; } = null!;
-    public RelayCommand ImportDmdataArchiveCommand { get; private set; } = null!;
-    public RelayCommand ImportTestPackageCommand { get; private set; } = null!;
-    public RelayCommand ExportLibraryCaseCommand { get; private set; } = null!;
     public RelayCommand DeleteLibraryCaseCommand { get; private set; } = null!;
     public RelayCommand DeleteAllLibraryCasesCommand { get; private set; } = null!;
     public RelayCommand RunLibraryCaseCommand { get; private set; } = null!;
@@ -171,12 +165,6 @@ public sealed partial class ControlWindowViewModel
         ImportTestFilesCommand = new RelayCommand(() => ImportTestFilesRequested?.Invoke());
         ImportTestXmlFolderCommand = new RelayCommand(() => ImportTestXmlFolderRequested?.Invoke(),
             () => CanEditTestLibrary && _services.TestCaseLibrary is not null);
-        ImportDmdataArchiveCommand = new RelayCommand(() => ImportDmdataArchiveRequested?.Invoke());
-        ImportTestPackageCommand = new RelayCommand(() => ImportTestPackageRequested?.Invoke());
-        ExportLibraryCaseCommand = new RelayCommand(() =>
-        {
-            if (SelectedLibraryCase is { } item) ExportTestPackageRequested?.Invoke(item);
-        }, () => SelectedLibraryCase is not null);
         DeleteLibraryCaseCommand = new RelayCommand(() => _ = DeleteLibraryCaseAsync(), () => SelectedLibraryCase is not null);
         DeleteAllLibraryCasesCommand = new RelayCommand(
             () => _ = DeleteAllLibraryCasesAsync(),
@@ -250,7 +238,7 @@ public sealed partial class ControlWindowViewModel
                     string.Join("\n- ", profile.MigrationIssues) + "\n\n" + differences;
             if (!BuildFeatures.YditsProviderEnabled &&
                 profile.Settings.Provider.Routing.Eew is ReceptionProvider.Ydits or ReceptionProvider.YditsTest)
-                differences = "YDITSの受信は一時停止中です。EEWの受信元は「受信しない」になります。\n\n" + differences;
+                differences = "YDITSの受信は一時停止中です。緊急地震速報の受信元は「受信しない」になります。\n\n" + differences;
             Task? saveTask = null;
             _dispatcher.Invoke(() =>
             {
@@ -310,18 +298,6 @@ public sealed partial class ControlWindowViewModel
         _dispatcher.Invoke(RefreshTestLibrary);
     }
 
-    public async Task ImportDmdataArchiveAsync(string telegramsIndexPath)
-    {
-        if (_services.TestCaseLibrary is null) return;
-        IReadOnlyList<TestCaseManifest> imported = await _services.TestCaseLibrary
-            .ImportDmdataArchiveAsync(telegramsIndexPath).ConfigureAwait(false);
-        _dispatcher.Invoke(() =>
-        {
-            RefreshTestLibrary();
-            OperationalStatusText = $"dmdata生データを{imported.Count}件登録しました（表示解析はXML正本のみ）。";
-        });
-    }
-
     public async Task ImportTestXmlFolderAsync(string directory)
     {
         if (_services.TestCaseLibrary is not { } library || !CanEditTestLibrary) return;
@@ -362,16 +338,6 @@ public sealed partial class ControlWindowViewModel
         OnPropertyChanged(nameof(CanEditTestLibrary));
         ImportTestXmlFolderCommand.RaiseCanExecuteChanged();
     }
-
-    public async Task ImportTestPackageAsync(string path)
-    {
-        if (_services.TestCaseLibrary is null) return;
-        await _services.TestCaseLibrary.ImportPackageAsync(path).ConfigureAwait(false);
-        _dispatcher.Invoke(RefreshTestLibrary);
-    }
-
-    public Task ExportTestPackageAsync(string id, string path) =>
-        _services.TestCaseLibrary?.ExportAsync(id, path) ?? Task.CompletedTask;
 
     private async Task DeleteLibraryCaseAsync()
     {
@@ -421,24 +387,47 @@ public sealed partial class ControlWindowViewModel
                 .LoadMessages(item.Manifest.Id, SourceMode.HistoryRehearsal)
                 .Select(PrepareIsolatedTestMessage)
                 .ToArray();
-            var coordinator = new PriorityCoordinator(_services.Clock, _settings.Display);
+            AppSettings settings = _settings;
+            var coordinator = new PriorityCoordinator(_services.Clock, settings.Display);
             var pipeline = new EventIngestionPipeline(_services.EventNormalizer, new EventVersionCache(),
-                _services.PageComposer, coordinator, _settings.Display, _settings.Filter);
+                _services.PageComposer, coordinator, settings.Display, settings.Filter);
             EventIngestionResult[] results = messages.Select(pipeline.Process).ToArray();
-            string verdict = EvaluateExpectation(item.Manifest.Expectation, results);
+            TestCaseExpectation expectation = item.Manifest.Expectation;
+            bool expectsNoDisplay = expectation.PageCount == 0 || !string.IsNullOrWhiteSpace(expectation.SuppressionReason);
             EventIngestionResult? visible = results.LastOrDefault(static result =>
                 result.Status == EventIngestionStatus.Accepted &&
                 result.Event is not null &&
                 result.Program is { Pages.Count: > 0 });
-            if (visible is null)
+            bool advisoryPreview = false;
+            if (visible is null && !expectsNoDisplay && !settings.Filter.WeatherAdvisories)
+            {
+                visible = CreateLibraryAdvisoryPreview(results, settings);
+                advisoryPreview = visible is not null;
+            }
+
+            string verdict = EvaluateExpectation(expectation, results);
+            if (advisoryPreview)
+            {
+                verdict += "（注意報を訓練表示）";
+            }
+            else if (visible is null)
             {
                 EventIngestionResult? last = results.LastOrDefault();
-                string reason = last is null
-                    ? "入力なし"
-                    : last.Status == EventIngestionStatus.Accepted
-                        ? "表示ページが生成されませんでした"
-                        : $"処理結果={last.Status}";
-                verdict = $"失敗: {reason}";
+                if (last is { Status: EventIngestionStatus.Accepted, DisplaySuppressionReason: { Length: > 0 } reason })
+                {
+                    string message = $"非表示: {reason}";
+                    verdict = expectsNoDisplay || verdict.StartsWith("不合格", StringComparison.Ordinal)
+                        ? $"{verdict}（{message}）" : message;
+                }
+                else
+                {
+                    verdict = last?.Status switch
+                    {
+                        null => "失敗: 入力なし",
+                        EventIngestionStatus.Accepted => "失敗: 表示ページが生成されませんでした",
+                        _ => $"失敗: 処理結果={last.Status}",
+                    };
+                }
             }
             _dispatcher.Invoke(() =>
             {
@@ -446,6 +435,11 @@ public sealed partial class ControlWindowViewModel
                 item.ResultText = verdict;
                 if (visible?.Event is { } disasterEvent && visible.Program is { } program)
                 {
+                    if (EventDisplayFilter.GetSpecialQuakeSuppressionReason(_settings.Filter, disasterEvent) is { } reason)
+                    {
+                        item.ResultText = $"非表示: {reason}";
+                        return;
+                    }
                     DisplayRehearsal(disasterEvent, program, "テストライブラリ／訓練", isReplay: false);
                     ReceptionStatusText = "テストライブラリをリハーサル出力しました";
                 }
@@ -454,6 +448,31 @@ public sealed partial class ControlWindowViewModel
         catch (Exception exception) when (exception is not StackOverflowException)
         { _dispatcher.Invoke(() => item.ResultText = "失敗: " + exception.Message); }
     });
+
+    private EventIngestionResult? CreateLibraryAdvisoryPreview(EventIngestionResult[] results, AppSettings settings)
+    {
+        FilterSettings previewFilter = settings.Filter with { WeatherAdvisories = true };
+        for (int i = results.Length - 1; i >= 0; i--)
+        {
+            if (results[i] is not
+                {
+                    Status: EventIngestionStatus.Accepted,
+                    DisplaySuppressionReason: EventDisplayFilter.WeatherSeveritySuppressionReason,
+                    Event: WeatherWarningEvent { SourceMode: SourceMode.HistoryRehearsal } weather,
+                } || EventDisplayFilter.Apply(previewFilter, weather) is not WeatherWarningEvent preview)
+            {
+                continue;
+            }
+
+            DisplayProgram program = _services.PageComposer.Compose(preview, settings.Display);
+            if (program.Pages.Count == 0) continue;
+
+            results[i] = results[i] with { Program = program };
+            return results[i];
+        }
+
+        return null;
+    }
 
     private static RawProviderMessage PrepareIsolatedTestMessage(RawProviderMessage message)
     {
@@ -503,7 +522,7 @@ public sealed partial class ControlWindowViewModel
         if (expectation.IsCancelled is bool cancelled && result.Event?.IsCancelled != cancelled) failures.Add("取消判定");
         if (expectation.IsUpdate is bool update && IsUpdateEvent(result.Event) != update) failures.Add("更新判定");
         if (expectation.IsReleased is bool released && IsReleaseEvent(result.Event) != released) failures.Add("解除判定");
-        if (expectation.PageCount is int pages && result.Program?.Pages.Count != pages) failures.Add("ページ数");
+        if (expectation.PageCount is int pages && (result.Program?.Pages.Count ?? 0) != pages) failures.Add("ページ数");
         string text = result.Program is null ? string.Empty : string.Join("\n", result.Program.Pages.SelectMany(static page => page.Blocks).Select(static block => $"{block.Badge}\n{block.PrimaryText}\n{block.SecondaryText}"));
         if (expectation.RequiredBadges.Any(badge => !text.Contains(badge, StringComparison.Ordinal))) failures.Add("バッジ");
         if (expectation.RequiredTextFragments.Any(fragment => !text.Contains(fragment, StringComparison.Ordinal))) failures.Add("本文");

@@ -281,6 +281,8 @@ public sealed record FilterSettings(
     // Other category and prefecture filters still apply.
     public bool ShowQuakeWithEewNoStrongShakingComment { get; init; }
 
+    public bool ShowNankaiTroughInformation { get; init; } = true;
+    public bool ShowSubsequentEarthquakeAdvisory { get; init; } = true;
     public bool ShowRoutineNankaiCommentary { get; init; }
 
     public string[] QuakePrefectureCodes { get; init; } = [];
@@ -351,6 +353,7 @@ public sealed record DisplaySettings(
     // Opt-in presentation only. Forecasts retain the existing horizontal layout.
     public bool UseVerticalEewWarningLayout { get; init; }
     public bool HighlightEewAreaChanges { get; init; }
+    public bool ShowEewEstimates { get; init; }
 
     // False preserves the existing right-aligned vertical warning layout.
     public bool AlignVerticalEewWarningsLeft { get; init; }
@@ -554,6 +557,10 @@ public sealed record AudioSettings(
 
     public string WeatherDisasterPreventionBulletinFilePath { get; init; } = string.Empty;
 
+    public AudioCueSetting VolcanoWarningForecastCue { get; init; } = AudioCueSetting.Disabled;
+
+    public AudioCueSetting VolcanoEruptionFlashCue { get; init; } = AudioCueSetting.Disabled;
+
     // Weather telegrams for several warning levels can arrive within a fraction
     // of a second. Hold them briefly and play only the highest eligible cue.
     public double WeatherCoalescingSeconds { get; init; } =
@@ -591,7 +598,10 @@ public sealed record AudioSettings(
         FileAudioConfigured: true);
 }
 
-public sealed record AudioCueSetting(bool Enabled, string FilePath);
+public sealed record AudioCueSetting(bool Enabled, string FilePath)
+{
+    public static AudioCueSetting Disabled { get; } = new(false, string.Empty);
+}
 
 public enum AudioAnnouncementMode
 {
@@ -618,8 +628,6 @@ public sealed record HistorySettings(
     public JmaHistoryContent JmaContent { get; init; }
 
     public string JmaReportUrl { get; init; } = string.Empty;
-
-    public bool HideModeBanner { get; init; }
 
     // Keep the saved key: true replaces the decorated badge with subtitle text, never erases its label.
     public bool HideInformationBadges { get; init; }

@@ -132,6 +132,9 @@
                                                                  Style="{StaticResource EewPrimaryText}" />
                                         <TextBlock Text="{Binding SecondaryText}" Style="{StaticResource EewText}"
                                                    FontSize="{Binding DataContext.EewDetailFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                        <TextBlock Text="{Binding EewEstimateText}" Style="{StaticResource EewText}"
+                                                   FontSize="{Binding DataContext.EewDetailFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                   Visibility="{Binding HasEewEstimateText, Converter={StaticResource BoolVisibility}}" />
                                 </StackPanel>
                             </Border>
                         </DataTemplate>

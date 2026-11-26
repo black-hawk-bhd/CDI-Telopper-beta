@@ -23,7 +23,7 @@ internal static class EewOrderingPolicy
     {
         DateTimeOffset? time = item.SourceMessageTime;
         if (time == DateTimeOffset.MinValue || time - item.ReceivedAt > TimeSpan.FromMinutes(5))
-            return Review("EEWの送信元時刻が不正または受信時刻より5分を超えて未来です。");
+            return Review("緊急地震速報の送信元時刻が不正または受信時刻より5分を超えて未来です。");
         if (previous is null) return new(EventVersionDisposition.Accepted);
 
         bool comparable = time.HasValue && previous.SourceMessageTime.HasValue;
@@ -43,14 +43,14 @@ internal static class EewOrderingPolicy
         {
             if (!item.IsCancelled) return new(EventVersionDisposition.Stale);
             if (!comparable || time <= previous.SourceMessageTime)
-                return Review("EEW取消の報番号が逆行しましたが、新しい送信元時刻を確認できません。");
+                return Review("緊急地震速報取消の報番号が逆行しましたが、新しい送信元時刻を確認できません。");
             return new(EventVersionDisposition.Accepted, new ValidationIssue("eew.ordering.serialRegression",
-                $"EEW取消の報番号逆行（{previous.HighestSerial}→{serial}）を検出。送信元時刻が新しいため採用しました。原文の番号は変更していません。",
+                $"緊急地震速報取消の報番号逆行（{previous.HighestSerial}→{serial}）を検出。送信元時刻が新しいため採用しました。原文の番号は変更していません。",
                 ValidationSeverity.Warning));
         }
 
         if (item.IsCancelled && serial is null && (!comparable || time <= previous.SourceMessageTime))
-            return Review("EEW取消の報番号がなく、新しい送信元時刻も確認できません。");
+            return Review("緊急地震速報取消の報番号がなく、新しい送信元時刻も確認できません。");
         return new(EventVersionDisposition.Accepted);
     }
 

@@ -47,7 +47,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     private static readonly TimeSpan ObsRuntimeRecoveryThreshold = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan AxisTokenRefreshCheckInterval = TimeSpan.FromDays(1);
     private readonly string _obsBrowserSourceDescription =
-        "地震字幕・EEW・津波字幕・気象情報の4ソースを登録します。各ソースの音声をOBSの音声ミキサーに追加し、該当種別の音声を再生します。OBS側でWebSocketサーバーを有効にしてください。";
+        "地震字幕・緊急地震速報・津波字幕・気象情報の4ソースを登録します。各ソースの音声をOBSの音声ミキサーに追加し、該当種別の音声を再生します。OBS側でWebSocketサーバーを有効にしてください。";
     private readonly AppServices _services;
     private readonly IConfirmationService _confirmationService;
     private readonly IUiDispatcher _dispatcher;
@@ -595,7 +595,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         $"作画前の字幕を編集・送出（{_preDisplaySubtitleDrafts.Count}件）";
 
     public string ApiModeText =>
-        $"EEW {ProviderLabel(Settings.EewProvider)} / " +
+        $"緊急地震速報 {ProviderLabel(Settings.EewProvider)} / " +
         $"地震 {ProviderLabel(Settings.QuakeProvider)} / " +
         $"津波 {ProviderLabel(Settings.TsunamiProvider)} / " +
         $"気象 {ProviderLabel(Settings.WeatherProvider)} / " +
@@ -778,12 +778,22 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
         _dispatcher.Invoke(() =>
         {
-            bool hideRoutineCommentary = _settings.Filter.ShowRoutineNankaiCommentary &&
-                !updated.Filter.ShowRoutineNankaiCommentary;
+            FilterSettings previous = _settings.Filter;
+            bool eewEstimatesChanged = _settings.Display.ShowEewEstimates != updated.Display.ShowEewEstimates;
             _settings = updated;
             _services.IngestionPipeline.UpdateSettings(updated.Display, updated.Filter);
-            if (hideRoutineCommentary) StopRoutineNankaiCommentaryOutput();
-            StopSuppressedScalePromptOutput(_services.Clock.UtcNow);
+            DateTimeOffset now = _services.Clock.UtcNow;
+            if (previous.Quake != updated.Filter.Quake ||
+                previous.ShowNankaiTroughInformation != updated.Filter.ShowNankaiTroughInformation ||
+                previous.ShowSubsequentEarthquakeAdvisory != updated.Filter.ShowSubsequentEarthquakeAdvisory ||
+                previous.ShowRoutineNankaiCommentary != updated.Filter.ShowRoutineNankaiCommentary)
+            {
+                StopSuppressedQuakeOutput(now,
+                    program => EventDisplayFilter.GetSpecialQuakeSuppressionReason(updated.Filter, program));
+            }
+            StopSuppressedScalePromptOutput(now);
+            if (eewEstimatesChanged && _lastCoordinatorSnapshot is { CurrentProgram.Kind: EventKind.Eew } displayed)
+                ApplyDisplaySnapshot(displayed);
         });
         _productionReplayCatalog.Prune(
             updated.Display.ProductionReplay,
@@ -1379,6 +1389,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     {
         var concurrentEewComposer = new ConcurrentEewProgramComposer();
         var previewCoordinator = new PriorityCoordinator(_services.Clock, _settings.Display);
+        IAudioPolicy? comparisonAudioPolicy = _services.AudioPolicy?.CreateComparisonPolicy();
         try
         {
             for (int index = 0; index < scenario.Steps.Count; index++)
@@ -1396,7 +1407,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                         step,
                         stepNumber,
                         concurrentEewComposer,
-                        previewCoordinator),
+                        previewCoordinator,
+                        comparisonAudioPolicy),
                     cancellation.Token).ConfigureAwait(false);
             }
         }
@@ -1415,14 +1427,16 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         TestScenarioStep step,
         int stepNumber,
         ConcurrentEewProgramComposer concurrentEewComposer,
-        PriorityCoordinator previewCoordinator)
+        PriorityCoordinator previewCoordinator,
+        IAudioPolicy? comparisonAudioPolicy = null,
+        bool omitScalePromptTsunamiCaution = false)
     {
         if (!CanUseTests) return;
 
         DisasterEvent disasterEvent = step.Event;
         if (scenario.Id != "disaster-simulator" && _manualApiSession is not null)
             _obsServer?.ObserveApiRehearsal(disasterEvent, _manualApiSession);
-        DisplayProgram program = _services.PageComposer.Compose(disasterEvent, _settings.Display) with
+        DisplayProgram program = _services.PageComposer.Compose(disasterEvent, _settings.Display, omitScalePromptTsunamiCaution) with
         {
             ProgramId = $"{disasterEvent.Id.Value}:{_services.IdGenerator.NewId()}",
             StartedAtUtc = _services.Clock.UtcNow,
@@ -1451,7 +1465,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         _testOutputPrograms[program.Kind] = program.ProgramId;
         Volatile.Write(ref _activeCoordinator, previewCoordinator);
         ApplyDisplaySnapshot(snapshot);
-        PlayEventAudio(disasterEvent, Settings.ToSettings(_settings).Audio);
+        PlayEventAudio(disasterEvent, Settings.ToSettings(_settings).Audio, comparisonAudioPolicy: comparisonAudioPolicy);
         ShowBrowserMonitorRequested?.Invoke(this, EventArgs.Empty);
         FireAndForgetLog(
             AppLogLevel.Information,
@@ -1544,45 +1558,13 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             $"種別別に表示を手動消去しました。種別={kind} 受信は継続します。");
     }
 
-    private void StopRoutineNankaiCommentaryOutput()
-    {
-        DateTimeOffset now = _services.Clock.UtcNow;
-        _productionReplayCatalog.RemoveRoutineNankaiCommentary();
-        _obsSnapshotStore.ClearRoutineNankaiCommentary(now);
-
-        foreach (var draft in _preDisplaySubtitleDrafts.Where(draft => draft.Event is
-                     QuakeEvent { IsRoutineNankaiCommentary: true }).ToArray())
-        {
-            _preDisplaySubtitleDrafts.Remove(draft);
-            AddTelegramForReview(draft.Event, draft.Program, EventDisplayFilter.DescribeSuppression(_settings.Filter, draft.Event));
-        }
-        UpdatePreDisplayDraftState();
-
-        IDisplayCoordinator active = Volatile.Read(ref _activeCoordinator);
-        CoordinatorSnapshot snapshot = active.Evaluate();
-        if (!ReferenceEquals(active, _services.DisplayCoordinator) &&
-            snapshot.CurrentProgram?.IsRoutineNankaiCommentary == true)
-        {
-            active.Clear(EventKind.Quake);
-            if (ReferenceEquals(active, _productionReplayCoordinator))
-            {
-                _productionReplayCoordinator = null;
-                _productionReplayNextSwitchUtc = now;
-            }
-
-            Volatile.Write(ref _activeCoordinator, _services.DisplayCoordinator);
-            snapshot = _services.DisplayCoordinator.Evaluate();
-        }
-        ApplyDisplaySnapshot(snapshot);
-    }
-
     private void RedisplaySelectedTelegram()
     {
         if (SelectedReceivedTelegram is { } item)
         {
-            if (EventDisplayFilter.IsRoutineNankaiCommentarySuppressed(_settings.Filter, item.Event))
+            if (EventDisplayFilter.GetSpecialQuakeSuppressionReason(_settings.Filter, item.Event) is { } reason)
             {
-                TelegramReviewStatusText = EventDisplayFilter.DescribeSuppression(_settings.Filter, item.Event);
+                TelegramReviewStatusText = reason;
                 return;
             }
 
@@ -1615,28 +1597,38 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         if (!_settings.Display.SuppressScalePromptWhenTsunamiWarningActive || !_settings.Filter.Tsunami)
             return;
 
-        bool IsSuppressed(DisplayProgram program) => _services.IngestionPipeline.IsScalePromptSuppressed(program, now);
+        StopSuppressedQuakeOutput(now, program => _services.IngestionPipeline.IsScalePromptSuppressed(program, now)
+            ? EventIngestionPipeline.ScalePromptSuppressionReason : null);
+    }
+
+    private void StopSuppressedQuakeOutput(DateTimeOffset now, Func<DisplayProgram, string?> getSuppressionReason)
+    {
+        bool IsSuppressed(DisplayProgram program) => getSuppressionReason(program) is not null;
         _productionReplayCatalog.RemoveQuakePrograms(IsSuppressed);
         _obsSnapshotStore.ClearQuakeProgram(now, IsSuppressed);
 
-        var drafts = _preDisplaySubtitleDrafts.Where(draft => IsSuppressed(draft.Program)).ToArray();
-        foreach (var draft in drafts)
+        bool removedDraft = false;
+        foreach (var draft in _preDisplaySubtitleDrafts.ToArray())
         {
+            if (getSuppressionReason(draft.Program) is not { } reason) continue;
             _preDisplaySubtitleDrafts.Remove(draft);
-            AddTelegramForReview(draft.Event, draft.Program, EventIngestionPipeline.ScalePromptSuppressionReason);
+            AddTelegramForReview(draft.Event, draft.Program, reason);
+            removedDraft = true;
         }
-        if (drafts.Length > 0)
-            UpdatePreDisplayDraftState();
+        if (removedDraft) UpdatePreDisplayDraftState();
 
         IDisplayCoordinator active = Volatile.Read(ref _activeCoordinator);
         if (_services.DisplayCoordinator is PriorityCoordinator liveCoordinator)
             liveCoordinator.RemoveQuakePrograms(IsSuppressed);
 
         if (active is PriorityCoordinator coordinator && !ReferenceEquals(active, _services.DisplayCoordinator) &&
-            coordinator.RemoveQuakePrograms(IsSuppressed) && ReferenceEquals(active, _productionReplayCoordinator))
+            coordinator.RemoveQuakePrograms(IsSuppressed))
         {
-            _productionReplayCoordinator = null;
-            _productionReplayNextSwitchUtc = now;
+            if (ReferenceEquals(active, _productionReplayCoordinator))
+            {
+                _productionReplayCoordinator = null;
+                _productionReplayNextSwitchUtc = now;
+            }
             active = _services.DisplayCoordinator;
             Volatile.Write(ref _activeCoordinator, active);
         }
@@ -1805,6 +1797,11 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         }
 
         PreDisplaySubtitleDraft draft = _preDisplaySubtitleDrafts[index];
+        if (EventDisplayFilter.GetSpecialQuakeSuppressionReason(_settings.Filter, draft.Event) is { } reason)
+        {
+            ReceptionStatusText = reason;
+            return false;
+        }
         _preDisplaySubtitleDrafts.RemoveAt(index);
         UpdatePreDisplayDraftState();
 
@@ -2035,6 +2032,11 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         }
 
         AppSettings requested = Settings.ToSettings(_settings);
+        if (EventDisplayFilter.GetSpecialQuakeSuppressionReason(requested.Filter, selected.DisasterEvent) is { } reason)
+        {
+            HistoryRehearsalStatusText = reason;
+            return;
+        }
         var cancellation = new CancellationTokenSource();
         _historyReplayCancellation = cancellation;
         _historyCancellationStatus = "停止しました";
@@ -2119,10 +2121,10 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 "HistoryRehearsalStarted",
                 $"履歴リハーサルを開始しました（{historyItems.Length}件、古い順、繰り返し={requested.History.Repeat}）。")
                 .ConfigureAwait(false);
-            await ReplayHistoryItemsAsync(historyItems, requested, cancellation)
+            bool played = await ReplayHistoryItemsAsync(historyItems, requested, cancellation)
                 .ConfigureAwait(false);
 
-            finalStatus = $"再生完了（{historyItems.Length}件）";
+            finalStatus = played ? $"再生完了（{historyItems.Length}件）" : "再生可能な履歴がありません";
             await WriteLogAsync(
                 AppLogLevel.Information,
                 "HistoryRehearsalCompleted",
@@ -2180,9 +2182,9 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         string finalStatus = "停止しました";
         try
         {
-            await ReplayHistoryItemsAsync([selected], requested, cancellation)
+            bool played = await ReplayHistoryItemsAsync([selected], requested, cancellation)
                 .ConfigureAwait(false);
-            finalStatus = "選択した履歴の再生が完了しました";
+            finalStatus = played ? "選択した履歴の再生が完了しました" : "再生可能な履歴がありません";
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
@@ -2203,14 +2205,16 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         }
     }
 
-    private async Task ReplayHistoryItemsAsync(
+    private async Task<bool> ReplayHistoryItemsAsync(
         HistoryReplayItemViewModel[] items,
         AppSettings requested,
         CancellationTokenSource cancellation)
     {
         bool firstItem = true;
+        bool playedInCycle;
         do
         {
+            playedInCycle = false;
             for (int index = 0; index < items.Length; index++)
             {
                 cancellation.Token.ThrowIfCancellationRequested();
@@ -2230,9 +2234,14 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 var coordinator = new PriorityCoordinator(_services.Clock, requested.Display);
                 CoordinatorSnapshot snapshot = coordinator.Apply(program);
                 int itemNumber = index + 1;
+                bool displayed = false;
                 await _dispatcher.InvokeAsync(() =>
                 {
                     cancellation.Token.ThrowIfCancellationRequested();
+                    if (EventDisplayFilter.GetSpecialQuakeSuppressionReason(_settings.Filter, disasterEvent) is not null)
+                        return;
+
+                    displayed = true;
                     SelectedHistoryItem = item;
                     _historyOutputPrograms[program.Kind] = program.ProgramId;
                     if (_historyApiSession is not null) _obsServer?.ObserveApiRehearsal(disasterEvent, _historyApiSession);
@@ -2254,6 +2263,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                         firstItem = false;
                     }
                 }, cancellation.Token).ConfigureAwait(false);
+                if (!displayed) continue;
+                playedInCycle = true;
                 await WriteLogAsync(
                     AppLogLevel.Information,
                     "HistoryRehearsalItem",
@@ -2262,7 +2273,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 await Task.Delay(itemDuration, cancellation.Token).ConfigureAwait(false);
             }
         }
-        while (requested.History.Repeat);
+        while (requested.History.Repeat && playedInCycle);
+        return !firstItem;
     }
 
     private HistoryReplayItemViewModel CreateHistoryReplayItem(
@@ -2384,7 +2396,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 StopSuppressedScalePromptOutput(_services.Clock.UtcNow);
 
             if (result.Event is { } received && result.Program is { } program &&
-                EventDisplayFilter.IsRoutineNankaiCommentarySuppressed(_settings.Filter, received))
+                EventDisplayFilter.GetSpecialQuakeSuppressionReason(_settings.Filter, received) is { } suppressionReason)
             {
                 result = result with
                 {
@@ -2392,7 +2404,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                     ReviewProgram = program,
                     Snapshot = null,
                     AwaitingPreDisplayEdit = false,
-                    DisplaySuppressionReason = EventDisplayFilter.DescribeSuppression(_settings.Filter, received),
+                    DisplaySuppressionReason = suppressionReason,
                 };
             }
 
@@ -2443,7 +2455,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
             ReceptionStatusText = result.Status switch
             {
-                _ when result.RequiresReview => "要確認：EEW電文の更新順序（ログ・原文を確認）",
+                _ when result.RequiresReview => "要確認：緊急地震速報電文の更新順序（ログ・原文を確認）",
                 EventIngestionStatus.Accepted when result.AwaitingPreDisplayEdit &&
                     result.Event is not null =>
                     $"作画前編集待ち: {GetEventKindText(result.Event.Kind)}",
@@ -2522,7 +2534,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
             if (result.Status == EventIngestionStatus.Accepted &&
                 result.Event?.SourceMode == SourceMode.Production &&
-                !EventDisplayFilter.IsRoutineNankaiCommentarySuppressed(_settings.Filter, result.Event) &&
+                EventDisplayFilter.GetSpecialQuakeSuppressionReason(_settings.Filter, result.Event) is null &&
                 (result.Event.IsCancelled ||
                  result.Program is not null && IsEnabled(result.Event)))
             {
@@ -2715,9 +2727,11 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         DisasterEvent disasterEvent,
         AudioSettings settings,
         string traceId = "",
-        bool isRepeatedDisplay = false)
+        bool isRepeatedDisplay = false,
+        IAudioPolicy? comparisonAudioPolicy = null)
     {
-        if (_services.AudioPolicy is null)
+        IAudioPolicy? audioPolicy = comparisonAudioPolicy ?? _services.AudioPolicy;
+        if (audioPolicy is null)
         {
             return;
         }
@@ -2740,12 +2754,17 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 _obsSnapshotStore.PublishAudioStop(now);
         }
 
-        AudioDecision decision = _services.AudioPolicy.Evaluate(disasterEvent, settings);
+        AudioDecision decision = audioPolicy.Evaluate(disasterEvent, settings);
         if (!decision.ShouldPlay || decision.Cue is null)
         {
             if (eewGeneration is { } silentEewGeneration)
             {
                 _eewAudioPriority.CompleteEew(silentEewGeneration);
+            }
+            if (comparisonAudioPolicy is not null)
+            {
+                FireAndForgetLog(AppLogLevel.Information, "ComparisonAudioSkipped",
+                    $"比較用テロップの音声を送信しませんでした（{GetEventKindText(disasterEvent.Kind)}）。{decision.Reason}");
             }
             return;
         }
@@ -3199,11 +3218,9 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         // A new live production program with no training label is never altered.
         if (program.SourceMode == SourceMode.Production && string.IsNullOrWhiteSpace(program.RehearsalLabel))
             return program;
-        if (program.HideReplayModeBanner == Settings.HideReplayModeBanner &&
-            program.HideInformationBadges == Settings.HideReplayInformationBadges) return program;
+        if (program.HideInformationBadges == Settings.HideReplayInformationBadges) return program;
         return program with
         {
-            HideReplayModeBanner = Settings.HideReplayModeBanner,
             HideInformationBadges = Settings.HideReplayInformationBadges,
         };
     }

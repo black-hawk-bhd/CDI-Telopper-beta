@@ -55,6 +55,10 @@ public sealed record ObsViewBlock(
     public EewWarningCard? EewCard { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<EewAreaLabel>? EewAreaLabels { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? EewEstimateText { get; init; }
+    [JsonIgnore]
+    internal string? AvailableEewEstimateText { get; init; }
 }
 
 public enum ObsViewChannel
@@ -89,12 +93,14 @@ public sealed partial class ObsSnapshotStore
     private ObsAudioDiagnostics _audioDiagnostics = ObsAudioDiagnostics.Empty;
     private ObsViewSnapshot _snapshot;
     private bool _useInformationSubtitles;
+    private bool _showEewEstimates;
 
     public ObsSnapshotStore(DisplaySettings settings, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(settings);
         _snapshot = CreateEmpty(settings, now, sequence: 0);
         _useInformationSubtitles = settings.HideNormalInformationBadges;
+        _showEewEstimates = settings.ShowEewEstimates;
         _subtitleImages = PrepareSubtitleImages(settings);
     }
 
@@ -181,9 +187,6 @@ public sealed partial class ObsSnapshotStore
                 _programs.Remove(channel);
         }
     }
-
-    internal void ClearRoutineNankaiCommentary(DateTimeOffset now) =>
-        ClearQuakeProgram(now, static program => program.IsRoutineNankaiCommentary);
 
     internal void ClearQuakeProgram(DateTimeOffset now, Predicate<DisplayProgram> matches)
     {
@@ -484,6 +487,7 @@ public sealed partial class ObsSnapshotStore
         {
             _subtitleImages = subtitleImages;
             _useInformationSubtitles = settings.HideNormalInformationBadges;
+            _showEewEstimates = settings.ShowEewEstimates;
             foreach (ObsViewChannel channel in _programs.Keys.ToArray())
             {
                 _programs[channel] = _programs[channel] with { Settings = settings };
@@ -504,6 +508,12 @@ public sealed partial class ObsSnapshotStore
                 UseVerticalEewWarningLayout = settings.UseVerticalEewWarningLayout,
                 AlignVerticalEewWarningsLeft = settings.AlignVerticalEewWarningsLeft,
                 SubtitleImage = _snapshot.HasProgram ? GetSubtitleImage(_snapshot.Kind) : null,
+                Blocks = _snapshot.Kind == EventKind.Eew
+                    ? _snapshot.Blocks.Select(block => block with
+                    {
+                        EewEstimateText = settings.ShowEewEstimates ? block.AvailableEewEstimateText : null,
+                    }).ToArray()
+                    : _snapshot.Blocks,
             };
             return _snapshot;
         }
@@ -612,6 +622,8 @@ public sealed partial class ObsSnapshotStore
             HideBadge = DisplayBadgeVisibility.HideInformationBadges(program, settings),
             EewCard = block.EewCard,
             EewAreaLabels = block.EewAreaLabels,
+            EewEstimateText = settings.ShowEewEstimates ? block.EewEstimateText : null,
+            AvailableEewEstimateText = block.EewEstimateText,
         };
     }
 
@@ -673,7 +685,6 @@ public sealed partial class ObsSnapshotStore
 
     private static string GetRehearsalLabel(DisplayProgram program)
     {
-        if (DisplayBadgeVisibility.HideModeBanner(program)) return string.Empty;
         if (program.HideSimulatorTrainingBanner && program.SourceMode == SourceMode.ManualTest)
             return string.Empty;
         if (!string.IsNullOrWhiteSpace(program.RehearsalLabel))

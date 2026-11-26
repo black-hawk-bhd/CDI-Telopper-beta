@@ -81,6 +81,38 @@ public sealed class JmaXmlEventNormalizerTests
     }
 
     [TestMethod]
+    [DataRow("VXSE43", "6-", "6-", "発表", "予想最大震度 6弱　推定M 6.6")]
+    [DataRow("VXSE45", "5-", "5+", "発表", "予想最大震度 5弱〜5強　推定M 6.6")]
+    [DataRow("VXSE43", "5+", "over", "発表", "予想最大震度 5強以上　推定M 6.6")]
+    [DataRow("VXSE43", "6-", "4", "発表", "推定M 6.6")]
+    [DataRow("VXSE43", "6-", "6-", "取消", null)]
+    public void EewEstimatesUseTheTelegramMaximumRatherThanItsAreaForecasts(
+        string telegramType, string from, string to, string infoType, string? expected)
+    {
+        string xml = $$"""
+            <Report><Control><Type>{{telegramType}}</Type><Status>通常</Status></Control>
+              <Head><EventID>eew-estimates</EventID><InfoType>{{infoType}}</InfoType>
+                <Headline><Information><Item><Kind><Code>31</Code></Kind></Item></Information></Headline>
+              </Head>
+              <Body>
+                <Earthquake><Hypocenter><Area><Name>試験震源</Name></Area></Hypocenter><Magnitude>6.6</Magnitude></Earthquake>
+                <Intensity><Forecast><ForecastInt><From>{{from}}</From><To>{{to}}</To></ForecastInt>
+                    <Pref><Area><Name>試験地域</Name><Category><Kind><Code>10</Code></Kind></Category>
+                        <ForecastInt><From>3</From><To>4</To></ForecastInt></Area></Pref>
+                </Forecast></Intensity>
+              </Body>
+            </Report>
+            """;
+        var raw = new RawProviderMessage("dmdata.jp", xml, SourceMode.Production, DateTimeOffset.UnixEpoch)
+            { ContentFormat = RawProviderContentFormat.JmaXml };
+        var result = new JmaXmlEventNormalizer(new EventSignatureBuilder()).Normalize(raw);
+        var eew = Assert.IsInstanceOfType<EewEvent>(result.Event);
+        var program = new PageComposer().Compose(eew, AppSettings.CreateDefault().Display);
+        Assert.AreEqual(expected, program.Pages[0].Blocks
+            .SingleOrDefault(block => block.StyleToken == DisplayStyleTokens.EewAreas)?.EewEstimateText);
+    }
+
+    [TestMethod]
     public void XmlProvidersRetainMunicipalityAndStationMetadataIncludingMixedGranularity()
     {
         const string xml = """

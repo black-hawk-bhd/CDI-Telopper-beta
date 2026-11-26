@@ -19,6 +19,7 @@ using EEWTelop.Application.Operations;
 using EEWTelop.Application.Testing;
 using EEWTelop.Domain.Events;
 using EEWTelop.Infrastructure.Axis.Security;
+using EEWTelop.Infrastructure.Dmdata.Normalization;
 using EEWTelop.Infrastructure.Dmdata.Security;
 using EEWTelop.Infrastructure.Operations;
 using EEWTelop.Infrastructure.P2P.Configuration;
@@ -899,6 +900,8 @@ public sealed partial class Phase6ViewModelTests
                 WeatherSpecialWarningFilePath = "weather.wav",
                 WeatherDisasterPreventionBulletinEnabled = true,
                 WeatherDisasterPreventionBulletinFilePath = "bulletin.wav",
+                VolcanoWarningForecastCue = new AudioCueSetting(true, "volcano-warning.wav"),
+                VolcanoEruptionFlashCue = new AudioCueSetting(true, "volcano-flash.mp3"),
                 WeatherCoalescingSeconds = 3,
                 QuakeScaleCues = new Dictionary<JmaScale, AudioCueSetting>
                 {
@@ -925,6 +928,8 @@ public sealed partial class Phase6ViewModelTests
         Assert.IsFalse(reset.Audio.WeatherWarningEnabled);
         Assert.IsFalse(reset.Audio.WeatherAdvisoryEnabled);
         Assert.IsFalse(reset.Audio.WeatherDisasterPreventionBulletinEnabled);
+        Assert.AreEqual(AudioCueSetting.Disabled, reset.Audio.VolcanoWarningForecastCue);
+        Assert.AreEqual(AudioCueSetting.Disabled, reset.Audio.VolcanoEruptionFlashCue);
         Assert.AreEqual(
             AudioSettings.DefaultWeatherCoalescingSeconds,
             reset.Audio.WeatherCoalescingSeconds);
@@ -1313,11 +1318,56 @@ public sealed partial class Phase6ViewModelTests
             var text = (TextBlock)window.FindName("ApiModeSummary");
             var sidebar = (ScrollViewer)window.FindName("ControlSidebar");
             Assert.AreEqual(window.ViewModel.ApiModeText, text.Text);
+            StringAssert.StartsWith(text.Text, "緊急地震速報 ");
             StringAssert.EndsWith(text.Text, "南海トラフ等 受信しない");
             Rect lastCharacter = text.ContentEnd.GetCharacterRect(LogicalDirection.Backward);
             Assert.IsTrue(!lastCharacter.IsEmpty && lastCharacter.Top > 0 &&
                 lastCharacter.Right <= text.ActualWidth + 1 && lastCharacter.Bottom <= text.ActualHeight + 1);
             Assert.IsTrue(sidebar.ScrollableHeight > 0);
+
+            var eewSource = (TextBlock)window.FindName("EewSourceLabel");
+            Assert.AreEqual("緊急地震速報", eewSource.Text);
+            var eewClear = (Button)window.FindName("ClearEewDisplayButton");
+            Assert.AreEqual("緊急地震速報", eewClear.Content);
+            var typeface = new Typeface(eewClear.FontFamily, eewClear.FontStyle, eewClear.FontWeight, eewClear.FontStretch);
+            var buttonText = new FormattedText((string)eewClear.Content, CultureInfo.CurrentUICulture, eewClear.FlowDirection,
+                typeface, eewClear.FontSize, Brushes.White, VisualTreeHelper.GetDpi(eewClear).PixelsPerDip);
+            Assert.IsLessThanOrEqualTo(
+                eewClear.ActualWidth - eewClear.Padding.Left - eewClear.Padding.Right + 1, buttonText.WidthIncludingTrailingWhitespace);
+        });
+    }
+
+    [STATestMethod]
+    public void ObsUrlCopyLabelsFitInTheSidebarAndUseTheCorrespondingUrls()
+    {
+        InspectControlWindow(AppSettings.CreateDefault(), window =>
+        {
+            ArrangeControlWindow(window);
+            var sidebar = (ScrollViewer)window.FindName("ControlSidebar");
+            Button[] buttons = ((StackPanel)sidebar.Content).Children.OfType<Border>()
+                .Select(border => border.Child).OfType<StackPanel>()
+                .SelectMany(panel => panel.Children.OfType<UniformGrid>())
+                .SelectMany(grid => grid.Children.OfType<Button>()).ToArray();
+            (string Label, string UrlProperty)[] expected =
+            [
+                ("地震・火山スーパー／音声 URLをコピー", nameof(ControlWindowViewModel.ObsUrlText)),
+                ("津波スーパー／音声 URLをコピー", nameof(ControlWindowViewModel.TsunamiObsUrlText)),
+                ("気象スーパー／音声 URLをコピー", nameof(ControlWindowViewModel.WeatherObsUrlText)),
+            ];
+
+            foreach ((string label, string urlProperty) in expected)
+            {
+                Button button = buttons.Single(candidate => Equals(candidate.Content, label));
+                var binding = System.Windows.Data.BindingOperations.GetBinding(button, Button.CommandParameterProperty);
+                Assert.AreEqual(urlProperty, binding?.Path.Path);
+                if (button.Visibility == Visibility.Collapsed) continue;
+
+                var typeface = new Typeface(button.FontFamily, button.FontStyle, button.FontWeight, button.FontStretch);
+                var text = new FormattedText(label, CultureInfo.CurrentUICulture, button.FlowDirection,
+                    typeface, button.FontSize, Brushes.White, VisualTreeHelper.GetDpi(button).PixelsPerDip);
+                double contentWidth = button.ActualWidth - button.Padding.Left - button.Padding.Right;
+                Assert.IsLessThanOrEqualTo(contentWidth + 1, text.WidthIncludingTrailingWhitespace, label);
+            }
         });
     }
 
@@ -1331,6 +1381,73 @@ public sealed partial class Phase6ViewModelTests
         });
     }
 
+    [STATestMethod]
+    public void SpecialEarthquakeSourceShowsBothInformationNamesAtMinimumWindowWidth()
+    {
+        InspectControlWindow(AppSettings.CreateDefault(), window =>
+        {
+            ArrangeControlWindow(window);
+            var label = (TextBlock)window.FindName("SpecialEarthquakeSourceLabel");
+            var selector = (ComboBox)window.FindName("NankaiTroughSourceSelector");
+            Assert.AreEqual("南海トラフ地震の情報\n北海道・三陸沖後発地震注意情報", label.Text);
+            Assert.AreSame(label, System.Windows.Automation.AutomationProperties.GetLabeledBy(selector));
+            Rect lastCharacter = label.ContentEnd.GetCharacterRect(LogicalDirection.Backward);
+            Assert.IsTrue(!lastCharacter.IsEmpty && lastCharacter.Right <= label.ActualWidth + 1);
+            Assert.IsTrue(selector.ActualWidth > 0);
+            Point labelOrigin = label.TranslatePoint(default, selector);
+            Assert.AreEqual(selector.ActualHeight / 2, labelOrigin.Y + label.ActualHeight / 2, 1);
+        });
+    }
+
+    [STATestMethod]
+    public void SettingsTabsLimitTheirContentWidthAndAdaptToTheMinimumWindowWidth()
+    {
+        const double maxContentWidth = 960;
+        string[] headers = ["受信", "フィルター", "表示", "出力", "音声", "バージョン情報"];
+        InspectControlWindow(AppSettings.CreateDefault(), window =>
+        {
+            var sidebar = (ScrollViewer)window.FindName("ControlSidebar");
+            var tabs = ((Grid)sidebar.Parent).Children.OfType<TabControl>().Single();
+            foreach (string header in headers)
+            {
+                var tab = tabs.Items.OfType<TabItem>().Single(item => Equals(item.Header, header));
+                tabs.SelectedItem = tab;
+                var scroll = (ScrollViewer)tab.Content;
+                var content = (FrameworkElement)scroll.Content;
+                ArrangeControlWindow(window, width: 1920);
+                Assert.AreEqual(maxContentWidth, content.ActualWidth, 1, header);
+                Assert.IsGreaterThan(maxContentWidth, scroll.ViewportWidth, header);
+
+                ArrangeControlWindow(window);
+                Assert.IsLessThan(maxContentWidth, content.ActualWidth, header);
+                Assert.AreEqual(scroll.ViewportWidth, content.ActualWidth, 1, header);
+            }
+        });
+    }
+
+    [STATestMethod]
+    public void TestLibraryFiltersAlignInTheSameRow()
+    {
+        InspectControlWindow(AppSettings.CreateDefault(), window =>
+        {
+            var sidebar = (ScrollViewer)window.FindName("ControlSidebar");
+            var tabControl = ((Grid)sidebar.Parent).Children.OfType<TabControl>().Single();
+            tabControl.SelectedItem = tabControl.Items.OfType<TabItem>().Single(tab => Equals(tab.Header, "テスト"));
+            ArrangeControlWindow(window);
+
+            var details = (Expander)window.FindName("SelectedTestCaseDetails");
+            var row = ((StackPanel)details.Parent).Children.OfType<UniformGrid>().Single();
+            ComboBox[] filters = row.Children.OfType<ComboBox>().ToArray();
+            Assert.HasCount(2, filters);
+            Point left = filters[0].TranslatePoint(default, row);
+            Point right = filters[1].TranslatePoint(default, row);
+            Assert.IsTrue(filters[0].ActualHeight > 0);
+            Assert.AreEqual(left.Y, right.Y, 0.01);
+            Assert.AreEqual(filters[0].ActualHeight, filters[1].ActualHeight, 0.01);
+            Assert.AreEqual(filters[0].ActualWidth, filters[1].ActualWidth, 0.01);
+        });
+    }
+
     private static void AssertExpanderHeaderUsesLightText(Expander expander)
     {
         expander.ApplyTemplate();
@@ -1339,10 +1456,10 @@ public sealed partial class Phase6ViewModelTests
         Assert.AreEqual(Colors.White, foreground.Color);
     }
 
-    private static void ArrangeControlWindow(ControlWindow window)
+    private static void ArrangeControlWindow(ControlWindow window, double? width = null)
     {
         window.Dispatcher.Invoke(static () => { }, DispatcherPriority.DataBind);
-        var size = new Size(window.MinWidth, window.MinHeight);
+        var size = new Size(width ?? window.MinWidth, window.MinHeight);
         var layout = (FrameworkElement)window.Content;
         layout.Measure(size);
         layout.Arrange(new Rect(size));
@@ -1595,6 +1712,93 @@ public sealed partial class Phase6ViewModelTests
             Assert.AreEqual("テストライブラリ／訓練", viewModel.Overlay.RehearsalLabel);
             StringAssert.Contains(viewModel.SelectedLibraryCase.ResultText, "合格");
             await viewModel.DisposeAsync();
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    [DataRow("VXKOXX", "16_01_01_220728_VXKOii.xml", "○○川上流", false)]
+    [DataRow("VXKOXX", "16_08_01_260312_VXKOii.xml", "小矢部川", false)]
+    [DataRow("VXKOXX", "16_08_02_260312_VXKOii.xml", "黒部川", false)]
+    [DataRow("VXKOXX", "16_14_01_251222_VXKOii.xml", "常呂川", true)]
+    [DataRow("VPWW61", "15_16_07_250825_VPWW61.xml", "雷注意報", false)]
+    public async Task LibraryAdvisoryCasesCanBeRehearsedWithDefaultDisplayFilters(
+        string folder, string fileName, string expectedText, bool isRelease)
+    {
+        string directory = Directory.CreateTempSubdirectory("qt-advisory-library-").FullName;
+        try
+        {
+            string sample = OperationalFeaturesTests.FindRepositoryFile("jmaxml_20261118_CDI-Telopper", "気象情報", folder, fileName);
+            var library = new FileTestCaseLibrary(directory);
+            await library.ImportFilesAsync(fileName, [sample]);
+            var normalizer = new JmaXmlEventNormalizer(new EventSignatureBuilder());
+            AppServices services = CreateServices(ProviderConnectionState.Stopped,
+                suppliedNormalizer: normalizer, testCaseLibrary: library);
+            var obsStore = new ObsSnapshotStore(services.InitialSettings.Display, services.Clock.UtcNow);
+            await using var vm = new ControlWindowViewModel(services, services.InitialSettings,
+                new FakeConfirmationService(), new ImmediateUiDispatcher(), obsStore);
+            OperationalTestCaseViewModel testCase = vm.TestLibraryCases.Single();
+            vm.SelectedLibraryCase = testCase;
+
+            vm.RunLibraryCaseCommand.Execute(null);
+            await WaitUntilAsync(() => testCase.ResultText != "未実行");
+
+            Assert.StartsWith("合格", testCase.ResultText);
+            await WaitUntilAsync(() => obsStore.Read(ObsViewChannel.Weather, services.Clock.UtcNow).HasProgram);
+            ObsViewSnapshot snapshot = obsStore.Read(ObsViewChannel.Weather, services.Clock.UtcNow);
+            Assert.IsTrue(snapshot.HasProgram);
+            Assert.AreEqual(SourceMode.HistoryRehearsal, snapshot.SourceMode);
+            Assert.AreEqual("テストライブラリ／訓練", snapshot.RehearsalLabel);
+            Assert.IsTrue(snapshot.Blocks.Any(block => block.Badge.Contains(expectedText, StringComparison.Ordinal) ||
+                block.PrimaryText.Contains(expectedText, StringComparison.Ordinal)));
+            Assert.AreEqual(isRelease, snapshot.Blocks.Any(block => block.StyleToken == DisplayStyleTokens.WeatherCancel));
+            Assert.IsFalse(vm.Settings.FilterWeatherAdvisories);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    [DataRow(true, "合格 (1入力 / 0ページ)（非表示: 警戒レベルフィルター）")]
+    [DataRow(false, "非表示: 種別フィルター:気象情報")]
+    public async Task LibraryAdvisoryCasesReportSuppressionWhenExpectedOrWeatherIsDisabled(bool expectsNoDisplay, string verdict)
+    {
+        string directory = Directory.CreateTempSubdirectory("qt-advisory-filter-").FullName;
+        try
+        {
+            var library = new FileTestCaseLibrary(directory);
+            string sample = OperationalFeaturesTests.FindRepositoryFile("jmaxml_20261118_CDI-Telopper", "気象情報",
+                "VXKOXX", "16_08_01_260312_VXKOii.xml");
+            TestCaseManifest manifest = await library.ImportFilesAsync("氾濫注意報", [sample]);
+            if (expectsNoDisplay)
+            {
+                await library.UpdateAsync(manifest with
+                {
+                    Expectation = manifest.Expectation with { PageCount = 0, SuppressionReason = "警戒レベルフィルター" },
+                });
+            }
+
+            AppSettings defaults = AppSettings.CreateDefault();
+            AppSettings settings = defaults with { Filter = defaults.Filter with { WeatherWarning = expectsNoDisplay } };
+            var normalizer = new JmaXmlEventNormalizer(new EventSignatureBuilder());
+            AppServices services = CreateServices(ProviderConnectionState.Stopped,
+                suppliedSettings: settings, suppliedNormalizer: normalizer, testCaseLibrary: library);
+            var obsStore = new ObsSnapshotStore(settings.Display, services.Clock.UtcNow);
+            await using var vm = new ControlWindowViewModel(services, settings,
+                new FakeConfirmationService(), new ImmediateUiDispatcher(), obsStore);
+            OperationalTestCaseViewModel testCase = vm.TestLibraryCases.Single();
+            vm.SelectedLibraryCase = testCase;
+
+            vm.RunLibraryCaseCommand.Execute(null);
+            await WaitUntilAsync(() => testCase.ResultText != "未実行");
+
+            Assert.AreEqual(verdict, testCase.ResultText);
+            Assert.IsFalse(obsStore.Read(ObsViewChannel.Weather, services.Clock.UtcNow).HasProgram);
         }
         finally
         {
@@ -2500,24 +2704,31 @@ public sealed partial class Phase6ViewModelTests
     }
 
     [TestMethod]
-    public async Task SavingRoutineCommentaryOffClearsItsTelopButPreservesReview()
+    [DataRow(QuakeIssueType.NankaiTroughCommentary, "VYSE52", "定例解説")]
+    [DataRow(QuakeIssueType.NankaiTroughTemporaryInformation, "VYSE50", "南海トラフ地震の情報")]
+    [DataRow(QuakeIssueType.SubsequentEarthquakeAdvisory, "VYSE60", "北海道・三陸沖後発地震注意情報")]
+    public async Task SavingSpecialQuakeFilterOffClearsItsTelopButPreservesReview(
+        QuakeIssueType type, string code, string suppressionText)
     {
         AppSettings defaults = AppSettings.CreateDefault();
         AppSettings settings = defaults with { Filter = defaults.Filter with { ShowRoutineNankaiCommentary = true } };
         AppServices services = CreateServices(ProviderConnectionState.Stopped, suppliedSettings: settings);
         services.IngestionPipeline.UpdateSettings(settings.Display, settings.Filter);
-        QuakeEvent routine = CreateQuake(SourceMode.Production, "VYSE52-telop") with { IsRoutineNankaiCommentary = true };
-        DisplayProgram program = services.PageComposer.Compose(routine, services.InitialSettings.Display);
+        QuakeEvent bulletin = CreateQuake(SourceMode.Production, $"{code}-telop", type, code) with
+        {
+            IsRoutineNankaiCommentary = type == QuakeIssueType.NankaiTroughCommentary,
+        };
+        DisplayProgram program = services.PageComposer.Compose(bulletin, services.InitialSettings.Display);
         services.DisplayCoordinator.Apply(program);
         var store = new ObsSnapshotStore(services.InitialSettings.Display, services.Clock.UtcNow);
         await using var viewModel = new ControlWindowViewModel(services, services.InitialSettings,
             new FakeConfirmationService(), new ImmediateUiDispatcher(), store);
-        var review = new ReceivedTelegramViewModel(routine, program);
+        var review = new ReceivedTelegramViewModel(bulletin, program);
         viewModel.ReceivedTelegrams.Add(review);
         viewModel.SelectedReceivedTelegram = review;
         Assert.IsTrue(store.Read(ObsViewChannel.General, services.Clock.UtcNow).HasProgram);
 
-        viewModel.Settings.ShowRoutineNankaiCommentary = false;
+        SetDisplay(false);
         await viewModel.SaveSettingsAsync();
 
         Assert.IsFalse(viewModel.Overlay.HasProgram);
@@ -2525,14 +2736,30 @@ public sealed partial class Phase6ViewModelTests
         Assert.AreSame(review, viewModel.SelectedReceivedTelegram);
         viewModel.RedisplayReceivedTelegramCommand.Execute(null);
         Assert.IsFalse(store.Read().HasProgram);
-        StringAssert.Contains(viewModel.TelegramReviewStatusText, "定例解説");
+        StringAssert.Contains(viewModel.TelegramReviewStatusText, suppressionText);
 
-        viewModel.Settings.ShowRoutineNankaiCommentary = true;
+        SetDisplay(true);
         await viewModel.SaveSettingsAsync();
         Assert.IsFalse(store.Read().HasProgram);
         viewModel.RedisplayReceivedTelegramCommand.Execute(null);
         Assert.IsTrue(store.Read().HasProgram);
         Assert.AreEqual(SourceMode.HistoryRehearsal, store.Read().SourceMode);
+
+        void SetDisplay(bool enabled)
+        {
+            switch (type)
+            {
+                case QuakeIssueType.NankaiTroughCommentary:
+                    viewModel.Settings.ShowRoutineNankaiCommentary = enabled;
+                    break;
+                case QuakeIssueType.NankaiTroughTemporaryInformation:
+                    viewModel.Settings.ShowNankaiTroughInformation = enabled;
+                    break;
+                case QuakeIssueType.SubsequentEarthquakeAdvisory:
+                    viewModel.Settings.ShowSubsequentEarthquakeAdvisory = enabled;
+                    break;
+            }
+        }
     }
 
     [TestMethod]
@@ -2778,7 +3005,7 @@ public sealed partial class Phase6ViewModelTests
     }
 
     private static QuakeEvent CreateQuake(
-        SourceMode sourceMode, string eventId, QuakeIssueType issueType = QuakeIssueType.DetailScale)
+        SourceMode sourceMode, string eventId, QuakeIssueType issueType = QuakeIssueType.DetailScale, string? rawType = null)
     {
         QuakeEvent source = (QuakeEvent)TestScenarioCatalog.Create(
             new DateTimeOffset(2026, 8, 1, 3, 0, 0, TimeSpan.Zero))
@@ -2791,8 +3018,8 @@ public sealed partial class Phase6ViewModelTests
             source.ReceivedAt,
             source.Signature,
             sourceMode,
-            source.Issue,
-            source.IssueType,
+            rawType is null ? source.Issue : source.Issue with { RawType = rawType },
+            issueType,
             source.Earthquake,
             source.Points,
             source.FreeFormComment);
@@ -2893,7 +3120,7 @@ public sealed partial class Phase6ViewModelTests
     }
 
     [TestMethod]
-    public async Task ReplayOptionsHideBothBadgesWithoutChangingSourceAndAppendOnlyOnce()
+    public async Task ReplayOptionsKeepTheModeBannerAndAppendTheNoticeOnlyOnce()
     {
         QuakeEvent quake = CreateHistoryQuake();
         AppServices services = CreateServices(ProviderConnectionState.Stopped,
@@ -2901,7 +3128,6 @@ public sealed partial class Phase6ViewModelTests
         var store = new ObsSnapshotStore(services.InitialSettings.Display, services.Clock.UtcNow);
         await using var viewModel = new ControlWindowViewModel(services, services.InitialSettings,
             new FakeConfirmationService(), new ImmediateUiDispatcher(), store);
-        viewModel.Settings.HideReplayModeBanner = true;
         viewModel.Settings.HideReplayInformationBadges = true;
         viewModel.Settings.AppendReplayIssuedAtPage = true;
         viewModel.LoadHistoryForReviewCommand.Execute(null);
@@ -2912,17 +3138,16 @@ public sealed partial class Phase6ViewModelTests
         viewModel.RedisplayReceivedTelegramCommand.Execute(null);
         ObsViewSnapshot replay = store.Read();
         Assert.AreEqual(SourceMode.HistoryRehearsal, replay.SourceMode);
-        Assert.AreEqual(string.Empty, replay.RehearsalLabel);
+        Assert.IsNotEmpty(replay.RehearsalLabel);
         Assert.IsTrue(replay.Blocks.All(static block => block.HideBadge));
         Assert.AreEqual(originalCount + 1, replay.PageCount);
-        Assert.IsFalse(viewModel.Overlay.HasRehearsalLabel);
+        Assert.AreEqual(replay.RehearsalLabel, viewModel.Overlay.RehearsalLabel);
         Assert.IsTrue(viewModel.Overlay.Blocks.All(static block => !block.IsBadgeVisible));
         Assert.AreEqual(originalCount, source.Program.Pages.Count);
         Assert.IsNotEmpty(source.Program.RehearsalLabel);
         viewModel.RedisplayReceivedTelegramCommand.Execute(null);
         Assert.AreEqual(originalCount + 1, store.Read().PageCount);
         viewModel.Settings.AppendReplayIssuedAtPage = false;
-        viewModel.Settings.HideReplayModeBanner = false;
         viewModel.Settings.HideReplayInformationBadges = false;
         viewModel.RedisplayReceivedTelegramCommand.Execute(null);
         Assert.AreEqual(originalCount, store.Read().PageCount);
@@ -2931,25 +3156,24 @@ public sealed partial class Phase6ViewModelTests
     }
 
     [TestMethod]
-    public async Task TrainingAndHistoryRehearsalUseBadgeChoicesButDoNotModifyLivePrograms()
+    public async Task TrainingAndHistoryRehearsalUseSubtitlesWhileKeepingTheModeBanner()
     {
         AppServices services = CreateServices(ProviderConnectionState.Stopped,
             historyLoader: new FakeHistoryRehearsalLoader([CreateHistoryQuake()]));
         var store = new ObsSnapshotStore(services.InitialSettings.Display, services.Clock.UtcNow);
         await using var viewModel = new ControlWindowViewModel(services, services.InitialSettings,
             new FakeConfirmationService(), new ImmediateUiDispatcher(), store);
-        viewModel.Settings.HideReplayModeBanner = true;
         viewModel.Settings.HideReplayInformationBadges = true;
         viewModel.SelectedScenario = viewModel.Scenarios.Single(static item => item.Id == "detail-scale");
         viewModel.RunTestCommand.Execute(null);
         Assert.AreEqual(SourceMode.ManualTest, store.Read().SourceMode);
-        Assert.AreEqual(string.Empty, store.Read().RehearsalLabel);
+        Assert.AreEqual("操作テスト／訓練", store.Read().RehearsalLabel);
         Assert.IsTrue(store.Read().Blocks.All(static block => block.HideBadge));
         viewModel.ClearDisplayCommand.Execute(null);
         viewModel.StartHistoryRehearsalCommand.Execute(null);
         await WaitUntilAsync(() => viewModel.HistoryItems.Count == 1 && store.Read().HasProgram);
         Assert.AreEqual(SourceMode.HistoryRehearsal, store.Read().SourceMode);
-        Assert.AreEqual(string.Empty, store.Read().RehearsalLabel);
+        Assert.AreEqual("履歴リハーサル／訓練", store.Read().RehearsalLabel);
         Assert.IsTrue(store.Read().Blocks.All(static block => block.HideBadge));
         viewModel.StopHistoryRehearsalCommand.Execute(null);
         await WaitUntilAsync(() => !viewModel.IsHistoryRehearsalRunning);
@@ -2958,15 +3182,16 @@ public sealed partial class Phase6ViewModelTests
     }
 
     [TestMethod]
-    [DataRow(SourceMode.Production)]
-    [DataRow(SourceMode.ManualTest)]
-    [DataRow(SourceMode.Sandbox)]
-    public async Task ReceivedLiveProgramsKeepBadgesWhileTrainingReceptionCanHideThem(SourceMode mode)
+    [DataRow(SourceMode.Production, "")]
+    [DataRow(SourceMode.ManualTest, "操作テスト／訓練")]
+    [DataRow(SourceMode.Sandbox, "サンドボックス／訓練")]
+    public async Task ReceivedTrainingProgramsKeepTheModeBannerWithInformationAsSubtitles(
+        SourceMode mode, string expectedLabel)
     {
         QuakeEvent quake = CreateQuake(mode, "received-badge-safety");
         var defaults = AppSettings.CreateDefault();
         AppSettings settings = defaults with { History = defaults.History with
-            { HideModeBanner = true, HideInformationBadges = true, AppendIssuedAtPage = true } };
+            { HideInformationBadges = true, AppendIssuedAtPage = true } };
         AppServices services = CreateServices(ProviderConnectionState.Stopped, suppliedSettings: settings,
             suppliedNormalizer: new StubNormalizer(quake));
         var store = new ObsSnapshotStore(settings.Display, services.Clock.UtcNow);
@@ -2978,7 +3203,7 @@ public sealed partial class Phase6ViewModelTests
         Assert.AreEqual(mode, output.SourceMode);
         Assert.AreEqual(mode != SourceMode.Production, output.Blocks.All(static block => block.HideBadge));
         Assert.AreEqual(services.PageComposer.Compose(quake, settings.Display).Pages.Count, output.PageCount);
-        Assert.AreEqual(string.Empty, output.RehearsalLabel);
+        Assert.AreEqual(expectedLabel, output.RehearsalLabel);
     }
 
     private sealed class FakeHistoryRehearsalLoader(IReadOnlyList<DisasterEvent> events)

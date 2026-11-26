@@ -55,7 +55,7 @@ public sealed class EventIngestionPipeline
         _settings = settings;
         _filter = filter ?? new FilterSettings(true, true, true);
         if (_displayCoordinator is PriorityCoordinator coordinator)
-            coordinator.SetRoutineNankaiCommentaryEnabled(_filter.ShowRoutineNankaiCommentary);
+            coordinator.SetSpecialQuakeFilters(_filter);
     }
 
     public EventIngestionResult Process(RawProviderMessage raw)
@@ -140,7 +140,7 @@ public sealed class EventIngestionPipeline
                 null,
                 null,
                 normalized.Issues,
-                version.RequiresReview ? "要確認：EEW電文の更新順序を確定できません" : null);
+                version.RequiresReview ? "要確認：緊急地震速報電文の更新順序を確定できません" : null);
         }
 
         if (normalized.PreviewOnly)
@@ -170,14 +170,18 @@ public sealed class EventIngestionPipeline
             return ClearTsunamiSnapshot(raw, snapshotTsunami, normalized.Issues);
 
         bool stateOnly = raw.IsStateSnapshot;
-        if (stateOnly || disasterEvent.IsExpired || disasterEvent is TsunamiEvent { ExpireAt: { } expiry } && expiry <= raw.ReceivedAt)
+        // A stored telegram is rehearsed as it was issued. Its original validity window has not changed.
+        DateTimeOffset expiryReferenceTime = raw.SourceMode == SourceMode.HistoryRehearsal &&
+            disasterEvent.SourceMode == SourceMode.HistoryRehearsal ? disasterEvent.IssuedAt : raw.ReceivedAt;
+        if (stateOnly || disasterEvent.IsExpired ||
+            disasterEvent is TsunamiEvent { ExpireAt: { } expiry } && expiry <= expiryReferenceTime)
         {
             return CreateResult(raw, EventIngestionStatus.Accepted, disasterEvent,
                 null, null, normalized.Issues, stateOnly
                     ? "外部連携：初期状態同期（字幕・音声なし）" : "情報の有効期限切れ（字幕・音声なし）") with
             {
                 ReviewProgram = raw.IsStateSnapshot && displayEvent is QuakeEvent
-                    ? _pageComposer.Compose(displayEvent, _settings) : ComposeSuppressedRoutineCommentary(disasterEvent),
+                    ? _pageComposer.Compose(displayEvent, _settings) : ComposeSuppressedSpecialQuake(disasterEvent),
             };
         }
         if (displayEvent is null)
@@ -191,7 +195,7 @@ public sealed class EventIngestionPipeline
                 normalized.Issues,
                 EventDisplayFilter.DescribeSuppression(_filter, disasterEvent)) with
             {
-                ReviewProgram = ComposeSuppressedRoutineCommentary(disasterEvent),
+                ReviewProgram = ComposeSuppressedSpecialQuake(disasterEvent),
             };
         }
 
@@ -263,7 +267,7 @@ public sealed class EventIngestionPipeline
         if (snapshot.Decision.Kind == CoordinatorDecisionKind.IgnoredFilteredProgram)
         {
             return CreateResult(raw, EventIngestionStatus.Accepted, disasterEvent, null, null,
-                normalized.Issues, EventDisplayFilter.RoutineCommentarySuppressionReason) with
+                normalized.Issues, snapshot.Decision.Message) with
             {
                 ReviewProgram = program,
             };
@@ -279,8 +283,8 @@ public sealed class EventIngestionPipeline
             CountItems(displayEvent));
     }
 
-    private DisplayProgram? ComposeSuppressedRoutineCommentary(DisasterEvent disasterEvent) =>
-        EventDisplayFilter.IsRoutineNankaiCommentarySuppressed(_filter, disasterEvent)
+    private DisplayProgram? ComposeSuppressedSpecialQuake(DisasterEvent disasterEvent) =>
+        EventDisplayFilter.GetSpecialQuakeSuppressionReason(_filter, disasterEvent) is not null
             ? _pageComposer.Compose(disasterEvent, _settings) : null;
 
     public bool IsScalePromptSuppressed(DisplayProgram program, DateTimeOffset now) =>
@@ -370,7 +374,7 @@ public sealed class EventIngestionPipeline
         if (filter is not null)
         {
             if (_displayCoordinator is PriorityCoordinator coordinator)
-                coordinator.SetRoutineNankaiCommentaryEnabled(filter.ShowRoutineNankaiCommentary);
+                coordinator.SetSpecialQuakeFilters(filter);
             _filter = filter;
             ClearWeatherDisplayStates();
         }

@@ -10,6 +10,7 @@ internal static partial class QuakePageComposer
 {
     private const int IntensityRowsPerPage = 2;
     private const int NamesPerRow = 3;
+    private const int OverseasTsunamiRowsPerPage = 2;
     private const string ScalePromptTsunamiCaution = "念のため津波に注意してください";
 
     public static DisplayProgram Compose(QuakeEvent quake, DisplaySettings settings, bool omitScalePromptTsunamiCaution)
@@ -174,7 +175,7 @@ internal static partial class QuakePageComposer
         string tsunamiInformation = string.IsNullOrWhiteSpace(displayComment)
             ? PageComposerSupport.GetForeignTsunamiText(quake.Earthquake.ForeignTsunami)
             : displayComment.Trim();
-        AddAdvisoryPage(pages, tsunamiInformation);
+        AddPagesWithOverseasTsunamiObservations(pages, tsunamiInformation, DisplayStyleTokens.Advisory);
         return pages;
     }
 
@@ -595,9 +596,82 @@ internal static partial class QuakePageComposer
         if (!string.IsNullOrWhiteSpace(comment))
         {
             string displayComment = FormatCommentForDisplay(comment);
-            AddNarrativePages(pages, displayComment, DisplayStyleTokens.Comment);
+            AddPagesWithOverseasTsunamiObservations(pages, displayComment, DisplayStyleTokens.Comment);
         }
     }
+
+    private static void AddPagesWithOverseasTsunamiObservations(List<PageDraft> pages, string text, string style)
+    {
+        if (!text.Contains("検潮所名", StringComparison.Ordinal))
+        {
+            AddNarrativePages(pages, text, style);
+            return;
+        }
+
+        string[] lines = text.ReplaceLineEndings("\n").Split('\n');
+        int narrativeStart = 0;
+        for (int index = 0; index < lines.Length; index++)
+        {
+            if (!IsOverseasTsunamiHeader(SplitOverseasTsunamiColumns(lines[index])) ||
+                !TryReadOverseasTsunamiTable(lines, index + 1, out int end, out var observations))
+            {
+                continue;
+            }
+
+            AddNarrativePages(pages, string.Join('\n', lines[narrativeStart..index]), style);
+            var heading = new DisplayBlock(string.Empty, "海外の津波観測", string.Empty, style);
+            foreach (DisplayBlock[] rows in observations.Chunk(OverseasTsunamiRowsPerPage))
+            {
+                pages.Add(new PageDraft([heading, .. rows]));
+            }
+
+            narrativeStart = end;
+            index = end - 1;
+        }
+
+        AddNarrativePages(pages, string.Join('\n', lines[narrativeStart..]), style);
+    }
+
+    private static bool TryReadOverseasTsunamiTable(
+        string[] lines, int start, out int end, out List<DisplayBlock> observations)
+    {
+        observations = [];
+        for (end = start; end < lines.Length; end++)
+        {
+            string[] columns = SplitOverseasTsunamiColumns(lines[end]);
+            if (columns.Length == 1 || IsOverseasTsunamiHeader(columns))
+            {
+                break;
+            }
+
+            // Keep the source table in the narrative if a row uses an unfamiliar format.
+            if (columns is not [var country, var station, var sourceHeight])
+            {
+                return false;
+            }
+
+            Match height = OverseasTsunamiHeight().Match(sourceHeight);
+            if (!height.Success)
+            {
+                return false;
+            }
+
+            string number = height.Groups[1].Value.Normalize(NormalizationForm.FormKC);
+            string unit = height.Groups[2].Value.Normalize(NormalizationForm.FormKC);
+            observations.Add(new DisplayBlock(
+                string.Empty,
+                $"{country}・{station}",
+                $"{number} {unit}",
+                DisplayStyleTokens.OverseasTsunamiObservation));
+        }
+
+        return observations.Count > 0;
+    }
+
+    private static string[] SplitOverseasTsunamiColumns(string line) => OverseasTsunamiColumnGap().Split(line.Trim());
+
+    private static bool IsOverseasTsunamiHeader(string[] columns) =>
+        columns is ["国・地域名", "検潮所名", "津波の高さ"];
 
     private static string GetSupplementaryComment(
         string comment, string tsunamiText, DisplaySettings settings, bool omitScalePromptTsunamiCaution = false)
@@ -612,20 +686,34 @@ internal static partial class QuakePageComposer
         // Compare complete rendered sentences and retain the first occurrence's wording.
         ReadOnlySpan<char> source = comment.AsSpan();
         var remaining = new StringBuilder(source.Length);
+        bool inOverseasTsunamiTable = false;
         while (!source.IsEmpty)
         {
             int separator = source.IndexOfAny('。', '\r', '\n');
             int sentenceLength = separator < 0 ? source.Length : separator;
             int next = Math.Min(sentenceLength + 1, source.Length);
+            if (separator >= 0 && source[separator] == '\r' && next < source.Length && source[next] == '\n')
+            {
+                next++;
+            }
+
             if (omitScalePromptTsunamiCaution && source[..sentenceLength].Trim().SequenceEqual(ScalePromptTsunamiCaution))
             {
                 source = source[next..];
                 continue;
             }
 
-            string sentence = SubtitlePhraseCatalog.ReplaceKnownPhrases(source[..next].Trim().ToString(), replacements);
-            string key = sentence.TrimEnd().TrimEnd('。').Trim();
-            if (key.Length == 0 || shownSentences.Add(key))
+            string sourceSentence = source[..next].Trim().ToString();
+            if (inOverseasTsunamiTable || sourceSentence.StartsWith("国・地域名", StringComparison.Ordinal))
+            {
+                string[] columns = SplitOverseasTsunamiColumns(sourceSentence);
+                inOverseasTsunamiTable = IsOverseasTsunamiHeader(columns) || (inOverseasTsunamiTable && columns.Length > 1);
+            }
+
+            // Repeated headers and rows can belong to different observation sources.
+            string rendered = SubtitlePhraseCatalog.ReplaceKnownPhrases(sourceSentence, replacements);
+            string key = rendered.TrimEnd().TrimEnd('。').Trim();
+            if (inOverseasTsunamiTable || key.Length == 0 || shownSentences.Add(key))
                 remaining.Append(source[..next]);
             source = source[next..];
         }
@@ -672,6 +760,13 @@ internal static partial class QuakePageComposer
         @"気象庁以外の(?:震度)?観測点(?:についての情報)?です(?:。?[）)]。?|。|(?=[ \t　]*(?:[\r\n]|\z)))",
         RegexOptions.CultureInvariant)]
     private static partial Regex NonJmaStationNote();
+
+    [GeneratedRegex(@"[ \t　]{2,}|[\t　]", RegexOptions.CultureInvariant)]
+    private static partial Regex OverseasTsunamiColumnGap();
+
+    [GeneratedRegex(@"\A([0-9０-９]+(?:[.．][0-9０-９]+)?) *((?:[cｃ]?[mｍ]|㎝)(?:以上|以下|未満|程度)?)\z",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex OverseasTsunamiHeight();
 
     private sealed record IndexedPoint(JmaScale Scale, string DisplayName, int OriginalIndex);
 
