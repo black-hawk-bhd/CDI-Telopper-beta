@@ -37,7 +37,6 @@ internal static partial class WeatherWarningPageComposer
             { WeatherHeading = weather.RiverFlood is null ? GetWeatherHeading(weather, explicitState: "取消") : string.Empty };
             return PageComposerSupport.CreateProgram(
                 weather,
-                settings,
                 OverlayPriority.WeatherAdvisory,
                 EndPolicy.AutoHide,
                 [new PageDraft([telegramCancel])]);
@@ -45,7 +44,7 @@ internal static partial class WeatherWarningPageComposer
 
         if (weather.RiverFlood is not null)
         {
-            return ComposeRiverFlood(weather, settings);
+            return ComposeRiverFlood(weather);
         }
 
         if (!weather.IsCancelled &&
@@ -56,7 +55,6 @@ internal static partial class WeatherWarningPageComposer
             {
                 return PageComposerSupport.CreateProgram(
                     weather,
-                    settings,
                     OverlayPriority.WeatherWarning,
                     EndPolicy.AutoHide,
                     bulletinPages);
@@ -71,7 +69,6 @@ internal static partial class WeatherWarningPageComposer
             {
                 return PageComposerSupport.CreateProgram(
                     weather,
-                    settings,
                     OverlayPriority.WeatherWarning,
                     EndPolicy.AutoHide,
                     bulletinPages);
@@ -86,7 +83,6 @@ internal static partial class WeatherWarningPageComposer
             {
                 return PageComposerSupport.CreateProgram(
                     weather,
-                    settings,
                     OverlayPriority.WeatherAdvisory,
                     EndPolicy.AutoHide,
                     bulletinPages);
@@ -119,7 +115,6 @@ internal static partial class WeatherWarningPageComposer
             {
                 return PageComposerSupport.CreateProgram(
                     weather,
-                    settings,
                     GetPriority(releasedWarnings.Max(static item => item.Level)),
                     EndPolicy.AutoHide,
                     CreateReleasePages(releasedWarnings, areaRowsPerPage).ToArray());
@@ -134,7 +129,6 @@ internal static partial class WeatherWarningPageComposer
                 DisplayStyleTokens.WeatherCancel) { WeatherHeading = GetWeatherHeading(weather, explicitState: "解除") };
             return PageComposerSupport.CreateProgram(
                 weather,
-                settings,
                 OverlayPriority.WeatherAdvisory,
                 EndPolicy.AutoHide,
                 [new PageDraft([cancel])]);
@@ -148,7 +142,6 @@ internal static partial class WeatherWarningPageComposer
 
         return PageComposerSupport.CreateProgram(
             weather,
-            settings,
             GetPriority(weather.MaximumLevel),
             EndPolicy.AutoHide,
             pages);

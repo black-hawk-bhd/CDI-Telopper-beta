@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using EEWTelop.Application.Configuration;
 using EEWTelop.Domain.Events;
 
 namespace EEWTelop.Application.Display;
@@ -8,7 +7,7 @@ internal static partial class VolcanoPageComposer
 {
     private const int LinesPerPage = 3;
 
-    public static DisplayProgram Compose(VolcanoEvent volcano, DisplaySettings settings)
+    public static DisplayProgram Compose(VolcanoEvent volcano)
     {
         string badge = GetBadge(volcano);
         string style = volcano.InformationType == VolcanoInformationType.EruptionFlash
@@ -35,7 +34,6 @@ internal static partial class VolcanoPageComposer
                 style);
             return PageComposerSupport.CreateProgram(
                 volcano,
-                settings,
                 priority,
                 EndPolicy.AutoHide,
                 pages);
@@ -45,7 +43,6 @@ internal static partial class VolcanoPageComposer
         {
             return PageComposerSupport.CreateProgram(
                 volcano,
-                settings,
                 priority,
                 EndPolicy.AutoHide,
                 pages);
@@ -102,7 +99,6 @@ internal static partial class VolcanoPageComposer
 
         return PageComposerSupport.CreateProgram(
             volcano,
-            settings,
             priority,
             EndPolicy.AutoHide,
             pages);

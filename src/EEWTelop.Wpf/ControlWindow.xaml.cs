@@ -117,6 +117,7 @@ public partial class ControlWindow : Window, IAsyncDisposable
         DmdataCredentialBox.Password = _viewModel.Settings.DmdataCredential;
         AxisAccessTokenBox.Password = _viewModel.Settings.AxisAccessToken;
         _viewModel.Settings.PropertyChanged += OnSettingsPropertyChanged;
+        _viewModel.PropertyChanged += OnDesktopOverlaySettingsChanged;
         _viewModel.ShowBrowserMonitorRequested += OnShowBrowserMonitorRequested;
         _viewModel.ShowTelegramReviewRequested += OnShowTelegramReviewRequested;
         _viewModel.EditSubtitleRequested += OnEditSubtitleRequested;
@@ -148,6 +149,8 @@ public partial class ControlWindow : Window, IAsyncDisposable
 
     internal ControlWindowViewModel ViewModel => _viewModel;
 
+    internal DesktopOverlayWindow? OverlayWindow { get; private set; }
+
     protected override async void OnClosed(EventArgs e)
     {
         await DisposeAsync();
@@ -162,6 +165,7 @@ public partial class ControlWindow : Window, IAsyncDisposable
         }
 
         _disposed = true;
+        _viewModel.PropertyChanged -= OnDesktopOverlaySettingsChanged;
         _viewModel.ShowBrowserMonitorRequested -= OnShowBrowserMonitorRequested;
         _viewModel.ShowTelegramReviewRequested -= OnShowTelegramReviewRequested;
         _viewModel.EditSubtitleRequested -= OnEditSubtitleRequested;
@@ -180,12 +184,43 @@ public partial class ControlWindow : Window, IAsyncDisposable
         _viewModel.SettingsEditorChanged -= OnSettingsEditorChanged;
         _viewModel.Settings.PropertyChanged -= OnSettingsPropertyChanged;
         _telegramReviewWindow?.Close();
+        OverlayWindow?.Close();
         if (_e2eTestPipeServer is not null)
         {
             await _e2eTestPipeServer.DisposeAsync().ConfigureAwait(false);
         }
         await _viewModel.DisposeAsync().ConfigureAwait(false);
         GC.SuppressFinalize(this);
+    }
+
+    private void OnControlWindowLoaded(object sender, RoutedEventArgs e) => UpdateDesktopOverlay();
+
+    private void OnDesktopOverlaySettingsChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ControlWindowViewModel.DesktopOverlay))
+            UpdateDesktopOverlay();
+    }
+
+    private void UpdateDesktopOverlay()
+    {
+        if (_disposed) return;
+
+        DesktopOverlaySettings settings = _viewModel.DesktopOverlay;
+        if (!settings.Enabled)
+        {
+            OverlayWindow?.Close();
+            return;
+        }
+
+        if (OverlayWindow is null)
+        {
+            OverlayWindow = new DesktopOverlayWindow(_viewModel.Overlay);
+            OverlayWindow.Closed += (_, _) => OverlayWindow = null;
+        }
+
+        OverlayWindow.Topmost = settings.Topmost;
+        if (!OverlayWindow.IsVisible)
+            OverlayWindow.Show();
     }
 
     private void OnShowBrowserMonitorRequested(object? sender, EventArgs e) =>
@@ -470,16 +505,16 @@ public partial class ControlWindow : Window, IAsyncDisposable
         }
     }
 
-    private void OnBrowseHistoryXmlFileRequested()
+    private void OnBrowseHistoryXmlFileRequested(object? owner)
     {
         var dialog = new OpenFileDialog
         {
-            Title = "テストする気象庁防災情報XMLを選択",
+            Title = "外部JMA XMLファイルを選択",
             Filter = "XMLファイル (*.xml)|*.xml",
             CheckFileExists = true,
             Multiselect = false,
         };
-        if (dialog.ShowDialog(this) == true)
+        if (dialog.ShowDialog(owner as Window ?? this) == true)
         {
             _viewModel.Settings.LocalHistoryXmlFilePath = dialog.FileName;
             _viewModel.Settings.HistoryApi = HistoryApi.LocalJmaXml;

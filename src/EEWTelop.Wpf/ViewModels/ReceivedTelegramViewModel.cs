@@ -12,13 +12,21 @@ public sealed class ReceivedTelegramViewModel
     public ReceivedTelegramViewModel(
         DisasterEvent disasterEvent,
         DisplayProgram program,
-        string displayResult = "表示済み")
+        string? displayResult = null,
+        bool isHiddenByDisplayFilter = false)
     {
         Event = disasterEvent;
         Program = program;
-        DisplayResult = string.IsNullOrWhiteSpace(displayResult)
-            ? "表示済み"
-            : displayResult.Trim();
+        IsHiddenByDisplayFilter = isHiddenByDisplayFilter;
+        string result = displayResult?.Trim() ?? string.Empty;
+        if (isHiddenByDisplayFilter)
+        {
+            DisplayResult = result.Length == 0 ? "フィルター非表示" : $"フィルター非表示（{result}）";
+        }
+        else
+        {
+            DisplayResult = result.Length == 0 ? "表示済み" : result;
+        }
     }
 
     public DisasterEvent Event { get; }
@@ -26,6 +34,8 @@ public sealed class ReceivedTelegramViewModel
     public DisplayProgram Program { get; }
 
     public string DisplayResult { get; }
+
+    public bool IsHiddenByDisplayFilter { get; }
 
     public string TelegramType => Event switch
     {
@@ -72,7 +82,7 @@ public sealed class ReceivedTelegramViewModel
                 .Select((page, index) => new TelegramPageReviewViewModel(
                     $"ページ {index + 1} / {Program.Pages.Count}",
                     Event is WeatherWarningEvent
-                        ? string.Join(Environment.NewLine, page.Blocks.Where(b => b.StyleToken != DisplayStyleTokens.PageIndicator)
+                        ? string.Join(Environment.NewLine, page.Blocks
                             .Select(b => (b.WeatherHeading.Length > 0 ? b.WeatherHeading + Environment.NewLine : string.Empty) + b.PrimaryText + (b.SecondaryText.Length > 0 ? Environment.NewLine + b.SecondaryText : string.Empty)))
                         : page.AccessibleText,
                     Event is WeatherWarningEvent

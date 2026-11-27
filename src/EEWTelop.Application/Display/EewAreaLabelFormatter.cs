@@ -52,41 +52,33 @@ public static class EewAreaLabelFormatter
     /// 表示用の地域名を受信順で返します。
     /// </summary>
     public static IReadOnlyList<string> Format(IReadOnlyList<EewArea> areas) =>
-        GroupByDisplayLabel(areas).Select(static group => group.Key).ToArray();
+        GroupByDisplayLabel(ResolveForecastDistricts(areas)).Select(static group => group.Key).ToArray();
 
-    internal static IReadOnlyList<EewAreaLabel> MarkChanges(
+    internal static IReadOnlyList<EewAreaLabel> MarkNewWarningDistricts(
         IReadOnlyList<EewArea> previous, IReadOnlyList<EewArea> current)
     {
-        // Compare the provider's areas before grouping them into display labels.
-        // An added or removed area can change the label without revising any forecast.
-        var previousForecasts = previous.ToLookup(AreaIdentity, ForecastValues);
-        return GroupByDisplayLabel(current)
-            .Select(group => new EewAreaLabel(group.Key, group.Any(WasUpdated)))
+        // Compare warning districts before geographic aggregation. Forecast revisions
+        // and additional subdivisions within a district do not expand its coverage.
+        HashSet<string> previousDistricts = ResolveForecastDistricts(previous)
+            .Select(static district => district.Key).ToHashSet(StringComparer.Ordinal);
+        return GroupByDisplayLabel(ResolveForecastDistricts(current))
+            .Select(group => new EewAreaLabel(group.Key, previousDistricts.Count > 0 &&
+                group.Any(district => !previousDistricts.Contains(district.Key))))
             .ToArray();
-
-        bool WasUpdated(EewArea area)
-        {
-            var id = AreaIdentity(area);
-            return previousForecasts.Contains(id) && !previousForecasts[id].Contains(ForecastValues(area));
-        }
     }
 
-    private static (string Prefecture, string Name) AreaIdentity(EewArea area) =>
-        (Compact(area.Prefecture), Compact(area.Name));
-
-    private static (JmaScale From, int To, EewWarningKind WarningKind, DateTimeOffset? ArrivalTime) ForecastValues(EewArea area) =>
-        (area.ScaleFrom, area.ScaleTo, area.WarningKind, area.ArrivalTime);
-
-    private static IEnumerable<IGrouping<string, EewArea>> GroupByDisplayLabel(IReadOnlyList<EewArea> areas)
+    private static ForecastDistrict[] ResolveForecastDistricts(IReadOnlyList<EewArea> areas)
     {
         ArgumentNullException.ThrowIfNull(areas);
 
-        var resolved = areas.Select(static area => (Area: area, District: ResolveForecastDistrict(area)))
-            .Where(static item => item.District is not null).ToArray();
-        ForecastDistrict[] districts = resolved.Select(static item => item.District!)
+        return areas.Select(ResolveForecastDistrict)
+            .OfType<ForecastDistrict>()
             .DistinctBy(static district => district.Key, StringComparer.Ordinal)
             .ToArray();
+    }
 
+    private static IEnumerable<IGrouping<string, ForecastDistrict>> GroupByDisplayLabel(ForecastDistrict[] districts)
+    {
         var aggregateRegions = new HashSet<string>(StringComparer.Ordinal);
         if (districts.Length >= RegionalAggregationThreshold)
         {
@@ -110,7 +102,7 @@ public static class EewAreaLabelFormatter
                 labels[key] = "北海道";
         }
 
-        return resolved.GroupBy(item => labels[item.District!.Key], static item => item.Area, StringComparer.Ordinal);
+        return districts.GroupBy(district => labels[district.Key], StringComparer.Ordinal);
     }
 
     private static bool IsHokkaidoLabel(string label)

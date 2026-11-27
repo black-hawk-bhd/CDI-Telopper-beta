@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
@@ -23,7 +24,6 @@ using EEWTelop.Infrastructure.Axis.Security;
 #if QTELOPPER_DMDATA_PROVIDER
 using EEWTelop.Infrastructure.Dmdata.Configuration;
 #endif
-using EEWTelop.Infrastructure.P2P.Configuration;
 using EEWTelop.Infrastructure.Wolfx.Configuration;
 using EEWTelop.Wpf.Bootstrap;
 using EEWTelop.Wpf.Mvvm;
@@ -223,6 +223,13 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             static () => false);
         EditSubtitlePhraseTemplatesCommand = new RelayCommand(() =>
             EditSubtitlePhraseTemplatesRequested?.Invoke());
+        ClearDesktopOverlayCommand = new RelayCommand(
+            () =>
+            {
+                if (DesktopOverlay.Enabled) Overlay.ClearDisplay();
+            },
+            () => DesktopOverlay.Enabled && Overlay.HasProgram);
+        Overlay.PropertyChanged += OnOverlayPropertyChanged;
         ClearDisplayCommand = new RelayCommand(ClearDisplay);
         ClearQuakeDisplayCommand = new RelayCommand(() => ClearDisplay(EventKind.Quake));
         ClearTsunamiDisplayCommand = new RelayCommand(() => ClearDisplay(EventKind.Tsunami));
@@ -267,7 +274,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 BrowseAudioFileRequested?.Invoke(cue);
             }
         });
-        BrowseHistoryXmlFileCommand = new RelayCommand(() => BrowseHistoryXmlFileRequested?.Invoke());
+        BrowseHistoryXmlFileCommand = new RelayCommand(owner => BrowseHistoryXmlFileRequested?.Invoke(owner));
         TestAudioCommand = new RelayCommand(parameter =>
         {
             if (parameter is AudioCueId cue)
@@ -325,11 +332,13 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
 
     public event Action<AudioCueId>? BrowseAudioFileRequested;
 
-    public event Action? BrowseHistoryXmlFileRequested;
+    public event Action<object?>? BrowseHistoryXmlFileRequested;
 
     public SettingsEditorViewModel Settings { get; private set; }
 
     public OverlayViewModel Overlay { get; }
+
+    internal DesktopOverlaySettings DesktopOverlay => _settings.DesktopOverlay;
 
     public bool IsE2ETestMode => _isE2ETestMode;
 
@@ -440,6 +449,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     public RelayCommand EditPreDisplaySubtitleCommand { get; }
 
     public RelayCommand EditSubtitlePhraseTemplatesCommand { get; }
+
+    public RelayCommand ClearDesktopOverlayCommand { get; }
 
     public RelayCommand ClearDisplayCommand { get; }
 
@@ -780,8 +791,10 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         {
             FilterSettings previous = _settings.Filter;
             bool eewEstimatesChanged = _settings.Display.ShowEewEstimates != updated.Display.ShowEewEstimates;
+            bool desktopOverlayChanged = _settings.DesktopOverlay != updated.DesktopOverlay;
             _settings = updated;
             _services.IngestionPipeline.UpdateSettings(updated.Display, updated.Filter);
+            Overlay.ApplySettings(updated.Display);
             DateTimeOffset now = _services.Clock.UtcNow;
             if (previous.Quake != updated.Filter.Quake ||
                 previous.ShowNankaiTroughInformation != updated.Filter.ShowNankaiTroughInformation ||
@@ -789,18 +802,23 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 previous.ShowRoutineNankaiCommentary != updated.Filter.ShowRoutineNankaiCommentary)
             {
                 StopSuppressedQuakeOutput(now,
-                    program => EventDisplayFilter.GetSpecialQuakeSuppressionReason(updated.Filter, program));
+                    program => EventDisplayFilter.GetSpecialQuakeSuppressionReason(updated.Filter, program),
+                    isHiddenByDisplayFilter: true);
             }
             StopSuppressedScalePromptOutput(now);
             if (eewEstimatesChanged && _lastCoordinatorSnapshot is { CurrentProgram.Kind: EventKind.Eew } displayed)
                 ApplyDisplaySnapshot(displayed);
+            if (desktopOverlayChanged)
+            {
+                OnPropertyChanged(nameof(DesktopOverlay));
+                ClearDesktopOverlayCommand.RaiseCanExecuteChanged();
+            }
         });
         _productionReplayCatalog.Prune(
             updated.Display.ProductionReplay,
             _services.Clock.UtcNow);
         _services.RawMessageArchive?.Configure(updated.Log);
         _previewCoordinator.UpdateSettings(updated.Display);
-        Overlay.ApplySettings(updated.Display);
         _obsSnapshotStore.PublishSettings(updated.Display, _services.Clock.UtcNow);
         try
         {
@@ -851,12 +869,6 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         {
             return true;
         }
-        if (activeProviders.Contains(ReceptionProvider.P2pQuake) &&
-            ProviderOptions.FromSettings(current) != ProviderOptions.FromSettings(updated))
-        {
-            return true;
-        }
-
 #if QTELOPPER_DMDATA_PROVIDER
         if (activeProviders.Contains(ReceptionProvider.Dmdata) &&
             DmdataProviderOptions.FromSettings(current) !=
@@ -963,6 +975,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         _settingsApplyGate.Release();
         Settings.PropertyChanged -= OnDmdataContractSettingsChanged;
         DmdataContracts.PropertyChanged -= OnDmdataContractsChanged;
+        Overlay.PropertyChanged -= OnOverlayPropertyChanged;
         _dmdataOAuthStop.Cancel();
         await _dmdataOAuthTask.ConfigureAwait(false);
         await DmdataContracts.DisposeAsync().ConfigureAwait(false);
@@ -1087,9 +1100,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 configurable.ConfigureProvider(_settings.Provider);
             }
 
-            ReceptionStatusText = _settings.Provider.Mode == ProviderMode.Sandbox
-                ? "Sandbox接続中・表示対象の受信待ち"
-                : "表示対象の受信待ち";
+            ReceptionStatusText = "表示対象の受信待ち";
             _dmdataOAuthReceptionActive = true;
             UpdateTestAvailability();
             _receptionTask = RunReceptionAsync();
@@ -1451,7 +1462,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             program = program with { HideSimulatorTrainingBanner = true };
 
         program = ReplayPresentation.Apply(program, Settings.ToSettings(_settings).History,
-            disasterEvent.IssuedAt, isReplay: false, _settings.Display.ShowPageIndicator);
+            disasterEvent.IssuedAt, isReplay: false);
 
         CoordinatorSnapshot snapshot = previewCoordinator.Apply(program);
         _obsSnapshotStore.AddMonitorTelegram(disasterEvent, program, _settings.Display, "訓練表示");
@@ -1485,6 +1496,12 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         {
             // The final scenario step completed between the read and cancellation.
         }
+    }
+
+    private void OnOverlayPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(OverlayViewModel.HasProgram))
+            ClearDesktopOverlayCommand.RaiseCanExecuteChanged();
     }
 
     private void ClearDisplay()
@@ -1583,11 +1600,31 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 return;
             }
 
+            DisplayProgram program = item.Program;
+            if (item is { IsHiddenByDisplayFilter: true, Event.SourceMode: SourceMode.Production })
+            {
+                FilterSettings filter = _settings.Filter;
+                if (EventDisplayFilter.Apply(filter, item.Event) is not { } displayEvent)
+                {
+                    string filterReason = EventDisplayFilter.DescribeSuppression(filter, item.Event);
+                    TelegramReviewStatusText = $"現在の表示フィルターで非表示です（{filterReason}）。";
+                    return;
+                }
+
+                program = _services.PageComposer.Compose(displayEvent, _settings.Display);
+            }
+
+            if (item.IsHiddenByDisplayFilter && program.Pages.Count == 0)
+            {
+                TelegramReviewStatusText = "再表示できる字幕がありません。";
+                return;
+            }
+
             string label = BuildTelegramReplayLabel(
                 _telegramReplayMode,
                 item.Event.IssuedAt,
                 _services.Clock.UtcNow);
-            DisplayRehearsal(item.Event, item.Program, label);
+            DisplayRehearsal(item.Event, program, label);
             TelegramReviewStatusText = $"{GetTelegramReplayModeText(_telegramReplayMode)}として再表示しました。";
         }
     }
@@ -1601,7 +1638,10 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             ? EventIngestionPipeline.ScalePromptSuppressionReason : null);
     }
 
-    private void StopSuppressedQuakeOutput(DateTimeOffset now, Func<DisplayProgram, string?> getSuppressionReason)
+    private void StopSuppressedQuakeOutput(
+        DateTimeOffset now,
+        Func<DisplayProgram, string?> getSuppressionReason,
+        bool isHiddenByDisplayFilter = false)
     {
         bool IsSuppressed(DisplayProgram program) => getSuppressionReason(program) is not null;
         _productionReplayCatalog.RemoveQuakePrograms(IsSuppressed);
@@ -1612,7 +1652,8 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         {
             if (getSuppressionReason(draft.Program) is not { } reason) continue;
             _preDisplaySubtitleDrafts.Remove(draft);
-            AddTelegramForReview(draft.Event, draft.Program, reason);
+            AddTelegramForReview(new ReceivedTelegramViewModel(
+                draft.Event, draft.Program, reason, isHiddenByDisplayFilter));
             removedDraft = true;
         }
         if (removedDraft) UpdatePreDisplayDraftState();
@@ -1667,30 +1708,27 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
     private static string GetTelegramReplayModeText(TelegramReplayMode mode) =>
         mode == TelegramReplayMode.ProductionReplay ? "本番情報・再掲" : "過去情報";
 
-    private void AddTelegramForReview(
-        DisasterEvent disasterEvent,
-        DisplayProgram program,
-        string displayResult = "表示済み")
+    private void AddTelegramForReview(ReceivedTelegramViewModel item)
     {
-        _obsSnapshotStore.AddMonitorTelegram(disasterEvent, program, _settings.Display, displayResult);
-        ReceivedTelegramViewModel? duplicate = ReceivedTelegrams.FirstOrDefault(item =>
-            item.Event.SourceMode == disasterEvent.SourceMode &&
-            string.Equals(item.Event.Provider, disasterEvent.Provider, StringComparison.Ordinal) &&
-            string.Equals(item.Event.Id.Value, disasterEvent.Id.Value, StringComparison.Ordinal) &&
-            item.Event.IssuedAt == disasterEvent.IssuedAt);
+        DisasterEvent disasterEvent = item.Event;
+        _obsSnapshotStore.AddMonitorTelegram(disasterEvent, item.Program, _settings.Display, item.DisplayResult);
+        ReceivedTelegramViewModel? duplicate = ReceivedTelegrams.FirstOrDefault(existing =>
+            existing.Event.SourceMode == disasterEvent.SourceMode &&
+            string.Equals(existing.Event.Provider, disasterEvent.Provider, StringComparison.Ordinal) &&
+            string.Equals(existing.Event.Id.Value, disasterEvent.Id.Value, StringComparison.Ordinal) &&
+            existing.Event.IssuedAt == disasterEvent.IssuedAt);
         if (duplicate is not null)
         {
             ReceivedTelegrams.Remove(duplicate);
         }
 
-        var item = new ReceivedTelegramViewModel(disasterEvent, program, displayResult);
         ReceivedTelegrams.Insert(0, item);
         while (ReceivedTelegrams.Count > 500)
         {
             ReceivedTelegrams.RemoveAt(ReceivedTelegrams.Count - 1);
         }
 
-        if (MatchesReviewCategory(item)) SelectedReceivedTelegram = item;
+        if (MatchesReviewFilters(item)) SelectedReceivedTelegram = item;
     }
 
     private void DisplayRehearsal(
@@ -1710,7 +1748,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             RehearsalLabel = label,
         };
         program = ReplayPresentation.Apply(program, Settings.ToSettings(_settings).History,
-            disasterEvent.IssuedAt, isReplay, _settings.Display.ShowPageIndicator);
+            disasterEvent.IssuedAt, isReplay);
         CoordinatorSnapshot snapshot = coordinator.Apply(program);
         _obsSnapshotStore.PublishProgram(disasterEvent, program, _settings.Display, nowUtc);
         _previewCoordinator = coordinator;
@@ -1931,28 +1969,41 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             return;
         }
 
+        if (Settings.IsLocalHistoryApi && string.IsNullOrWhiteSpace(Settings.LocalHistoryXmlFilePath))
+        {
+            TelegramReviewStatusText = "「参照…」から外部JMA XMLファイルを選択してください。";
+            return;
+        }
+
         IsTelegramHistoryLoading = true;
         TelegramReviewStatusText = "過去電文を取得中…";
         AppSettings requested = Settings.ToSettings(_settings);
+        FilterSettings filter = _settings.Filter;
         try
         {
             HistoryRehearsalLoadResult loaded = await _services.HistoryRehearsalLoader.LoadAsync(
                 requested.History,
                 requested.Provider,
                 _renderLoopStop.Token).ConfigureAwait(false);
-            HistoryReplayItemViewModel[] items = loaded.Events
-                .Select(disasterEvent => CreateHistoryReplayItem(disasterEvent, requested.Display))
-                .Where(static item => item.Program.Pages.Count > 0)
+            ReceivedTelegramViewModel[] items = loaded.Events
+                .Select(disasterEvent =>
+                {
+                    DisplayProgram program = _services.PageComposer.Compose(disasterEvent, requested.Display);
+                    bool hidden = !EventDisplayFilter.IsEnabled(filter, disasterEvent);
+                    string? reason = hidden ? EventDisplayFilter.DescribeSuppression(filter, disasterEvent) : null;
+                    return new ReceivedTelegramViewModel(disasterEvent, program, reason, hidden);
+                })
+                .Where(static item => item.IsHiddenByDisplayFilter || item.Program.Pages.Count > 0)
                 .ToArray();
 
             await _dispatcher.InvokeAsync(() =>
             {
-                foreach (HistoryReplayItemViewModel item in items.Reverse())
+                foreach (ReceivedTelegramViewModel item in items.Reverse())
                 {
-                    AddTelegramForReview(item.DisasterEvent, item.Program);
+                    AddTelegramForReview(item);
                 }
 
-                SelectedReceivedTelegram = ReceivedTelegrams.FirstOrDefault(MatchesReviewCategory);
+                SelectedReceivedTelegram = ReceivedTelegrams.FirstOrDefault(MatchesReviewFilters);
                 TelegramReviewStatusText = items.Length == 0
                     ? "確認できる過去電文がありませんでした。履歴設定とログを確認してください。"
                     : $"過去電文を{items.Length}件取得しました（対象外 {loaded.IgnoredCount}件、不正 {loaded.InvalidCount}件）。";
@@ -2110,7 +2161,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 foreach (HistoryReplayItemViewModel item in historyItems)
                 {
                     HistoryItems.Add(item);
-                    AddTelegramForReview(item.DisasterEvent, item.Program);
+                    AddTelegramForReview(new ReceivedTelegramViewModel(item.DisasterEvent, item.Program));
                 }
 
                 SelectedHistoryItem = HistoryItems.FirstOrDefault();
@@ -2226,7 +2277,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                     StartedAtUtc = _services.Clock.UtcNow,
                 };
                 program = ReplayPresentation.Apply(program, requested.History, disasterEvent.IssuedAt,
-                    isReplay: true, requested.Display.ShowPageIndicator);
+                    isReplay: true);
                 TimeSpan itemDuration = HistoryReplayTiming.GetItemDuration(
                     program,
                     requested.Display,
@@ -2405,6 +2456,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                     Snapshot = null,
                     AwaitingPreDisplayEdit = false,
                     DisplaySuppressionReason = suppressionReason,
+                    IsHiddenByDisplayFilter = true,
                 };
             }
 
@@ -2523,12 +2575,14 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
                 result.Event?.SourceMode == SourceMode.Production &&
                 reviewProgram is not null)
             {
-                string displayResult = result.Program is null
-                    ? result.DisplaySuppressionReason ?? "非表示"
-                    : "表示済み";
-                AddTelegramForReview(result.Event, reviewProgram, displayResult);
+                string? displayResult = result.Program is null
+                    ? result.DisplaySuppressionReason ?? (result.IsHiddenByDisplayFilter ? null : "非表示")
+                    : null;
+                var item = new ReceivedTelegramViewModel(
+                    result.Event, reviewProgram, displayResult, result.IsHiddenByDisplayFilter);
+                AddTelegramForReview(item);
                 TelegramReviewStatusText = result.Program is null
-                    ? $"本番電文を受信しました（{displayResult}、保存中 {ReceivedTelegrams.Count}件）。"
+                    ? $"本番電文を受信しました（{item.DisplayResult}、保存中 {ReceivedTelegrams.Count}件）。"
                     : $"本番電文を受信しました（保存中 {ReceivedTelegrams.Count}件）。";
             }
 
@@ -2668,7 +2722,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             provider.Routing.GetDistinctProviders().Any(source => source switch
             {
                 ReceptionProvider.YditsTest => false,
-                ReceptionProvider.P2pQuake or ReceptionProvider.Ydits => provider.Mode == ProviderMode.Production,
+                ReceptionProvider.Ydits => provider.Mode == ProviderMode.Production,
                 _ => true,
             });
         _services.IngestionPipeline.BlockTestMessages = productionActive;
@@ -3166,7 +3220,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             MaximumDisplayCycles = 1,
         };
         replayProgram = ReplayPresentation.Apply(replayProgram, _settings.History, selection.Event.IssuedAt,
-            isReplay: true, _settings.Display.ShowPageIndicator);
+            isReplay: true);
         var coordinator = new PriorityCoordinator(_services.Clock, _settings.Display);
         coordinator.Apply(replayProgram);
         _productionReplayCoordinator = coordinator;
@@ -3324,7 +3378,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
             _services.Clock.UtcNow,
             lastShutdownWasClean,
             _lastConnectionSnapshot.LastReceivedAt,
-            Settings.ProviderMode.ToString(),
+            _settings.Provider.Mode.ToString(),
             _services.VersionCache?.GetSnapshot());
         lock (_stateQueueGate)
         {
@@ -3554,6 +3608,7 @@ public sealed partial class ControlWindowViewModel : ObservableObject, IAsyncDis
         ReceptionProvider.P2pQuake => "P2P",
         ReceptionProvider.Dmdata => "DMDATA.JP",
         ReceptionProvider.Axis => "AXIS",
+        ReceptionProvider.JmaXml => "気象庁XML",
         ReceptionProvider.Ydits => "YDITS",
         ReceptionProvider.YditsTest => "YDITSテスト",
         _ => provider.ToString(),

@@ -33,7 +33,7 @@ public sealed class ConcurrentEewProgramComposer
             {
                 EewEvent? previous = RememberReport(eew);
                 if (settings.HighlightEewAreaChanges && !eew.IsCancelled && previous is { IsCancelled: false })
-                    singleProgram = HighlightAreaChanges(singleProgram, previous.Areas, eew.Areas);
+                    singleProgram = HighlightNewWarningDistricts(singleProgram, previous.Areas, eew.Areas);
             }
 
             var key = new ActiveEewKey(eew.SourceMode, eew.Id.Value);
@@ -89,10 +89,10 @@ public sealed class ConcurrentEewProgramComposer
         return previous;
     }
 
-    private static DisplayProgram HighlightAreaChanges(
+    private static DisplayProgram HighlightNewWarningDistricts(
         DisplayProgram program, IReadOnlyList<EewArea> previous, IReadOnlyList<EewArea> current)
     {
-        IReadOnlyList<EewAreaLabel> labels = EewAreaLabelFormatter.MarkChanges(previous, current);
+        IReadOnlyList<EewAreaLabel> labels = EewAreaLabelFormatter.MarkNewWarningDistricts(previous, current);
         if (!labels.Any(static label => label.IsChanged))
             return program;
 
@@ -156,14 +156,7 @@ public sealed class ConcurrentEewProgramComposer
         var blocks = new List<DisplayBlock>();
         foreach (ActiveEew active in visible)
         {
-            DisplayPage page = active.Program.Pages[0];
-            foreach (DisplayBlock block in page.Blocks)
-            {
-                if (block.StyleToken != DisplayStyleTokens.PageIndicator)
-                {
-                    blocks.Add(block);
-                }
-            }
+            blocks.AddRange(active.Program.Pages[0].Blocks);
         }
 
         string accessibleText = string.Join(

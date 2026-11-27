@@ -9,13 +9,8 @@ public sealed record ProviderOptions(
 {
     public static ProviderOptions Production { get; } = new(
         ProviderMode.Production,
-        new Uri("wss://api.p2pquake.net/v2/ws", UriKind.Absolute),
-        new Uri("https://api.p2pquake.net/v2", UriKind.Absolute));
-
-    public static ProviderOptions Sandbox { get; } = new(
-        ProviderMode.Sandbox,
-        new Uri("wss://api-realtime-sandbox.p2pquake.net/v2/ws", UriKind.Absolute),
-        new Uri("https://api-v2-sandbox.p2pquake.net/v2", UriKind.Absolute));
+        new Uri(ProviderSettings.P2pWebSocketEndpoint, UriKind.Absolute),
+        new Uri(ProviderSettings.P2pRestBaseEndpoint, UriKind.Absolute));
 
     public static ProviderOptions FromSettings(ProviderSettings settings)
     {
@@ -23,7 +18,8 @@ public sealed record ProviderOptions(
         return settings.Mode switch
         {
             ProviderMode.Production => Production,
-            ProviderMode.Sandbox => Sandbox,
+            ProviderMode.Sandbox => throw new ArgumentException(
+                "P2Pのサンドボックス接続は廃止されました。", nameof(settings)),
             _ => new ProviderOptions(
                 settings.Mode,
                 new Uri(settings.WebSocketUrl, UriKind.Absolute),

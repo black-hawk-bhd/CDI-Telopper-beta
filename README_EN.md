@@ -4,11 +4,11 @@ English | [日本語](README.md)
 
 **Comprehensive Disaster Information Telopper (CDI-Telopper)** is a Windows application that receives earthquake early warnings and reports on earthquakes, tsunamis, weather, and volcanic activity. It sends captions and notification sounds to OBS.
 
-The current public release is **2.0.0-beta.76** (November 26, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
+The current public release is **2.0.0-beta.77** (November 28, 2026). This is a development beta. Before using it in a live broadcast, thoroughly test reception, reconnection, OBS output, audio, cancellations, and the lifting of warnings and advisories in your own environment. Do not rely on this application as your sole source for safety decisions. Always confirm critical information through official sources such as the Japan Meteorological Agency (JMA).
 
-- [Download 2.0.0-beta.76](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.76)
-- [English user guide](docs/USER_GUIDE_EN.md) / [Japanese beta.76 release guide](README_CDI-Telopper_2.0.0-beta.76.txt)
-- [Release history from beta.64 to beta.76](#release-history) / [Japanese beta.76 release notes](RELEASE_NOTES_2.0.0-beta.76.md)
+- [Download 2.0.0-beta.77](https://github.com/black-hawk-bhd/CDI-Telopper-beta/releases/tag/v2.0.0-beta.77)
+- [English user guide](docs/USER_GUIDE_EN.md) / [Japanese beta.77 release guide](README_CDI-Telopper_2.0.0-beta.77.txt)
+- [Release history from beta.64 to beta.77](#release-history) / [Japanese beta.77 release notes](RELEASE_NOTES_2.0.0-beta.77.md)
 - [Build from source](SOURCE_BUILD.md)
 
 ## Main features
@@ -19,20 +19,17 @@ The current public release is **2.0.0-beta.76** (November 26, 2026). This is a d
 - **Message review and rehearsal.** Review and redisplay received messages, open a silent browser preview, or run a Disaster Simulator exercise. Bulk-import the 185 bundled JMA sample XML files and filter the test library by category or bulletin type. [Review and rehearsal](docs/USER_GUIDE_EN.md#review-past-messages-and-run-rehearsals)
 - **Diagnostics and integration.** Save logs and raw bulletins, back up settings, and create diagnostic ZIPs. Use the CDI External API to connect applications running on the same PC. [External API setup](docs/USER_GUIDE_EN.md#connect-the-external-api)
 
-## What's new in beta.76
+## What's new in beta.77
 
-- **Earthquake, tsunami, and volcano captions.** The first line of text aligns vertically with the badge. Long earthquake and river flood reports prefer Japanese sentence endings (`。`) when choosing page breaks. Overseas tsunami observations use one row per station, such as `チリ・コラル 0.9 m`, with up to two stations per page.
-- **Reception and display.** The reception settings now name the Hokkaido and Sanriku offshore subsequent earthquake advisory (VYSE60). The display filters have individual controls for Nankai Trough earthquake information and the Hokkaido and Sanriku advisory. [Reception and caption settings](docs/USER_GUIDE_EN.md#set-up-reception-and-captions)
-- **Volcano sounds and OBS controls.** Configure separate notification sounds for eruption warnings and forecasts (VFVO50) and eruption flashes (VFVO56) under **音声** → **火山情報** (Audio → Volcano information). Repeated comparison tests evaluate sound playback anew and log why a sound was skipped. The OBS URL copy buttons now use consistent labels for earthquake and volcano, tsunami, and weather captions.
-- **Test library.** Fixed missing rehearsal pages for some tsunami (VTSE41), designated-river flood, and weather (VPWW61) bulletins. The library supports XML and JSON file registration and bulk XML folder registration. DMDATA archive registration, test-case ZIP import and export, and reference PNG attachments were retired.
-- **Disaster Simulator.** When a seismic intensity bulletin and a tsunami advisory or warning share an event ID, the options to omit the standard caution or hide the entire bulletin also apply in rehearsal. With bulletin suppression enabled, a later tsunami advisory or warning removes the matching seismic intensity bulletin. [Simulator guide in Japanese](docs/disaster-simulator.md)
-- **Telegram review.** Removed the setting that hides the mode banner and shortened the replay settings labels.
-- **Optional warning details.** The preview and OBS can display the forecast maximum intensity and estimated magnitude supplied by the source. The option defaults to off. A cancellation removes the estimates for the matching warning.
-- **Settings window.** The interface uses the full Japanese term for earthquake early warning. Settings panels are limited to 960 DIPs and fit narrower windows.
+- **Desktop captions.** Show captions over the primary monitor, optionally keep them on top, and clear the current desktop caption from the Output panel. [Setup](docs/USER_GUIDE_EN.md#show-captions-on-the-desktop)
+- **Earthquake and tsunami captions.** EEW follow-ups can highlight newly warned areas. Tsunami warning or advisory downgrades appear on the first page.
+- **Message review.** See why a display filter hid a message and narrow the list to filtered messages. Browse for a local JMA XML file next to the source selector. P2PQuake uses the production endpoint.
 
 ## Release history
 
-### beta.64–beta.76
+### beta.64–beta.77
+
+beta.77 adds desktop captions and a desktop-only clear button, and updates EEW, tsunami captions, and message review. [Japanese release notes](RELEASE_NOTES_2.0.0-beta.77.md)
 
 beta.76 adds optional EEW estimates and volcano notification sounds, and improves captions and rehearsals. [Japanese release notes](RELEASE_NOTES_2.0.0-beta.76.md)
 
@@ -167,7 +164,7 @@ An unauthenticated provider that retrieves XML directly from JMA's public feeds.
 
 ### P2PQuake API
 
-P2PQuake is primarily used for EEW, earthquake, and tsunami information. Production and Sandbox connections are available.
+P2PQuake is primarily used for EEW, earthquake, and tsunami information. P2PQuake uses the production endpoint. Loading a previous Sandbox configuration disables automatic connection at startup.
 
 The P2PQuake API is not an official API operated by JMA. Treat it as an external service carrying JMA-issued information, use official information alongside it, and review the provider's terms, rate limits, and secondary-use conditions.
 
@@ -260,10 +257,10 @@ The script restores dependencies, builds every project in the Release configurat
 To create distributable packages, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.76
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.77
 ```
 
-Starting with beta.75, each release includes a self-contained single-EXE ZIP and a lightweight ZIP. The ZIP files, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.76\win-x64`. [Source build details](SOURCE_BUILD.md)
+Starting with beta.75, each release includes a self-contained single-EXE ZIP and a lightweight ZIP. The ZIP files, `version.json`, and `SHA256SUMS.txt` are written to `artifacts\release\2.0.0-beta.77\win-x64`. [Source build details](SOURCE_BUILD.md)
 
 ## External API integration: terms and disclaimer
 

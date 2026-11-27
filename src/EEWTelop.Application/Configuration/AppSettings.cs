@@ -15,16 +15,18 @@ public sealed record AppSettings(
     LogSettings Log,
     SafetySettings Safety)
 {
-    public const int CurrentSchemaVersion = 27;
+    public const int CurrentSchemaVersion = 28;
 
     public OperationalSettings Operations { get; init; } = OperationalSettings.Default;
+
+    public DesktopOverlaySettings DesktopOverlay { get; init; } = new();
 
     public static AppSettings CreateDefault() => new(
         SchemaVersion: CurrentSchemaVersion,
         Provider: new ProviderSettings(
             Mode: ProviderMode.Production,
-            WebSocketUrl: "wss://api.p2pquake.net/v2/ws",
-            RestBaseUrl: "https://api.p2pquake.net/v2")
+            WebSocketUrl: ProviderSettings.P2pWebSocketEndpoint,
+            RestBaseUrl: ProviderSettings.P2pRestBaseEndpoint)
         {
             ReceptionProvider = ReceptionProvider.P2pQuake,
         },
@@ -47,7 +49,6 @@ public sealed record AppSettings(
         },
         Display: new DisplaySettings(
             PageDurationSeconds: 4.0,
-            ShowPageIndicator: true,
             LetterSpacingEm: 0.0,
             LineSpacing: 1.0,
             FontScale: 1.0,
@@ -71,7 +72,7 @@ public sealed record AppSettings(
         },
         Audio: AudioSettings.Disabled,
         History: new HistorySettings(
-            Api: HistoryApi.JmaQuake,
+            Api: HistoryApi.JmaXml,
             Limit: 5,
             IntervalSeconds: 3)
         {
@@ -95,6 +96,9 @@ public sealed record ProviderSettings(
     string WebSocketUrl,
     string RestBaseUrl)
 {
+    public const string P2pWebSocketEndpoint = "wss://api.p2pquake.net/v2/ws";
+    public const string P2pRestBaseEndpoint = "https://api.p2pquake.net/v2";
+
     public ReceptionProvider ReceptionProvider { get; init; } = ReceptionProvider.P2pQuake;
 
     public ProviderRoutingSettings Routing { get; init; } = ProviderRoutingSettings.Default;
@@ -329,7 +333,6 @@ public sealed record FilterSettings(
 
 public sealed record DisplaySettings(
     double PageDurationSeconds,
-    bool ShowPageIndicator,
     double LetterSpacingEm,
     double LineSpacing,
     double FontScale,
@@ -378,6 +381,7 @@ public sealed record DisplaySettings(
 
     // The 0.2 m class is normally omitted so warnings and watches remain prominent.
     public bool ShowTsunamiForecast { get; init; }
+    public bool ShowTsunamiDowngradeGradeBadge { get; init; } = true;
     public bool OmitScalePromptCautionWhenTsunamiWarningActive { get; init; }
     public bool SuppressScalePromptWhenTsunamiWarningActive { get; init; }
 
@@ -462,6 +466,8 @@ public sealed record OutputTransformSettings(
         CropRight: 0,
         CropBottom: 0);
 }
+
+public sealed record DesktopOverlaySettings(bool Enabled = false, bool Topmost = true);
 
 public sealed record ObsSettings(
     bool Enabled,
@@ -712,6 +718,7 @@ public enum BackgroundMode
 
 public enum HistoryApi
 {
+    // Retained for settings files created before the P2P history sources were removed.
     JmaQuake = 0,
     History = 1,
     NiiJmaXml = 2,

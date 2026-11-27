@@ -24,7 +24,6 @@ public sealed record ObsViewSnapshot(
     string RehearsalLabel,
     int PageIndex,
     int PageCount,
-    string PageIndicator,
     string AccessibleText,
     IReadOnlyList<ObsViewBlock> Blocks,
     long AudioSequence,
@@ -279,12 +278,8 @@ public sealed partial class ObsSnapshotStore
                 RehearsalLabel: GetRehearsalLabel(program),
                 PageIndex: snapshot.CurrentPageIndex,
                 PageCount: program.Pages.Count,
-                PageIndicator: settings.ShowPageIndicator && program.Pages.Count > 1
-                    ? $"{snapshot.CurrentPageIndex + 1} / {program.Pages.Count}"
-                    : string.Empty,
                 AccessibleText: page.AccessibleText,
                 Blocks: page.Blocks
-                    .Where(static block => block.StyleToken != DisplayStyleTokens.PageIndicator)
                     .Select(block => CreateViewBlock(block, program, settings))
                     .ToArray(),
                 AudioSequence: _snapshot.AudioSequence,
@@ -539,7 +534,6 @@ public sealed partial class ObsSnapshotStore
             RehearsalLabel: string.Empty,
             PageIndex: -1,
             PageCount: 0,
-            PageIndicator: string.Empty,
             AccessibleText: string.Empty,
             Blocks: [],
             AudioSequence: 0,
@@ -559,7 +553,7 @@ public sealed partial class ObsSnapshotStore
         long sequence) => new(
             1, sequence, now, existing.Width, existing.Height, existing.BackgroundMode,
             existing.FontScale, existing.LetterSpacingEm, existing.LineSpacing,
-            false, string.Empty, null, null, string.Empty, -1, 0, string.Empty,
+            false, string.Empty, null, null, string.Empty, -1, 0,
             string.Empty, [], existing.AudioSequence, existing.AudioAction,
             existing.AudioCue, existing.AudioIssuedAtUtc)
         {
@@ -592,12 +586,8 @@ public sealed partial class ObsSnapshotStore
             RehearsalLabel: GetRehearsalLabel(program),
             PageIndex: pageIndex,
             PageCount: program.Pages.Count,
-            PageIndicator: settings.ShowPageIndicator && program.Pages.Count > 1
-                ? $"{pageIndex + 1} / {program.Pages.Count}"
-                : string.Empty,
             AccessibleText: page.AccessibleText,
             Blocks: page.Blocks
-                .Where(static block => block.StyleToken != DisplayStyleTokens.PageIndicator)
                 .Select(block => CreateViewBlock(block, program, settings))
                 .ToArray(),
             AudioSequence: 0,

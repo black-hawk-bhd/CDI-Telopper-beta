@@ -99,6 +99,10 @@ public sealed class OutlinedText : Border
     public double LineHeight { get => (double)GetValue(LineHeightProperty); set => SetValue(LineHeightProperty, value); }
     public double LetterSpacing { get => (double)GetValue(LetterSpacingProperty); set => SetValue(LetterSpacingProperty, value); }
 
+    // TextBlock reports the last baseline. BlockLineHeight fixes the advance of every preceding line.
+    internal double FirstLineBaseline => BorderThickness.Top + Padding.Top + _textBlock.BaselineOffset -
+        Math.Max(0, _textBlock.DesiredSize.Height - _textBlock.LineHeight);
+
     private static void OnTextPropertyChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args) =>
         ((OutlinedText)dependencyObject).UpdateChild();
 

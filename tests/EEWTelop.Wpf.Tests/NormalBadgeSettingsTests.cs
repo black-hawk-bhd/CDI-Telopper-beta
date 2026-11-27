@@ -101,7 +101,7 @@ public sealed class NormalBadgeSettingsTests
             SourceMode = mode,
             RehearsalLabel = replay ? "本番再掲" : "操作テスト／訓練",
         };
-        var program = ReplayPresentation.Apply(source, defaults.History, source.IssuedAt, replay, true);
+        var program = ReplayPresentation.Apply(source, defaults.History, source.IssuedAt, replay);
         var coordinator = new PriorityCoordinator(new Clock(), display);
         var snapshot = coordinator.Apply(program);
         var store = new ObsSnapshotStore(display, DateTimeOffset.UnixEpoch);

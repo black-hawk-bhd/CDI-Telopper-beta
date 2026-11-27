@@ -6,10 +6,20 @@ public sealed record SubtitlePhraseDefinition(
     string Id,
     string Category,
     string Label,
-    string DefaultText);
+    string DefaultText)
+{
+    internal bool ReplaceMatchingText { get; init; } = true;
+}
 
 public static class SubtitlePhraseCatalog
 {
+    internal static SubtitlePhraseDefinition TsunamiDowngradeSuffix { get; } =
+        new("tsunami.warning.downgrade.suffix", "地震・津波", "津波警報・注意報の切替（切替前の区分名の後ろ）",
+            "から切り替えられました。")
+        {
+            ReplaceMatchingText = false,
+        };
+
     public static IReadOnlyList<SubtitlePhraseDefinition> All { get; } =
     [
         new("quake.tsunami.none", "地震・津波", "津波の心配なし",
@@ -24,6 +34,7 @@ public static class SubtitlePhraseCatalog
             "この地震により津波注意報が発表されています"),
         new("quake.tsunami.warning", "地震・津波", "津波情報発表中",
             "この地震により津波情報を発表しています"),
+        TsunamiDowngradeSuffix,
         new("foreign-tsunami.none", "海外地震", "海外で津波なし",
             "海外で津波の発生はありません"),
         new("foreign-tsunami.checking", "海外地震", "海外津波調査中",
@@ -95,7 +106,6 @@ public static class SubtitlePhraseCatalog
             string accessibleText = string.Join(
                 Environment.NewLine,
                 blocks
-                    .Where(static block => block.StyleToken != DisplayStyleTokens.PageIndicator)
                     .SelectMany(static block => new[]
                     {
                         block.Badge,
@@ -115,7 +125,7 @@ public static class SubtitlePhraseCatalog
         if (overrides is null || overrides.Count == 0) return [];
 
         return All
-            .Where(definition => overrides.ContainsKey(definition.Id))
+            .Where(definition => definition.ReplaceMatchingText && overrides.ContainsKey(definition.Id))
             .Select(definition => new KeyValuePair<string, string>(
                 definition.DefaultText,
                 overrides[definition.Id] ?? string.Empty))

@@ -16,7 +16,10 @@ public sealed record HypocenterInfo(
     int? DepthKilometers,
     double? Magnitude,
     string Condition,
-    string MagnitudeDescription = "");
+    string MagnitudeDescription = "")
+{
+    public const string ProvisionalCondition = "仮定震源要素";
+}
 
 public sealed record EarthquakeInfo(
     DateTimeOffset OriginTime,
@@ -38,8 +41,10 @@ public sealed record QuakePoint(
 {
     public string SeismicAreaCode { get; init; } = string.Empty;
     public string SeismicAreaName { get; init; } = string.Empty;
+    public JmaScale SeismicAreaMaximumScale { get; init; } = JmaScale.Unknown;
     public string MunicipalityCode { get; init; } = string.Empty;
     public string MunicipalityName { get; init; } = string.Empty;
+    public JmaScale MunicipalityMaximumScale { get; init; } = JmaScale.Unknown;
     public string StationCode { get; init; } = string.Empty;
     public bool IsNonJmaIntensityStation { get; init; }
     public double? Latitude { get; init; }
@@ -63,7 +68,22 @@ public sealed record EewArea(
     EewWarningKind WarningKind,
     DateTimeOffset? ArrivalTime);
 
-public sealed record EewIntensityRange(JmaScale From, JmaScale To, bool IsOpenEnded);
+public sealed record EewIntensityRange(JmaScale From, JmaScale To, bool IsOpenEnded)
+{
+    public static EewIntensityRange? Create(JmaScale? from, JmaScale? to, bool isOpenEnded)
+    {
+        if (IsInvalidBound(from) || IsInvalidBound(to) || (from is null && to is null) ||
+            from > to || (isOpenEnded && (from is null || to is not null)))
+        {
+            return null;
+        }
+
+        return new EewIntensityRange(from ?? JmaScale.Unknown, to ?? JmaScale.Unknown, isOpenEnded);
+    }
+
+    private static bool IsInvalidBound(JmaScale? bound) => bound is { } scale &&
+        (scale is JmaScale.Unknown or JmaScale.FiveLowerOrMore || !Enum.IsDefined(scale));
+}
 
 public sealed record TsunamiFirstHeight(
     DateTimeOffset? ArrivalTime,
@@ -83,6 +103,10 @@ public sealed record TsunamiArea(
     TsunamiMaximumHeight? MaximumHeight)
 {
     public TsunamiInformationRole Role { get; init; } = TsunamiInformationRole.ForecastArea;
+    public TsunamiGrade? PreviousGrade { get; init; }
+    public bool IsWarningDowngrade => (PreviousGrade, Grade) is
+        (TsunamiGrade.MajorWarning, TsunamiGrade.Warning or TsunamiGrade.Watch) or
+        (TsunamiGrade.Warning, TsunamiGrade.Watch);
 
     /// <summary>JMA forecast-area or observation-station code when supplied by the source.</summary>
     public string Code { get; init; } = string.Empty;

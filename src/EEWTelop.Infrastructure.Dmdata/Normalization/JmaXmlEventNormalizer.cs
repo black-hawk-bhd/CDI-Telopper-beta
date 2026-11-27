@@ -485,6 +485,12 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
             string.IsNullOrWhiteSpace(serial) ? null : serial,
             infoType);
         XElement? forecast = Descendant(document, "Forecast");
+        EewArea[] areas = ReadEewAreas(forecast, warningOnly: telegramType == "VXSE45");
+        if (telegramType == "VXSE43" && !cancelled && areas.Length == 0)
+        {
+            areas = ReadEewHeadlineAreas(reportHead);
+        }
+
         var disasterEvent = new EewEvent(
             ReadEventId(reportHead, telegramType, issuedAt),
             raw.Provider,
@@ -494,7 +500,7 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
             raw.SourceMode,
             issue,
             earthquake,
-            ReadEewAreas(forecast, warningOnly: telegramType == "VXSE45"),
+            areas,
             isWarning: hasWarning || cancelled,
             isFinal,
             cancelled,
@@ -970,11 +976,13 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
             return [];
         }
 
-        // Select the most detailed available level separately for each municipality/area.
+        // Keep an explicitly reported aggregate when the more detailed observations omit it.
         XElement[] candidates = Descendants(observation, "IntensityStation")
-            .Concat(Descendants(observation, "City").Where(c => !Descendants(c, "IntensityStation").Any()))
-            .Concat(Descendants(observation, "Area").Where(a =>
-                !Descendants(a, "City").Any() && !Descendants(a, "IntensityStation").Any())).ToArray();
+            .Concat(Descendants(observation, "City").Where(city =>
+                NeedsQuakeAggregate(city, Children(city, "IntensityStation"))))
+            .Concat(Descendants(observation, "Area").Where(area =>
+                NeedsQuakeAggregate(area, Children(area, "City").Concat(Descendants(area, "IntensityStation")))))
+            .ToArray();
 
         QuakePoint[] explicitPoints = candidates
             .Select(element =>
@@ -982,16 +990,13 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
                 bool isStation = element.Name.LocalName == "IntensityStation";
                 bool isArea = element.Name.LocalName == "Area";
                 XElement? city = element.AncestorsAndSelf().FirstOrDefault(a => a.Name.LocalName == "City");
-                string address = Text(Descendant(element, "Name"));
+                XElement? area = element.AncestorsAndSelf().FirstOrDefault(a => a.Name.LocalName == "Area");
+                string address = Text(Child(element, "Name"));
                 string prefecture = element.Ancestors()
                     .FirstOrDefault(static ancestor => ancestor.Name.LocalName == "Pref") is { } pref
-                        ? Text(Descendant(pref, "Name"))
+                        ? Text(Child(pref, "Name"))
                         : string.Empty;
-                JmaScale scale = ReadScale(Text(Descendant(element, "Int")));
-                if (scale == JmaScale.Unknown)
-                {
-                    scale = ReadScale(Text(Descendant(element, "MaxInt")));
-                }
+                JmaScale scale = ReadQuakePointScale(element);
 
                 return new QuakePoint(
                     prefecture,
@@ -1000,10 +1005,13 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
                     scale,
                     PlaceNormalizer.BuildDisplayName(prefecture, address, isArea))
                 {
-                    SeismicAreaCode = Text(element.AncestorsAndSelf().FirstOrDefault(a => a.Name.LocalName == "Area")?.Elements().FirstOrDefault(a => a.Name.LocalName == "Code")),
-                    SeismicAreaName = Text(element.AncestorsAndSelf().FirstOrDefault(a => a.Name.LocalName == "Area")?.Elements().FirstOrDefault(a => a.Name.LocalName == "Name")),
-                    MunicipalityCode = Text(city?.Elements().FirstOrDefault(a => a.Name.LocalName == "Code")),
-                    MunicipalityName = Text(city?.Elements().FirstOrDefault(a => a.Name.LocalName == "Name")),
+                    SeismicAreaCode = Text(area is null ? null : Child(area, "Code")),
+                    SeismicAreaName = Text(area is null ? null : Child(area, "Name")),
+                    SeismicAreaMaximumScale = isStation && city is null && area is not null
+                        ? ReadScale(Text(Child(area, "MaxInt"))) : JmaScale.Unknown,
+                    MunicipalityCode = Text(city is null ? null : Child(city, "Code")),
+                    MunicipalityName = Text(city is null ? null : Child(city, "Name")),
+                    MunicipalityMaximumScale = ReadScale(Text(city is null ? null : Child(city, "MaxInt"))),
                     StationCode = isStation ? Text(Child(element, "Code")) : string.Empty,
                     IsNonJmaIntensityStation = isStation && address.EndsWith('＊'),
                 };
@@ -1022,6 +1030,23 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
             .GroupBy(static point => (point.DisplayName, point.Scale, point.MunicipalityCode, point.StationCode))
             .Select(static group => group.First())
             .ToArray();
+    }
+
+    private static bool NeedsQuakeAggregate(XElement aggregate, IEnumerable<XElement> details)
+    {
+        JmaScale maximum = ReadQuakePointScale(aggregate);
+        return maximum != JmaScale.Unknown &&
+            !details.Where(static detail => Text(Child(detail, "Name")).Length > 0)
+                .Select(ReadQuakePointScale)
+                .Any(scale => maximum == JmaScale.FiveLowerOrMore
+                    ? scale == maximum
+                    : scale != JmaScale.FiveLowerOrMore && scale >= maximum);
+    }
+
+    private static JmaScale ReadQuakePointScale(XElement element)
+    {
+        JmaScale scale = ReadScale(Text(Child(element, "Int")));
+        return scale == JmaScale.Unknown ? ReadScale(Text(Child(element, "MaxInt"))) : scale;
     }
 
     private static QuakePoint[] ReadFiveLowerOrMoreConditionPoints(XElement observation)
@@ -1196,13 +1221,42 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
             .Distinct(StringComparer.Ordinal));
 
     private static bool HasEewWarning(XContainer document) =>
-        Descendants(document, "Kind").Any(kind =>
+        Descendants(document, "Kind").Any(IsEewWarningKind);
+
+    private static bool IsEewWarningKind(XElement kind) =>
+        Text(Descendant(kind, "Name")).Contains("緊急地震速報（警報）", StringComparison.Ordinal) ||
+        Text(Descendant(kind, "Code")) is "10" or "11" or "19" or "31";
+
+    private static EewArea[] ReadEewHeadlineAreas(XElement reportHead)
+    {
+        if (Child(reportHead, "Headline") is not { } headline)
         {
-            string name = Text(Descendant(kind, "Name"));
-            string code = Text(Descendant(kind, "Code"));
-            return name.Contains("緊急地震速報（警報）", StringComparison.Ordinal) ||
-                code is "10" or "11" or "19" or "31";
-        });
+            return [];
+        }
+
+        // The headline can list the same warning at several geographic resolutions.
+        XElement[] warningAreaGroups = Children(headline, "Information")
+            .SelectMany(information => Children(information, "Item"))
+            .Where(item => Children(item, "Kind").Any(IsEewWarningKind))
+            .SelectMany(item => Children(item, "Areas")).ToArray();
+        foreach (string codeType in new[] { "緊急地震速報／府県予報区", "地震情報／細分区域", "緊急地震速報／地方予報区" })
+        {
+            EewArea[] areas = warningAreaGroups.Where(group => AttributeText(group, "codeType") == codeType)
+                .SelectMany(group => Children(group, "Area"))
+                .Select(area => Text(Child(area, "Name")))
+                .Where(name => name.Length > 0)
+                .Distinct(StringComparer.Ordinal)
+                .Select(name => new EewArea(string.Empty, name,
+                    JmaScale.Unknown, (int)JmaScale.Unknown, EewWarningKind.Unknown, ArrivalTime: null))
+                .ToArray();
+            if (areas.Length > 0)
+            {
+                return areas;
+            }
+        }
+
+        return [];
+    }
 
     private static EewIntensityRange? ReadEewMaximumForecastIntensity(XElement? forecast)
     {
@@ -1211,14 +1265,13 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
             return null;
         }
 
-        JmaScale from = ReadScale(Text(Child(intensity, "From")));
+        string lowerBound = Text(Child(intensity, "From"));
         string upperBound = Text(Child(intensity, "To"));
-        JmaScale to = ReadScale(upperBound);
         bool isOpenEnded = string.Equals(upperBound, "over", StringComparison.Ordinal);
-        return from is >= JmaScale.Zero and not JmaScale.FiveLowerOrMore &&
-            (isOpenEnded || to >= from && to != JmaScale.FiveLowerOrMore)
-            ? new EewIntensityRange(from, to, isOpenEnded)
-            : null;
+        return EewIntensityRange.Create(
+            lowerBound.Length > 0 ? ReadScale(lowerBound) : null,
+            upperBound.Length > 0 && !isOpenEnded ? ReadScale(upperBound) : null,
+            isOpenEnded);
     }
 
     private static EewArea[] ReadEewAreas(XElement? forecast, bool warningOnly)
@@ -1269,7 +1322,8 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
         {
             foreach (XElement item in Children(forecast, "Item"))
             {
-                string categoryName = Text(Descendant(Descendant(item, "Category"), "Name"));
+                XElement? category = Child(item, "Category");
+                string categoryName = Text(Descendant(category, "Name"));
                 if (IsTsunamiReleaseCategory(categoryName))
                 {
                     continue;
@@ -1282,6 +1336,10 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
                 {
                     Role = TsunamiInformationRole.ForecastArea,
                     Code = areaCode,
+                    PreviousGrade = telegramType == "VTSE41" && category is not null &&
+                        Child(category, "LastKind") is { } lastKind
+                            ? ReadTsunamiGrade(Text(Child(lastKind, "Name")))
+                            : null,
                 };
                 if (!string.IsNullOrWhiteSpace(forecastArea.Name))
                 {
@@ -1551,7 +1609,9 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
         // parsing fail.  Only the element's direct text is the schema value.
         string coordinate = DirectText(Descendant(area, "Coordinate"));
         (double? latitude, double? longitude, int? depth) = ParseCoordinate(coordinate);
-        XElement? magnitudeElement = Descendant(earthquake, "Magnitude");
+        bool isProvisional = Text(Child(earthquake, "Condition")) == HypocenterInfo.ProvisionalCondition;
+        // The JMA bulletin carries the fixed value 1.0 for an assumed hypocenter.
+        XElement? magnitudeElement = isProvisional ? null : Descendant(earthquake, "Magnitude");
         double? magnitude = double.TryParse(
             DirectText(magnitudeElement),
             NumberStyles.Float,
@@ -1575,7 +1635,7 @@ public sealed partial class JmaXmlEventNormalizer : IEventNormalizer
             longitude,
             depth,
             magnitude,
-            Text(Descendant(hypocenter, "Accuracy")),
+            isProvisional ? HypocenterInfo.ProvisionalCondition : Text(Descendant(hypocenter, "Accuracy")),
             magnitudeDescription);
     }
 

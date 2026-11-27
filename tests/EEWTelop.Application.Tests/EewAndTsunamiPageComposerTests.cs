@@ -538,6 +538,72 @@ public sealed class EewAndTsunamiPageComposerTests
     }
 
     [TestMethod]
+    [DataRow(TsunamiGrade.MajorWarning, TsunamiGrade.Warning, true)]
+    [DataRow(TsunamiGrade.MajorWarning, TsunamiGrade.Warning, false)]
+    [DataRow(TsunamiGrade.MajorWarning, TsunamiGrade.Watch, true)]
+    [DataRow(TsunamiGrade.MajorWarning, TsunamiGrade.Watch, false)]
+    [DataRow(TsunamiGrade.Warning, TsunamiGrade.Watch, true)]
+    [DataRow(TsunamiGrade.Warning, TsunamiGrade.Watch, false)]
+    public void TsunamiWarningDowngradeShowsTheAffectedAreaBeforeTheCurrentList(
+        TsunamiGrade priorGrade, TsunamiGrade currentGrade, bool showGradeBadge)
+    {
+        TsunamiArea affected = DisplayEventFactory.TsunamiArea(1, currentGrade) with
+        {
+            Name = "石川県能登",
+            PreviousGrade = priorGrade,
+        };
+        TsunamiArea unchanged = DisplayEventFactory.TsunamiArea(2, currentGrade) with { PreviousGrade = currentGrade };
+        var tsunami = DisplayEventFactory.CreateTsunami([affected, unchanged], rawType: "VTSE41") with
+        {
+            WarningStateChanged = true,
+        };
+
+        string currentLabel = GetExpectedTsunamiBadge(currentGrade);
+        string previousLabel = GetExpectedTsunamiBadge(priorGrade);
+        DisplaySettings display = DisplayEventFactory.Settings with { ShowTsunamiDowngradeGradeBadge = showGradeBadge };
+        DisplayProgram program = _composer.Compose(tsunami, display);
+        Assert.HasCount(2, ContentBlocks(program.Pages[0]));
+        Assert.AreEqual("津波警報・注意報が切り替えられました", ContentBlocks(program.Pages[0])[0].PrimaryText);
+        DisplayBlock row = ContentBlocks(program.Pages[0])[1];
+        Assert.AreEqual(showGradeBadge ? currentLabel : string.Empty, row.Badge);
+        Assert.AreEqual(showGradeBadge ? "石川県能登で発表中" : $"石川県能登　{currentLabel}を発表中", row.PrimaryText);
+        Assert.AreEqual($"{previousLabel}から切り替えられました。", row.SecondaryText);
+        DisplayBlock subtitle = DisplayBadgeVisibility.FormatBlockForOutput(row, program,
+            display with { HideNormalInformationBadges = true });
+        Assert.Contains(currentLabel, subtitle.PrimaryText);
+        Assert.DoesNotContain(previousLabel, subtitle.PrimaryText);
+        Assert.Contains("は次の通りです", ContentBlocks(program.Pages[1])[0].PrimaryText);
+        Assert.AreEqual(currentLabel, ContentBlocks(program.Pages[2])[0].Badge);
+    }
+
+    [TestMethod]
+    [DataRow("から津波警報に変更されました。", "大津波警報から津波警報に変更されました。")]
+    [DataRow("", "")]
+    [DataRow("　", "")]
+    public void TsunamiDowngradeTemplateChangesOnlyThePreviousGradeNote(string suffix, string expectedNote)
+    {
+        const string reportedCondition = "観測情報は前回の予想から切り替えられました。";
+        TsunamiArea area = DisplayEventFactory.TsunamiArea(1, TsunamiGrade.Warning) with
+        {
+            Name = "石川県能登",
+            PreviousGrade = TsunamiGrade.MajorWarning,
+            FirstHeight = new TsunamiFirstHeight(null, reportedCondition),
+        };
+        DisplaySettings display = DisplayEventFactory.Settings with
+        {
+            SubtitlePhraseOverrides = new() { ["tsunami.warning.downgrade.suffix"] = suffix },
+        };
+
+        DisplayProgram program = _composer.Compose(
+            DisplayEventFactory.CreateTsunami([area], rawType: "VTSE41"), display);
+        DisplayBlock row = ContentBlocks(program.Pages[0])[1];
+        Assert.AreEqual("津波警報", row.Badge);
+        Assert.AreEqual("石川県能登で発表中", row.PrimaryText);
+        Assert.AreEqual(expectedNote, row.SecondaryText);
+        Assert.Contains(reportedCondition, ContentBlocks(program.Pages[2])[0].SecondaryText);
+    }
+
+    [TestMethod]
     public void TsunamiForecastIsHiddenByDefaultAndDoesNotCreateDisplayPage()
     {
         DisplayProgram program = Compose(DisplayEventFactory.CreateTsunami(
@@ -617,13 +683,13 @@ public sealed class EewAndTsunamiPageComposerTests
     }
 
     [TestMethod]
-    public void SinglePageDoesNotShowPageIndicator()
+    public void SingleAreaAdvisoryHasOneCaption()
     {
         DisplayProgram program = Compose(DisplayEventFactory.CreateTsunami(
             [DisplayEventFactory.TsunamiArea(1, TsunamiGrade.Watch)]));
 
-        Assert.IsFalse(program.Pages[0].Blocks.Any(block =>
-            block.StyleToken == DisplayStyleTokens.PageIndicator));
+        Assert.HasCount(1, program.Pages);
+        Assert.HasCount(1, program.Pages[0].Blocks);
     }
 
     [TestMethod]
@@ -664,8 +730,7 @@ public sealed class EewAndTsunamiPageComposerTests
         EewWarningKind.ForecastNotArrived,
         ArrivalTime: null);
 
-    private static IReadOnlyList<DisplayBlock> ContentBlocks(DisplayPage page) =>
-        page.Blocks.Where(static block => block.StyleToken != DisplayStyleTokens.PageIndicator).ToArray();
+    private static IReadOnlyList<DisplayBlock> ContentBlocks(DisplayPage page) => page.Blocks;
 
     private static string GetExpectedTsunamiBadge(TsunamiGrade grade) => grade switch
     {

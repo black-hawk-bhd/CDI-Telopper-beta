@@ -14,7 +14,6 @@ internal static class PageComposerSupport
 
     public static DisplayProgram CreateProgram(
         DisasterEvent disasterEvent,
-        DisplaySettings settings,
         OverlayPriority priority,
         EndPolicy endPolicy,
         IReadOnlyList<PageDraft> drafts)
@@ -24,15 +23,10 @@ internal static class PageComposerSupport
         for (int index = 0; index < pageCount; index++)
         {
             PageDraft draft = drafts[index];
-            IReadOnlyList<DisplayBlock> blocks = AddPageIndicator(
-                draft.Blocks,
-                index + 1,
-                pageCount,
-                settings.ShowPageIndicator);
             pages[index] = new DisplayPage(
                 Index: index + 1,
-                Blocks: blocks,
-                AccessibleText: BuildAccessibleText(blocks),
+                Blocks: draft.Blocks,
+                AccessibleText: BuildAccessibleText(draft.Blocks),
                 draft.DurationOverride);
         }
 
@@ -155,35 +149,9 @@ internal static class PageComposerSupport
         return new DisplayBlock("訂正", text, string.Empty, DisplayStyleTokens.Correction);
     }
 
-    private static IReadOnlyList<DisplayBlock> AddPageIndicator(
-        IReadOnlyList<DisplayBlock> source,
-        int index,
-        int count,
-        bool enabled)
-    {
-        if (!enabled || count <= 1)
-        {
-            return source;
-        }
-
-        var blocks = new DisplayBlock[source.Count + 1];
-        for (int sourceIndex = 0; sourceIndex < source.Count; sourceIndex++)
-        {
-            blocks[sourceIndex] = source[sourceIndex];
-        }
-
-        blocks[^1] = new DisplayBlock(
-            string.Empty,
-            $"{index} / {count}",
-            string.Empty,
-            DisplayStyleTokens.PageIndicator);
-        return blocks;
-    }
-
     private static string BuildAccessibleText(IEnumerable<DisplayBlock> blocks) => string.Join(
         "。",
         blocks
-            .Where(static block => block.StyleToken != DisplayStyleTokens.PageIndicator)
             .SelectMany(static block => new[] { block.Badge, block.WeatherHeading, block.PrimaryText, block.SecondaryText })
             .Where(static text => !string.IsNullOrWhiteSpace(text)));
 

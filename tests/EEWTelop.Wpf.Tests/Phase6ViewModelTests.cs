@@ -139,21 +139,18 @@ public sealed partial class Phase6ViewModelTests
         Assert.AreEqual(ReceptionProvider.Wolfx, savedRouting.Tsunami);
         Assert.AreEqual(ReceptionProvider.Wolfx, savedRouting.NankaiTrough);
         CollectionAssert.AreEqual(
-            new[] { ProviderMode.Production, ProviderMode.Sandbox },
-            editor.ProviderModes.ToArray());
-        CollectionAssert.AreEqual(
             new[] { BackgroundMode.Transparent },
             editor.BackgroundModes.ToArray());
         Assert.HasCount(1, editor.ObsAudioMonitoringModes);
         Assert.AreEqual(
             ObsAudioMonitoringMode.Off,
             editor.ObsAudioMonitoringModes[0].Value);
-        Assert.AreEqual(
-            BuildFeatures.ExtendedFeaturesEnabled,
-            editor.HistoryApis.Any(option => option.Value == HistoryApi.NiiJmaXml));
-        Assert.AreEqual(
-            BuildFeatures.ExtendedFeaturesEnabled,
-            editor.HistoryApis.Any(option => option.Value == HistoryApi.LocalJmaXml));
+        HistoryApi[] expectedHistorySources = !BuildFeatures.DmdataProviderEnabled
+            ? []
+            : BuildFeatures.ExtendedFeaturesEnabled
+                ? [HistoryApi.NiiJmaXml, HistoryApi.LocalJmaXml, HistoryApi.JmaXml]
+                : [HistoryApi.JmaXml];
+        CollectionAssert.AreEqual(expectedHistorySources, editor.HistoryApis.Select(option => option.Value).ToArray());
         Assert.IsTrue(editor.NiiHistoryContents.Any(option =>
             option.Value == NiiHistoryContent.WeatherWarningsOnly));
         Assert.IsTrue(editor.NiiHistoryContents.Any(option =>
@@ -755,7 +752,11 @@ public sealed partial class Phase6ViewModelTests
         Assert.AreEqual(50, result.Obs.SnapshotIntervalMilliseconds);
         Assert.AreEqual(ObsAudioMonitoringMode.Off, result.Obs.AudioMonitoringMode);
         Assert.AreEqual(100, result.History.Limit);
-        Assert.AreEqual(HistoryApi.LocalJmaXml, result.History.Api);
+        Assert.AreEqual(
+            BuildFeatures.DmdataProviderEnabled && BuildFeatures.ExtendedFeaturesEnabled
+                ? HistoryApi.LocalJmaXml
+                : HistoryApi.JmaXml,
+            result.History.Api);
         Assert.AreEqual(@"C:\test-data\sample.xml", result.History.LocalXmlFilePath);
         Assert.AreEqual(new DateOnly(2012, 12, 1), result.History.NiiDate);
         Assert.AreEqual(NiiHistoryContent.TsunamiOnly, result.History.NiiContent);
@@ -775,27 +776,26 @@ public sealed partial class Phase6ViewModelTests
     }
 
     [TestMethod]
-    public void SandboxModeUsesDedicatedEndpointsAndRepairsLegacyProductionUrls()
+    public void EditorOpensOldSandboxSettingsWithAutomaticConnectionOff()
     {
         AppSettings legacy = AppSettings.CreateDefault() with
         {
             Provider = new ProviderSettings(
                 ProviderMode.Sandbox,
                 ProviderOptions.Production.WebSocketUri.AbsoluteUri,
-                ProviderOptions.Production.RestBaseUri.AbsoluteUri),
+                ProviderOptions.Production.RestBaseUri.AbsoluteUri)
+            {
+                AutoConnectOnStartup = true,
+            },
         };
 
         var editor = new SettingsEditorViewModel(legacy);
 
-        Assert.AreEqual(ProviderOptions.Sandbox.WebSocketUri.AbsoluteUri, editor.WebSocketUrl);
-        Assert.AreEqual(
-            ProviderOptions.Sandbox.RestBaseUri.AbsoluteUri.TrimEnd('/'),
-            editor.RestBaseUrl);
-
-        editor.ProviderMode = ProviderMode.Production;
-        Assert.AreEqual(ProviderOptions.Production.WebSocketUri.AbsoluteUri, editor.WebSocketUrl);
-        editor.ProviderMode = ProviderMode.Sandbox;
-        Assert.AreEqual(ProviderOptions.Sandbox.WebSocketUri.AbsoluteUri, editor.WebSocketUrl);
+        Assert.IsFalse(editor.AutoConnectOnStartup);
+        ProviderSettings saved = editor.ToSettings(legacy).Provider;
+        Assert.AreEqual(ProviderMode.Production, saved.Mode);
+        Assert.IsFalse(saved.AutoConnectOnStartup);
+        Assert.AreEqual(legacy.Provider.Routing, saved.Routing);
     }
 
     [TestMethod]
@@ -956,7 +956,6 @@ public sealed partial class Phase6ViewModelTests
             FilterEew = false,
             FilterWeatherAdvisories = true,
             PageDurationSeconds = 20,
-            ShowPageIndicator = false,
             ProductionReplayEewEnabled = true,
             ProductionReplayEewRepeatCount = 99,
             Width = 1280,
@@ -993,7 +992,6 @@ public sealed partial class Phase6ViewModelTests
 
         editor.ResetDisplaySettings();
         Assert.AreEqual(defaults.Display.PageDurationSeconds, editor.PageDurationSeconds);
-        Assert.AreEqual(defaults.Display.ShowPageIndicator, editor.ShowPageIndicator);
         Assert.IsEmpty(editor.SubtitlePhraseOverrides);
 
         editor.ResetProductionReplaySettings();
@@ -1106,11 +1104,24 @@ public sealed partial class Phase6ViewModelTests
             Assert.IsTrue(vm.ReviewTelegramsView.IsEmpty);
             Assert.IsNull(vm.SelectedReceivedTelegram);
             Assert.AreEqual(1, vm.ReceivedTelegrams.Count);
-            vm.ReceivedTelegrams.Add(new ReceivedTelegramViewModel(quake, item.Program));
+            var hidden = new ReceivedTelegramViewModel(
+                quake, item.Program, "最大震度フィルター", isHiddenByDisplayFilter: true);
+            vm.ReceivedTelegrams.Add(hidden);
             Assert.IsTrue(vm.ReviewTelegramsView.IsEmpty);
             vm.SelectedReviewCategory = TelegramReviewCategory.Quake;
             Assert.AreEqual(2, vm.ReviewTelegramsView.Cast<object>().Count());
             Assert.AreSame(item, vm.SelectedReceivedTelegram);
+
+            vm.ShowOnlyFilterHiddenTelegrams = true;
+            Assert.AreSame(hidden, vm.ReviewTelegramsView.Cast<object>().Single());
+            Assert.AreSame(hidden, vm.SelectedReceivedTelegram);
+            vm.SelectedReviewCategory = TelegramReviewCategory.Eew;
+            Assert.IsTrue(vm.ReviewTelegramsView.IsEmpty);
+            Assert.IsNull(vm.SelectedReceivedTelegram);
+            vm.SelectedReviewCategory = TelegramReviewCategory.Quake;
+            vm.ShowOnlyFilterHiddenTelegrams = false;
+            Assert.AreEqual(2, vm.ReviewTelegramsView.Cast<object>().Count());
+            Assert.HasCount(2, vm.ReceivedTelegrams);
         }
         finally { await vm.DisposeAsync(); }
     }
@@ -1306,7 +1317,7 @@ public sealed partial class Phase6ViewModelTests
         {
             Eew = ReceptionProvider.YditsTest, Quake = ReceptionProvider.Wolfx,
             Weather = ReceptionProvider.JmaXml, Volcano = ReceptionProvider.JmaXml,
-            NankaiTrough = ReceptionProvider.Disabled,
+            NankaiTrough = ReceptionProvider.JmaXml,
         };
         AppSettings settings = defaults with
         {
@@ -1319,7 +1330,9 @@ public sealed partial class Phase6ViewModelTests
             var sidebar = (ScrollViewer)window.FindName("ControlSidebar");
             Assert.AreEqual(window.ViewModel.ApiModeText, text.Text);
             StringAssert.StartsWith(text.Text, "緊急地震速報 ");
-            StringAssert.EndsWith(text.Text, "南海トラフ等 受信しない");
+            StringAssert.EndsWith(text.Text, BuildFeatures.DmdataProviderEnabled
+                ? "気象 気象庁XML / 火山 気象庁XML / 南海トラフ等 気象庁XML"
+                : "南海トラフ等 受信しない");
             Rect lastCharacter = text.ContentEnd.GetCharacterRect(LogicalDirection.Backward);
             Assert.IsTrue(!lastCharacter.IsEmpty && lastCharacter.Top > 0 &&
                 lastCharacter.Right <= text.ActualWidth + 1 && lastCharacter.Bottom <= text.ActualHeight + 1);
@@ -1456,7 +1469,48 @@ public sealed partial class Phase6ViewModelTests
         Assert.AreEqual(Colors.White, foreground.Color);
     }
 
-    private static void ArrangeControlWindow(ControlWindow window, double? width = null)
+    [STATestMethod]
+    public void TelegramReviewShowsTheFilePickerBeneathTheSelectedXmlSource()
+    {
+        if (!BuildFeatures.DmdataProviderEnabled || !BuildFeatures.ExtendedFeaturesEnabled) return;
+        InspectControlWindow(AppSettings.CreateDefault(), control =>
+        {
+            var review = new TelegramReviewWindow(control.ViewModel);
+            try
+            {
+                var expander = (Expander)review.FindName("HistorySettingsExpander");
+                var selector = (ComboBox)review.FindName("HistorySourceSelector");
+                var panel = (StackPanel)review.FindName("LocalXmlHistorySettings");
+                var browse = (Button)review.FindName("BrowseHistoryXmlButton");
+                var path = (TextBox)review.FindName("LocalXmlHistoryPath");
+                expander.IsExpanded = true;
+                ArrangeControlWindow(review);
+                Assert.AreEqual(Visibility.Collapsed, panel.Visibility);
+
+                selector.SelectedValue = HistoryApi.LocalJmaXml;
+                ArrangeControlWindow(review);
+                Assert.AreEqual(HistoryApi.LocalJmaXml, control.ViewModel.Settings.HistoryApi);
+                Assert.AreEqual(Visibility.Visible, panel.Visibility);
+                Assert.IsTrue(browse.IsEnabled);
+                Assert.AreSame(control.ViewModel.BrowseHistoryXmlFileCommand, browse.Command);
+                Assert.AreSame(review, browse.CommandParameter);
+                var scroll = (ScrollViewer)expander.Content;
+                Point buttonBottom = browse.TranslatePoint(new Point(0, browse.ActualHeight), scroll);
+                Assert.IsTrue(browse.ActualHeight > 0 && buttonBottom.Y <= scroll.ViewportHeight);
+
+                const string selectedPath = @"C:\test-data\past.xml";
+                control.ViewModel.Settings.LocalHistoryXmlFilePath = selectedPath;
+                ArrangeControlWindow(review);
+                Assert.AreEqual(selectedPath, path.Text);
+            }
+            finally
+            {
+                review.Close();
+            }
+        });
+    }
+
+    private static void ArrangeControlWindow(Window window, double? width = null)
     {
         window.Dispatcher.Invoke(static () => { }, DispatcherPriority.DataBind);
         var size = new Size(width ?? window.MinWidth, window.MinHeight);
@@ -1481,16 +1535,20 @@ public sealed partial class Phase6ViewModelTests
         }
         finally
         {
-            // Keep the dispatcher available while the window's services shut down.
-            Task shutdown = window.DisposeAsync().AsTask();
-            var frame = new DispatcherFrame();
-            _ = shutdown.ContinueWith(
-                _ => window.Dispatcher.BeginInvoke(() => frame.Continue = false),
-                CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-            Dispatcher.PushFrame(frame);
-            shutdown.GetAwaiter().GetResult();
+            CompleteUiTask(window.Dispatcher, window.DisposeAsync().AsTask());
             window.Close();
         }
+    }
+
+    private static void CompleteUiTask(Dispatcher dispatcher, Task task)
+    {
+        // Keep WPF dispatching UI updates while a service completes its work.
+        var frame = new DispatcherFrame();
+        _ = task.ContinueWith(
+            _ => dispatcher.BeginInvoke(() => frame.Continue = false),
+            CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        Dispatcher.PushFrame(frame);
+        task.GetAwaiter().GetResult();
     }
 
     [TestMethod]
@@ -1599,7 +1657,7 @@ public sealed partial class Phase6ViewModelTests
             viewModel.ConnectionState == ProviderConnectionState.Faulted);
         Assert.IsTrue(source.IsReaderActive);
 
-        viewModel.Settings.ProviderMode = ProviderMode.Sandbox;
+        viewModel.Settings.EewProvider = ReceptionProvider.Disabled;
         await viewModel.SaveSettingsAsync();
         await WaitUntilAsync(() => source.ReadCount == 2 && source.IsReaderActive);
 
@@ -1885,7 +1943,7 @@ public sealed partial class Phase6ViewModelTests
     [DataRow(ProviderConnectionState.Stale)]
     [DataRow(ProviderConnectionState.Connecting)]
     [DataRow(ProviderConnectionState.Reconnecting)]
-    public async Task UnsavedSandboxModeCannotAllowTestsDuringProduction(ProviderConnectionState connectionState)
+    public async Task UnsavedRoutingCannotAllowTestsDuringProduction(ProviderConnectionState connectionState)
     {
         AppServices services = CreateServices(connectionState);
         await using var viewModel = new ControlWindowViewModel(
@@ -1893,7 +1951,7 @@ public sealed partial class Phase6ViewModelTests
             services.InitialSettings,
             new FakeConfirmationService(),
             new ImmediateUiDispatcher());
-        viewModel.Settings.ProviderMode = ProviderMode.Sandbox;
+        viewModel.Settings.ReceptionProvider = ReceptionProvider.Disabled;
 
         Assert.IsFalse(viewModel.RunTestCommand.CanExecute(null));
         viewModel.RunTestCommand.Execute(null);
@@ -1902,12 +1960,12 @@ public sealed partial class Phase6ViewModelTests
     }
 
     [TestMethod]
-    [DataRow(ReceptionProvider.P2pQuake, ProviderMode.Sandbox, ReceptionProvider.Disabled, true)]
-    [DataRow(ReceptionProvider.YditsTest, ProviderMode.Production, ReceptionProvider.Disabled, true)]
-    [DataRow(ReceptionProvider.YditsTest, ProviderMode.Production, ReceptionProvider.P2pQuake, false)]
-    [DataRow(ReceptionProvider.P2pQuake, ProviderMode.Sandbox, ReceptionProvider.JmaXml, false)]
+    [DataRow(ReceptionProvider.P2pQuake, ReceptionProvider.Disabled, false)]
+    [DataRow(ReceptionProvider.YditsTest, ReceptionProvider.Disabled, true)]
+    [DataRow(ReceptionProvider.YditsTest, ReceptionProvider.P2pQuake, false)]
+    [DataRow(ReceptionProvider.YditsTest, ReceptionProvider.JmaXml, false)]
     public async Task TestAvailabilityAccountsForLiveAndTestOnlyProviders(
-        ReceptionProvider eew, ProviderMode mode, ReceptionProvider quake, bool expected)
+        ReceptionProvider eew, ReceptionProvider quake, bool expected)
     {
         AppSettings defaults = AppSettings.CreateDefault();
         var routing = new ProviderRoutingSettings(eew, quake, ReceptionProvider.Disabled,
@@ -1916,7 +1974,6 @@ public sealed partial class Phase6ViewModelTests
         {
             Provider = defaults.Provider with
             {
-                Mode = mode,
                 Routing = routing,
                 ReceptionProvider = routing.GetCompatibilityProvider(),
             },
@@ -1932,7 +1989,7 @@ public sealed partial class Phase6ViewModelTests
     [TestMethod]
     [DataRow(ProviderConnectionState.Connected)]
     [DataRow(ProviderConnectionState.Stale)]
-    public async Task UnsavedSandboxModeCannotStartHistoryRehearsalDuringProduction(ProviderConnectionState connectionState)
+    public async Task UnsavedRoutingCannotStartHistoryRehearsalDuringProduction(ProviderConnectionState connectionState)
     {
         QuakeEvent quake = CreateHistoryQuake();
         var historyLoader = new FakeHistoryRehearsalLoader([quake]);
@@ -1942,7 +1999,7 @@ public sealed partial class Phase6ViewModelTests
             services.InitialSettings,
             new FakeConfirmationService(),
             new ImmediateUiDispatcher());
-        viewModel.Settings.ProviderMode = ProviderMode.Sandbox;
+        viewModel.Settings.ReceptionProvider = ReceptionProvider.Disabled;
 
         Assert.IsFalse(viewModel.StartHistoryRehearsalCommand.CanExecute(null));
         viewModel.StartHistoryRehearsalCommand.Execute(null);
@@ -2041,6 +2098,52 @@ public sealed partial class Phase6ViewModelTests
         Assert.AreEqual("停止処理中…", viewModel.HistoryRehearsalStatusText);
         Assert.IsFalse(viewModel.Overlay.HasProgram);
         await viewModel.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task ReviewingAnExternalXmlWithoutAPathPromptsForFileSelection()
+    {
+        if (!BuildFeatures.DmdataProviderEnabled || !BuildFeatures.ExtendedFeaturesEnabled) return;
+        var historyLoader = new FakeHistoryRehearsalLoader([CreateHistoryQuake()]);
+        AppServices services = CreateServices(ProviderConnectionState.Stopped, historyLoader: historyLoader);
+        await using var viewModel = new ControlWindowViewModel(services, services.InitialSettings,
+            new FakeConfirmationService(), new ImmediateUiDispatcher());
+        viewModel.Settings.HistoryApi = HistoryApi.LocalJmaXml;
+
+        viewModel.LoadHistoryForReviewCommand.Execute(null);
+        Assert.AreEqual(0, historyLoader.LoadCount);
+        Assert.IsFalse(viewModel.IsTelegramHistoryLoading);
+        Assert.Contains("外部JMA XMLファイルを選択してください", viewModel.TelegramReviewStatusText);
+    }
+
+    [TestMethod]
+    public async Task FetchedHistoryUsesTheSavedDisplayFilterForReviewAndCanBeReplayedManually()
+    {
+        QuakeEvent quake = CreateHistoryQuake();
+        AppSettings defaults = AppSettings.CreateDefault();
+        AppSettings settings = defaults with { Filter = defaults.Filter with { Quake = false } };
+        AppServices services = CreateServices(ProviderConnectionState.Stopped,
+            suppliedSettings: settings, historyLoader: new FakeHistoryRehearsalLoader([quake]));
+        var obsStore = new ObsSnapshotStore(settings.Display, services.Clock.UtcNow);
+        await using var viewModel = new ControlWindowViewModel(services, settings,
+            new FakeConfirmationService(), new ImmediateUiDispatcher(), obsStore);
+        viewModel.Settings.FilterQuake = true;
+
+        viewModel.LoadHistoryForReviewCommand.Execute(null);
+        await WaitUntilAsync(() => !viewModel.IsTelegramHistoryLoading);
+
+        ReceivedTelegramViewModel item = viewModel.ReceivedTelegrams.Single();
+        Assert.AreSame(quake, item.Event);
+        Assert.IsTrue(item.IsHiddenByDisplayFilter);
+        Assert.Contains("フィルター非表示", item.DetailText);
+        Assert.IsNotEmpty(item.Pages);
+        Assert.AreSame(item, viewModel.SelectedReceivedTelegram);
+        Assert.IsFalse(viewModel.Overlay.HasProgram);
+        Assert.IsFalse(obsStore.Read().HasProgram);
+
+        viewModel.RedisplayReceivedTelegramCommand.Execute(null);
+        Assert.IsTrue(obsStore.Read().HasProgram);
+        Assert.AreEqual(SourceMode.HistoryRehearsal, obsStore.Read().SourceMode);
     }
 
     [TestMethod]
@@ -2251,6 +2354,45 @@ public sealed partial class Phase6ViewModelTests
         StringAssert.Contains(summary.Message, "報番号=8");
         Assert.DoesNotContain(rawOnlyText, summary.Message);
         await viewModel.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task FilterHiddenProductionTelegramCanBeReviewedWithoutOutput()
+    {
+        QuakeEvent quake = CreateQuake(SourceMode.Production, "review-filter-hidden-quake");
+        AppSettings defaults = AppSettings.CreateDefault();
+        AppSettings settings = defaults with { Filter = defaults.Filter with { Quake = false } };
+        AppServices services = CreateServices(ProviderConnectionState.Stopped,
+            suppliedSettings: settings, suppliedNormalizer: new StubNormalizer(quake));
+        services.IngestionPipeline.UpdateSettings(settings.Display, settings.Filter);
+        var obsStore = new ObsSnapshotStore(settings.Display, services.Clock.UtcNow);
+        await using var viewModel = new ControlWindowViewModel(services, settings,
+            new FakeConfirmationService(), new ImmediateUiDispatcher(), obsStore);
+        long audioSequence = obsStore.Read().AudioSequence;
+
+        await services.ReceptionService.ProcessAsync(
+            new RawProviderMessage("p2pquake", "{}", SourceMode.Production, services.Clock.UtcNow));
+
+        ReceivedTelegramViewModel item = viewModel.ReceivedTelegrams.Single();
+        Assert.AreSame(quake, item.Event);
+        Assert.IsTrue(item.IsHiddenByDisplayFilter);
+        Assert.Contains("フィルター非表示（種別フィルター:地震情報）", item.DisplayText);
+        Assert.IsNotEmpty(item.Pages);
+        Assert.AreSame(item, viewModel.SelectedReceivedTelegram);
+        Assert.IsFalse(viewModel.Overlay.HasProgram);
+        Assert.IsFalse(obsStore.Read().HasProgram);
+        Assert.AreEqual(audioSequence, obsStore.Read().AudioSequence);
+
+        viewModel.RedisplayReceivedTelegramCommand.Execute(null);
+        Assert.Contains("現在の表示フィルターで非表示", viewModel.TelegramReviewStatusText);
+        Assert.IsFalse(obsStore.Read().HasProgram);
+
+        viewModel.Settings.FilterQuake = true;
+        await viewModel.SaveSettingsAsync();
+        Assert.IsFalse(obsStore.Read().HasProgram);
+        viewModel.RedisplayReceivedTelegramCommand.Execute(null);
+        Assert.IsTrue(obsStore.Read().HasProgram);
+        Assert.AreEqual(SourceMode.HistoryRehearsal, obsStore.Read().SourceMode);
     }
 
     [TestMethod]

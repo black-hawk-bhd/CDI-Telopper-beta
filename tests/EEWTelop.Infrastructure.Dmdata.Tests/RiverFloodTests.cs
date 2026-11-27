@@ -84,7 +84,7 @@ public sealed class RiverFloodTests
         Assert.IsInstanceOfType<WeatherWarningEvent>(Normalize(xml, provider).Event);
 
     private static DisplayProgram Compose(WeatherWarningEvent weather) =>
-        new PageComposer().Compose(weather, AppSettings.CreateDefault().Display with { ShowPageIndicator = false });
+        new PageComposer().Compose(weather, AppSettings.CreateDefault().Display);
 
     private static string AllText(DisplayProgram program) => string.Join("", program.Pages
         .SelectMany(p => p.Blocks).Select(b => b.PrimaryText));

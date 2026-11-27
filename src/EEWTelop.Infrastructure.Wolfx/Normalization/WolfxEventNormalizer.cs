@@ -121,15 +121,15 @@ public sealed partial class WolfxEventNormalizer : IEventNormalizer
             CorrectionType.None,
             serial.Length == 0 ? null : serial,
             title);
+        bool isProvisional = ReadBoolean(root, "isAssumption");
         var hypocenter = new HypocenterInfo(
             ReadString(root, "Hypocenter").Trim(),
             string.Empty,
             ReadNullableDouble(root, "Latitude"),
             ReadNullableDouble(root, "Longitude"),
             ReadNullableInt(root, "Depth"),
-            ReadNullableDouble(root, "Magunitude") ??
-                ReadNullableDouble(root, "Magnitude"),
-            string.Empty);
+            isProvisional ? null : ReadNullableDouble(root, "Magunitude") ?? ReadNullableDouble(root, "Magnitude"),
+            isProvisional ? HypocenterInfo.ProvisionalCondition : string.Empty);
         var earthquake = new EarthquakeInfo(
             originTime,
             null,
@@ -138,8 +138,7 @@ public sealed partial class WolfxEventNormalizer : IEventNormalizer
             DomesticTsunami.Unknown,
             ForeignTsunami.Unknown);
         EewArea[] areas = NormalizeAreas(root);
-        bool isTraining = ReadBoolean(root, "isTraining") ||
-            ReadBoolean(root, "isAssumption");
+        bool isTraining = ReadBoolean(root, "isTraining") || isProvisional;
         var disasterEvent = new EewEvent(
             EventId.Create(eventId),
             raw.Provider,

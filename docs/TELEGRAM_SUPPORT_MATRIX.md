@@ -10,7 +10,7 @@
 | 552 | 津波情報 | `TsunamiEvent` | `TsunamiPageComposer` |
 | 556 | EEW | `EewEvent` | `EewPageComposer` |
 
-P2Pの入口は `P2pEventNormalizer` です。切断後のREST復旧対象とライブ受信対象は同一ではありません。復旧処理を変更する場合は、`P2pEventSource`、`P2pRestRecoveryClient`、`P2pHistoryMessageSource`を併せて確認します。
+P2Pの入口は `P2pEventNormalizer` です。切断後のREST復旧対象とライブ受信対象は同一ではありません。復旧処理を変更する場合は、`P2pEventSource` と `P2pRestRecoveryClient` を併せて確認します。
 
 ## YDITS API（受信を一時停止中）
 

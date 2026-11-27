@@ -7,6 +7,7 @@
              UseLayoutRounding="True">
     <UserControl.Resources>
         <conv:BackgroundModeToBrushConverter x:Key="BackgroundBrush" />
+        <conv:EewLinePositionConverter x:Key="EewLinePosition" />
         <BooleanToVisibilityConverter x:Key="BoolVisibility" />
         <Style TargetType="controls:OutlinedText">
             <Setter Property="FontFamily"
@@ -18,17 +19,12 @@
             <Setter Property="Padding" Value="24,6" />
             <Setter Property="Margin" Value="0" />
             <Style.Triggers>
-                <DataTrigger Binding="{Binding StyleToken}" Value="eew-header">
+                <DataTrigger Binding="{Binding IsEewHeader}" Value="True">
                     <Setter Property="Background" Value="#FFA83218" />
                     <Setter Property="Padding" Value="24,16" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StyleToken}" Value="eew-header-cancel">
                     <Setter Property="Background" Value="#FF555555" />
-                    <Setter Property="Padding" Value="24,16" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding StyleToken}" Value="eew-header-test">
-                    <Setter Property="Background" Value="#FFA83218" />
-                    <Setter Property="Padding" Value="24,16" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding DataContext.IsConcurrentEewProgram, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="True">
                     <Setter Property="Padding" Value="18,8" />
@@ -49,24 +45,26 @@
         </Style>
         <Style x:Key="EewPrimaryText" TargetType="TextBlock" BasedOn="{StaticResource EewText}">
             <Setter Property="FontWeight" Value="Black" />
+            <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
             <Setter Property="FontSize"
                     Value="{Binding DataContext.EewBodyFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+            <Setter Property="LineHeight"
+                    Value="{Binding DataContext.EewBodyLineHeight, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <MultiBinding Converter="{StaticResource EewLinePosition}">
+                        <Binding Path="FontFamily" RelativeSource="{RelativeSource Self}" />
+                        <Binding Path="FontSize" RelativeSource="{RelativeSource Self}" />
+                        <Binding Path="LineHeight" RelativeSource="{RelativeSource Self}" />
+                    </MultiBinding>
+                </Setter.Value>
+            </Setter>
             <Style.Triggers>
-                <DataTrigger Binding="{Binding StyleToken}" Value="eew-header">
+                <DataTrigger Binding="{Binding IsEewHeader}" Value="True">
                     <Setter Property="FontSize"
                             Value="{Binding DataContext.EewHeaderFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}" />
-                    <Setter Property="TextAlignment" Value="Center" />
-                    <Setter Property="HorizontalAlignment" Value="Stretch" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding StyleToken}" Value="eew-header-cancel">
-                    <Setter Property="FontSize"
-                            Value="{Binding DataContext.EewHeaderFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}" />
-                    <Setter Property="TextAlignment" Value="Center" />
-                    <Setter Property="HorizontalAlignment" Value="Stretch" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding StyleToken}" Value="eew-header-test">
-                    <Setter Property="FontSize"
-                            Value="{Binding DataContext.EewHeaderFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                    <Setter Property="LineHeight"
+                            Value="{Binding DataContext.EewHeaderLineHeight, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                     <Setter Property="TextAlignment" Value="Center" />
                     <Setter Property="HorizontalAlignment" Value="Stretch" />
                 </DataTrigger>
@@ -75,10 +73,21 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="EewDetailText" TargetType="TextBlock" BasedOn="{StaticResource EewText}">
+            <Setter Property="FontSize"
+                    Value="{Binding DataContext.EewDetailFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+            <Setter Property="Margin" Value="0,6,0,0" />
+            <Style.Triggers>
+                <Trigger Property="Text" Value="">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <Viewbox Stretch="Uniform">
-        <Grid Width="1920" Height="1080" ClipToBounds="True" RenderTransformOrigin="0.5,0.5">
+        <Grid Width="1920" Height="1080" ClipToBounds="True" Clip="{Binding OutputClipGeometry}"
+              RenderTransformOrigin="0.5,0.5">
             <Grid.Style>
                 <Style TargetType="Grid">
                     <Setter Property="Background"
@@ -91,9 +100,6 @@
                     <TranslateTransform X="{Binding OutputOffsetX}" Y="{Binding OutputOffsetY}" />
                 </TransformGroup>
             </Grid.RenderTransform>
-            <Grid.Clip>
-                <RectangleGeometry Rect="{Binding OutputClipRect}" />
-            </Grid.Clip>
             <Border Margin="24" Padding="{Binding BannerPadding}" HorizontalAlignment="Left" VerticalAlignment="Top"
                     MaxWidth="1344" CornerRadius="13" Background="#FFFFE600"
                     BorderBrush="#FFD00000" BorderThickness="5"
@@ -128,13 +134,10 @@
                         <DataTemplate>
                             <Border Style="{StaticResource EewBlockBorderStyle}">
                                 <StackPanel>
-                                        <controls:EewCaptionText SourceText="{Binding PrimaryText}" AreaLabels="{Binding EewAreaLabels}"
-                                                                 Style="{StaticResource EewPrimaryText}" />
-                                        <TextBlock Text="{Binding SecondaryText}" Style="{StaticResource EewText}"
-                                                   FontSize="{Binding DataContext.EewDetailFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}" />
-                                        <TextBlock Text="{Binding EewEstimateText}" Style="{StaticResource EewText}"
-                                                   FontSize="{Binding DataContext.EewDetailFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                   Visibility="{Binding HasEewEstimateText, Converter={StaticResource BoolVisibility}}" />
+                                    <controls:EewCaptionText SourceText="{Binding PrimaryText}" AreaLabels="{Binding EewAreaLabels}"
+                                                             Style="{StaticResource EewPrimaryText}" />
+                                    <TextBlock Text="{Binding SecondaryText}" Style="{StaticResource EewDetailText}" />
+                                    <TextBlock Text="{Binding EewEstimateText}" Style="{StaticResource EewDetailText}" />
                                 </StackPanel>
                             </Border>
                         </DataTemplate>
@@ -158,51 +161,73 @@
                                     <ColumnDefinition Width="Auto" SharedSizeGroup="{Binding CaptionColumnGroup}" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0"
-                                        Padding="{Binding DataContext.BadgePadding, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        MinWidth="{Binding DataContext.BadgeMinWidth, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        VerticalAlignment="Top" CornerRadius="9"
-                                        Background="{Binding BadgeBackground}"
-                                        BorderBrush="{Binding BadgeBorderBrush}"
-                                        BorderThickness="{Binding BadgeBorderThickness}"
-                                        Opacity="{Binding BadgeOpacity}"
-                                        Visibility="{Binding HasBadgeColumn, Converter={StaticResource BoolVisibility}}">
-                                    <Border.Style>
-                                        <Style TargetType="Border">
+                                <controls:CaptionBadgeLayout Grid.Column="0" VerticalAlignment="Top"
+                                      Visibility="{Binding HasBadgeColumn, Converter={StaticResource BoolVisibility}}">
+                                    <controls:CaptionBadgeLayout.Style>
+                                        <Style TargetType="controls:CaptionBadgeLayout">
+                                            <Setter Property="MinHeight" Value="{Binding DataContext.SubtitleFirstLineHeight, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                            <Setter Property="Caption" Value="{Binding ElementName=StandardPrimaryCaption}" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding SharesCaptionColumn}" Value="True">
-                                                    <Setter Property="HorizontalAlignment" Value="Left" />
+                                                <DataTrigger Binding="{Binding IsTsunami}" Value="True">
+                                                    <Setter Property="Caption" Value="{Binding ElementName=TsunamiAreaCaption}" />
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding IsWeather}" Value="True">
-                                                    <Setter Property="Grid.ColumnSpan" Value="2" />
-                                                    <Setter Property="HorizontalAlignment" Value="Left" />
                                                     <Setter Property="Margin" Value="0,0,0,18" />
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding HasWeatherContext}" Value="True">
-                                                    <Setter Property="Grid.ColumnSpan" Value="1" />
+                                                    <Setter Property="Caption" Value="{Binding ElementName=WeatherContextCaption}" />
                                                 </DataTrigger>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding IsWeather}" Value="True" />
+                                                        <Condition Binding="{Binding HasWeatherContext}" Value="False" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Grid.ColumnSpan" Value="2" />
+                                                    <Setter Property="MinHeight" Value="0" />
+                                                    <Setter Property="Caption" Value="{x:Null}" />
+                                                </MultiDataTrigger>
                                             </Style.Triggers>
                                         </Style>
-                                    </Border.Style>
-                                    <Border.Effect>
-                                        <DropShadowEffect Color="Black" BlurRadius="7" ShadowDepth="3" Opacity="0.8" />
-                                    </Border.Effect>
-                                    <TextBlock Text="{Binding BadgePlaceholder}"
-                                               Foreground="{Binding BadgeForeground}"
-                                               FontFamily="{Binding DataContext.SubtitleFontFamily, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                               FontWeight="Black"
-                                               FontSize="{Binding DataContext.BadgeFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                               TextAlignment="Center"
-                                               LineStackingStrategy="BlockLineHeight"
-                                               LineHeight="{Binding DataContext.BadgeFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}" />
-                                </Border>
+                                    </controls:CaptionBadgeLayout.Style>
+                                    <Border Padding="{Binding DataContext.BadgePadding, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            MinWidth="{Binding DataContext.BadgeMinWidth, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CornerRadius="9"
+                                            Background="{Binding BadgeBackground}"
+                                            BorderBrush="{Binding BadgeBorderBrush}"
+                                            BorderThickness="{Binding BadgeBorderThickness}"
+                                            Opacity="{Binding BadgeOpacity}">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SharesCaptionColumn}" Value="True">
+                                                        <Setter Property="HorizontalAlignment" Value="Left" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsWeather}" Value="True">
+                                                        <Setter Property="HorizontalAlignment" Value="Left" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <Border.Effect>
+                                            <DropShadowEffect Color="Black" BlurRadius="7" ShadowDepth="3" Opacity="0.8" />
+                                        </Border.Effect>
+                                        <TextBlock Text="{Binding BadgePlaceholder}"
+                                                   Foreground="{Binding BadgeForeground}"
+                                                   FontFamily="{Binding DataContext.SubtitleFontFamily, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                   FontWeight="Black"
+                                                   FontSize="{Binding DataContext.BadgeFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                   TextAlignment="Center"
+                                                   LineStackingStrategy="BlockLineHeight"
+                                                   LineHeight="{Binding DataContext.BadgeFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                    </Border>
+                                </controls:CaptionBadgeLayout>
                                 <controls:OutlinedText Grid.Column="0" HorizontalAlignment="Left"
                                                        Text="{Binding SubtitleLabel}"
                                                        FontSize="{Binding DataContext.SubtitleFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                        LineHeight="{Binding DataContext.SubtitleLineHeight, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                        LetterSpacing="{Binding DataContext.SubtitleLetterSpacing, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                        StrokeThickness="{Binding DataContext.StrokeThickness, RelativeSource={RelativeSource AncestorType=UserControl}}" />
-                                <controls:OutlinedText Grid.Column="1" Margin="22,0,0,18"
+                                <controls:OutlinedText x:Name="WeatherContextCaption" Grid.Column="1" Margin="22,0,0,18"
                                                        Text="{Binding WeatherContext}"
                                                        Visibility="{Binding HasWeatherContext, Converter={StaticResource BoolVisibility}}"
                                                        FontSize="{Binding DataContext.SubtitleFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -238,7 +263,7 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
-                                        <controls:OutlinedText Text="{Binding RenderedPrimaryText}"
+                                        <controls:OutlinedText x:Name="StandardPrimaryCaption" Text="{Binding RenderedPrimaryText}"
                                                                FontSize="{Binding DataContext.SubtitleFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                LineHeight="{Binding DataContext.SubtitleLineHeight, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                LetterSpacing="{Binding DataContext.SubtitleLetterSpacing, RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -249,9 +274,9 @@
                                                                LetterSpacing="{Binding DataContext.SubtitleLetterSpacing, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                StrokeThickness="{Binding DataContext.StrokeThickness, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                                     </StackPanel>
-                                    <WrapPanel x:Name="TsunamiSubtitle">
-                                        <WrapPanel.Style>
-                                            <Style TargetType="WrapPanel">
+                                    <controls:TsunamiCaptionPanel x:Name="TsunamiSubtitle">
+                                        <controls:TsunamiCaptionPanel.Style>
+                                            <Style TargetType="controls:TsunamiCaptionPanel">
                                                 <Setter Property="Visibility" Value="Collapsed" />
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsTsunami}" Value="True">
@@ -259,8 +284,8 @@
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
-                                        </WrapPanel.Style>
-                                        <controls:OutlinedText Text="{Binding RenderedPrimaryText}"
+                                        </controls:TsunamiCaptionPanel.Style>
+                                        <controls:OutlinedText x:Name="TsunamiAreaCaption" Text="{Binding RenderedPrimaryText}"
                                                                FontSize="{Binding DataContext.SubtitleFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                LineHeight="{Binding DataContext.SubtitleLineHeight, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                LetterSpacing="{Binding DataContext.SubtitleLetterSpacing, RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -270,20 +295,12 @@
                                                                LineHeight="{Binding DataContext.SubtitleNoteLineHeight, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                LetterSpacing="{Binding DataContext.SubtitleLetterSpacing, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                StrokeThickness="{Binding DataContext.StrokeThickness, RelativeSource={RelativeSource AncestorType=UserControl}}" />
-                                    </WrapPanel>
+                                    </controls:TsunamiCaptionPanel>
                                 </Grid>
                             </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-                    <Border x:Name="PageIndicatorBorder"
-                            HorizontalAlignment="Right" Margin="0,0,0,0"
-                            Padding="{Binding PagePadding}" Background="#B8000000" CornerRadius="5"
-                            Visibility="{Binding HasPageIndicator, Converter={StaticResource BoolVisibility}}">
-                        <TextBlock Text="{Binding PageIndicator}" Foreground="White"
-                                   FontFamily="{Binding SubtitleFontFamily}"
-                                   FontWeight="Black" FontSize="{Binding PageFontSize}" />
-                    </Border>
                 </StackPanel>
             </Grid>
         </Grid>

@@ -6,6 +6,7 @@ using EEWTelop.Application.Display;
 using EEWTelop.Domain.Events;
 using EEWTelop.Wpf.Mvvm;
 using FontFamily = System.Windows.Media.FontFamily;
+using RectangleGeometry = System.Windows.Media.RectangleGeometry;
 
 namespace EEWTelop.Wpf.ViewModels;
 
@@ -13,8 +14,8 @@ public sealed class OverlayViewModel : ObservableObject
 {
     private bool _hasProgram;
     private string _programId = "";
+    private string? _clearedProgramId;
     private string _rehearsalLabel = "";
-    private string _pageIndicator = "";
     private string _accessibleText = "";
     private BackgroundMode _backgroundMode;
     private double _fontScale = 1;
@@ -43,20 +44,6 @@ public sealed class OverlayViewModel : ObservableObject
             if (SetProperty(ref _rehearsalLabel, value))
             {
                 OnPropertyChanged(nameof(HasRehearsalLabel));
-            }
-        }
-    }
-
-    public bool HasPageIndicator => !string.IsNullOrWhiteSpace(PageIndicator);
-
-    public string PageIndicator
-    {
-        get => _pageIndicator;
-        private set
-        {
-            if (SetProperty(ref _pageIndicator, value))
-            {
-                OnPropertyChanged(nameof(HasPageIndicator));
             }
         }
     }
@@ -129,11 +116,20 @@ public sealed class OverlayViewModel : ObservableObject
 
     public double OutputOffsetY => OutputTransform.OffsetY;
 
-    public Rect OutputClipRect => new(
-        OutputTransform.CropLeft,
-        OutputTransform.CropTop,
-        Math.Max(1, 1920 - OutputTransform.CropLeft - OutputTransform.CropRight),
-        Math.Max(1, 1080 - OutputTransform.CropTop - OutputTransform.CropBottom));
+    public RectangleGeometry OutputClipGeometry
+    {
+        get
+        {
+            var bounds = new Rect(
+                OutputTransform.CropLeft,
+                OutputTransform.CropTop,
+                Math.Max(1, 1920 - OutputTransform.CropLeft - OutputTransform.CropRight),
+                Math.Max(1, 1080 - OutputTransform.CropTop - OutputTransform.CropBottom));
+            var clip = new RectangleGeometry(bounds);
+            clip.Freeze();
+            return clip;
+        }
+    }
 
     public double SubtitleFontSize => 58 * FontScale;
 
@@ -147,15 +143,13 @@ public sealed class OverlayViewModel : ObservableObject
 
     public double StrokeThickness => 6 * FontScale;
 
+    public double SubtitleFirstLineHeight => Math.Max(SubtitleFontSize, SubtitleLineHeight) + 2 * StrokeThickness;
+
     public double BadgeFontSize => 52 * FontScale;
 
     public double BadgeMinWidth => BadgeFontSize * 2.4;
 
     public Thickness BadgePadding => new(BadgeFontSize * 0.5, BadgeFontSize * 0.12, BadgeFontSize * 0.5, BadgeFontSize * 0.12);
-
-    public double PageFontSize => 26 * FontScale;
-
-    public Thickness PagePadding => new(PageFontSize * 0.5, PageFontSize * 0.12, PageFontSize * 0.5, PageFontSize * 0.12);
 
     public double BannerFontSize => 52 * FontScale;
 
@@ -167,31 +161,34 @@ public sealed class OverlayViewModel : ObservableObject
 
     public double EewHeaderFontSize => (IsConcurrentEewProgram ? 50 : 76) * FontScale;
 
+    public double EewHeaderLineHeight => EewHeaderFontSize * (IsConcurrentEewProgram ? 1.1 : 1.15) * LineSpacing;
+
     public double EewBodyFontSize => (IsConcurrentEewProgram ? 38 : 58) * FontScale;
 
+    public double EewBodyLineHeight => EewBodyFontSize * (IsConcurrentEewProgram ? 1.12 : 1.25) * LineSpacing;
+
     public double EewDetailFontSize => (IsConcurrentEewProgram ? 24 : 30) * FontScale;
+
+    internal void ClearDisplay()
+    {
+        if (!HasProgram) return;
+
+        _clearedProgramId = ProgramId;
+        ResetPresentation();
+    }
 
     public void Apply(CoordinatorSnapshot snapshot, DisplaySettings settings)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ApplySettings(settings);
-        Blocks.Clear();
-        if (snapshot.CurrentProgram is null || snapshot.CurrentPage is null)
+        if (snapshot.CurrentProgram is not { } program || snapshot.CurrentPage is not { } page ||
+            string.Equals(program.ProgramId, _clearedProgramId, StringComparison.Ordinal))
         {
-            HasProgram = false;
-            IsEewProgram = false;
-            IsConcurrentEewProgram = false;
-            IsSubtitleProgram = false;
-            ProgramId = "";
-            RehearsalLabel = "";
-            PageIndicator = "";
-            AccessibleText = "";
+            ResetPresentation();
             return;
         }
 
-        DisplayProgram program = snapshot.CurrentProgram;
-        DisplayPage page = snapshot.CurrentPage;
-        HasProgram = true;
+        Blocks.Clear();
         IsEewProgram = program.Kind == EventKind.Eew;
         IsConcurrentEewProgram = IsEewProgram && page.Blocks.Count(static block =>
             block.StyleToken is DisplayStyleTokens.EewHeader or
@@ -201,15 +198,11 @@ public sealed class OverlayViewModel : ObservableObject
         ProgramId = program.ProgramId;
         RehearsalLabel = program.HideSimulatorTrainingBanner && program.SourceMode == SourceMode.ManualTest
             ? string.Empty : program.RehearsalLabel;
-        PageIndicator = settings.ShowPageIndicator && program.Pages.Count > 1
-            ? $"{snapshot.CurrentPageIndex + 1} / {program.Pages.Count}"
-            : "";
         AccessibleText = page.AccessibleText;
         bool hideInformationBadges = DisplayBadgeVisibility.HideInformationBadges(program, settings);
         string previousBadge = string.Empty;
         string? previousAlignedStyle = null;
-        foreach (DisplayBlock sourceBlock in page.Blocks.Where(
-            static block => block.StyleToken != DisplayStyleTokens.PageIndicator))
+        foreach (DisplayBlock sourceBlock in page.Blocks)
         {
             DisplayBlock block = DisplayBadgeVisibility.FormatBlockForOutput(sourceBlock, program, settings);
             string? subtitleBody = DisplayBadgeVisibility.GetAlignedSubtitleBody(sourceBlock, block);
@@ -242,6 +235,19 @@ public sealed class OverlayViewModel : ObservableObject
                 EewEstimateText = settings.ShowEewEstimates ? block.EewEstimateText : null,
             });
         }
+        HasProgram = true;
+    }
+
+    private void ResetPresentation()
+    {
+        HasProgram = false;
+        Blocks.Clear();
+        IsEewProgram = false;
+        IsConcurrentEewProgram = false;
+        IsSubtitleProgram = false;
+        ProgramId = "";
+        RehearsalLabel = "";
+        AccessibleText = "";
     }
 
     public void ApplySettings(DisplaySettings settings)
@@ -270,7 +276,7 @@ public sealed class OverlayViewModel : ObservableObject
                 OnPropertyChanged(nameof(OutputScale));
                 OnPropertyChanged(nameof(OutputOffsetX));
                 OnPropertyChanged(nameof(OutputOffsetY));
-                OnPropertyChanged(nameof(OutputClipRect));
+                OnPropertyChanged(nameof(OutputClipGeometry));
             }
         }
     }
@@ -283,17 +289,18 @@ public sealed class OverlayViewModel : ObservableObject
         OnPropertyChanged(nameof(SubtitleNoteLineHeight));
         OnPropertyChanged(nameof(SubtitleLetterSpacing));
         OnPropertyChanged(nameof(StrokeThickness));
+        OnPropertyChanged(nameof(SubtitleFirstLineHeight));
         OnPropertyChanged(nameof(BadgeFontSize));
         OnPropertyChanged(nameof(BadgeMinWidth));
         OnPropertyChanged(nameof(BadgePadding));
-        OnPropertyChanged(nameof(PageFontSize));
-        OnPropertyChanged(nameof(PagePadding));
         OnPropertyChanged(nameof(BannerFontSize));
         OnPropertyChanged(nameof(BannerLetterSpacing));
         OnPropertyChanged(nameof(BannerLineHeight));
         OnPropertyChanged(nameof(BannerPadding));
         OnPropertyChanged(nameof(EewHeaderFontSize));
+        OnPropertyChanged(nameof(EewHeaderLineHeight));
         OnPropertyChanged(nameof(EewBodyFontSize));
+        OnPropertyChanged(nameof(EewBodyLineHeight));
         OnPropertyChanged(nameof(EewDetailFontSize));
     }
 }
@@ -312,7 +319,8 @@ public sealed record OverlayBlockViewModel(
     public string? SubtitleBodyText { get; init; }
     public IReadOnlyList<EewAreaLabel>? EewAreaLabels { get; init; }
     public string? EewEstimateText { get; init; }
-    public bool HasEewEstimateText => EewEstimateText is not null;
+    public bool IsEewHeader => StyleToken is DisplayStyleTokens.EewHeader or
+        DisplayStyleTokens.EewHeaderCancel or DisplayStyleTokens.EewHeaderTest;
     public string? CaptionColumnGroup => SharesCaptionColumn ? "CaptionLabel" : null;
     public bool HasLabelColumn => HasBadgeColumn || SharesCaptionColumn;
     public string SubtitleLabel => SubtitleBodyText is null ? string.Empty : Badge;

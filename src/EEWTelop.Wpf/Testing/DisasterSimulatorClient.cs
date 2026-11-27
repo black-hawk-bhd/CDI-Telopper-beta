@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.WebSockets;
 using System.Text.Json;
+using EEWTelop.Application.Events;
 using EEWTelop.Domain.Events;
 using static EEWTelop.Wpf.Testing.DisasterSimulatorDecoder;
 
@@ -100,6 +101,7 @@ internal sealed class SimulatorUpdateTracker
         var current = new Dictionary<string, string>();
         var events = new List<DisasterEvent>();
         var snapshot = new List<DisasterEvent>();
+        TsunamiEvent? previousForecast = reset ? null : TsunamiForecast;
         TsunamiForecast = null;
         void Add(string key, string kind, JsonElement item)
         {
@@ -107,8 +109,13 @@ internal sealed class SimulatorUpdateTracker
             string raw = item.GetRawText();
             current[key] = raw;
             var decoded = Decode(kind, item, now);
+            if (key == "forecast")
+            {
+                TsunamiForecast = TsunamiEventStateAccumulator.WithPreviousWarningGrades((TsunamiEvent)decoded, previousForecast);
+                decoded = TsunamiForecast;
+            }
+
             snapshot.Add(decoded);
-            if (key == "forecast") TsunamiForecast = (TsunamiEvent)decoded;
             if (!initial && type != "snapshot" && (!_previous.TryGetValue(key, out var old) || old != raw))
                 events.Add(decoded);
         }

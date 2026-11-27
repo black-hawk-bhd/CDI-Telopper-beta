@@ -153,7 +153,7 @@ public sealed record TsunamiEvent : DisasterEvent
 
     public IssueInfo Issue { get; }
 
-    public IReadOnlyList<TsunamiArea> Areas { get; }
+    public IReadOnlyList<TsunamiArea> Areas { get; init; }
 
     public DateTimeOffset? ExpireAt { get; }
 

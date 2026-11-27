@@ -1,6 +1,7 @@
 using System.Runtime.ExceptionServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -86,7 +87,6 @@ public sealed class Phase9RenderingRegressionTests
             {
                 LetterSpacingEm = 0.2,
                 LineSpacing = 1.5,
-                ShowPageIndicator = false,
             }));
 
             foreach ((DisplayProgram program, int page, DisplaySettings display) in cases)
@@ -98,14 +98,7 @@ public sealed class Phase9RenderingRegressionTests
                 Assert.IsTrue(pixels.Where((_, index) => index % 4 == 3).Any(alpha => alpha > 0));
                 Assert.AreEqual(program.Pages[page].AccessibleText, overlay.AccessibleText);
                 AssertVisibleElementsInsideCanvas(view);
-                if (!display.ShowPageIndicator)
-                {
-                    Assert.AreEqual(string.Empty, overlay.PageIndicator);
-                    Assert.IsFalse(overlay.HasPageIndicator);
-                    var pageIndicatorBorder = (Border?)view.FindName("PageIndicatorBorder");
-                    Assert.IsNotNull(pageIndicatorBorder);
-                    Assert.AreEqual(Visibility.Collapsed, pageIndicatorBorder.Visibility);
-                }
+                Assert.IsNull(view.FindName("PageIndicatorBorder"));
             }
         });
     }
@@ -140,11 +133,11 @@ public sealed class Phase9RenderingRegressionTests
     }
 
     [TestMethod]
-    public void EewTrainingContentMatchesObsOriginAndDoesNotOverlapTrainingBanner()
+    public void EewTrainingContentMatchesObsLayoutAndDoesNotOverlapTrainingBanner()
     {
         RunSta(() =>
         {
-            DisplaySettings settings = AppSettings.CreateDefault().Display;
+            DisplaySettings settings = AppSettings.CreateDefault().Display with { ShowEewEstimates = true };
             DisplayProgram program = new PageComposer().Compose(
                 TestScenarioCatalog.Create(Now).Single(item => item.Id == "eew-warning").Event,
                 settings);
@@ -158,13 +151,16 @@ public sealed class Phase9RenderingRegressionTests
             Assert.AreEqual(8, headerOrigin.X, 1, "EEWの左端が旧HTML版の全幅表示と一致しません。");
             Assert.AreEqual(140, headerOrigin.Y, 1, "EEWの上端がOBS表示領域と一致しません。");
             Assert.AreEqual(1904, header.ActualWidth, 1, "EEW見出しが全幅になっていません。");
+            Assert.AreEqual(119.4, header.ActualHeight, 1, "緊急地震速報の見出しの高さがブラウザー表示と一致しません。");
             var headerBrush = Assert.IsInstanceOfType<SolidColorBrush>(header.Background);
             Assert.AreEqual(Color.FromRgb(0xA8, 0x32, 0x18), headerBrush.Color);
+            AssertEewPrimaryLine(FindVisualChildren<EewCaptionText>(header).Single(), view, 156);
 
             var eewPanel = (Grid?)view.FindName("EewPanel");
             Assert.IsNotNull(eewPanel);
             var panelBrush = Assert.IsInstanceOfType<SolidColorBrush>(eewPanel.Background);
             Assert.AreEqual(Color.FromRgb(0x3A, 0x3A, 0xD0), panelBrush.Color);
+            Assert.AreEqual(570, eewPanel.ActualHeight, 1);
 
             OverlayBlockViewModel warningBlock = overlay.Blocks.Single(block =>
                 block.StyleToken == DisplayStyleTokens.EewWarning);
@@ -173,6 +169,16 @@ public sealed class Phase9RenderingRegressionTests
                     text.Text == warningBlock.PrimaryText);
             var warningBrush = Assert.IsInstanceOfType<SolidColorBrush>(warningText.Foreground);
             Assert.AreEqual(Color.FromRgb(0xF0, 0xF0, 0x00), warningBrush.Color);
+            AssertEewPrimaryLine(warningText, view, 265.4);
+
+            OverlayBlockViewModel areaBlock = overlay.Blocks.Single(block => block.StyleToken == DisplayStyleTokens.EewAreas);
+            TextBlock[] areaTexts = FindVisualChildren<TextBlock>(view)
+                .Where(text => ReferenceEquals(text.DataContext, areaBlock)).ToArray();
+            TextBlock regions = areaTexts.Single(text => text.Text == areaBlock.PrimaryText);
+            Assert.IsNotNull(areaBlock.EewEstimateText);
+            TextBlock estimates = areaTexts.Single(text => text.Text == areaBlock.EewEstimateText);
+            AssertEewPrimaryLine(regions, view, 349.9);
+            Assert.AreEqual(428.4, estimates.TranslatePoint(new Point(), view).Y, 2);
 
             TextBlock bannerText = FindVisualChildren<TextBlock>(view)
                 .Single(text => text.Text == overlay.RehearsalLabel);
@@ -180,6 +186,39 @@ public sealed class Phase9RenderingRegressionTests
                 .Transform(new Point(0, bannerText.ActualHeight)).Y;
             Assert.IsTrue(headerOrigin.Y > bannerBottom,
                 "EEWの訓練表示が黄色の識別バナーと重なっています。");
+        });
+    }
+
+    [TestMethod]
+    public void ConcurrentEewWarningAndCancellationUseCompactObsRows()
+    {
+        RunSta(() =>
+        {
+            var scenario = TestScenarioCatalog.Create(Now).Single(item => item.Id == "eew-concurrent-one-cancel");
+            DisplaySettings settings = AppSettings.CreateDefault().Display;
+            var composer = new PageComposer();
+            var concurrent = new ConcurrentEewProgramComposer();
+            DisplayProgram? program = null;
+            foreach (TestScenarioStep step in scenario.Steps)
+            {
+                program = concurrent.Compose((EewEvent)step.Event, composer.Compose(step.Event, settings), settings);
+            }
+
+            Assert.IsNotNull(program);
+            (TelopView view, OverlayViewModel overlay, _) = Render(program, 0, settings);
+
+            Assert.IsTrue(overlay.IsConcurrentEewProgram);
+            Border[] headers = FindVisualChildren<Border>(view)
+                .Where(border => border.DataContext is OverlayBlockViewModel { IsEewHeader: true }).ToArray();
+            Assert.HasCount(2, headers);
+            Assert.IsTrue(headers.Any(header => header.DataContext is OverlayBlockViewModel
+                { StyleToken: DisplayStyleTokens.EewHeaderCancel }));
+            foreach (Border header in headers)
+            {
+                Assert.AreEqual(71, header.ActualHeight, 1);
+                AssertEewPrimaryLine(FindVisualChildren<EewCaptionText>(header).Single(), view,
+                    header.TranslatePoint(new Point(), view).Y + 8);
+            }
         });
     }
 
@@ -277,15 +316,6 @@ public sealed class Phase9RenderingRegressionTests
                 border.ActualWidth > 1000 &&
                 border.Background is SolidColorBrush brush &&
                 brush.Color.A > 0), "字幕行全体を覆う背景色が残っています。");
-
-            TextBlock page = FindVisualChildren<TextBlock>(view)
-                .Single(item => item.Text == overlay.PageIndicator);
-            double pageTop = page.TransformToAncestor(view).Transform(new Point()).Y;
-            double lastSubtitleBottom = FindVisualChildren<OutlinedText>(view)
-                .Where(item => item.DataContext is OverlayBlockViewModel)
-                .Max(item => item.TransformToAncestor(view).Transform(new Point(0, item.ActualHeight)).Y);
-            Assert.IsTrue(pageTop >= lastSubtitleBottom - 1 && pageTop <= lastSubtitleBottom + 60,
-                "ページ番号が字幕行の直下に配置されていません。");
         });
     }
 
@@ -319,6 +349,38 @@ public sealed class Phase9RenderingRegressionTests
             double left = locations[0].TransformToAncestor(view).Transform(new Point()).X;
             double nextLeft = locations[1].TransformToAncestor(view).Transform(new Point()).X;
             Assert.AreEqual(left, nextLeft, 1, "地名の開始位置を揃えます。");
+        });
+    }
+
+    [TestMethod]
+    [DataRow(EventKind.Quake, DisplayStyleTokens.Intensity, "震度6弱")]
+    [DataRow(EventKind.Tsunami, DisplayStyleTokens.Tsunami, "津波警報")]
+    [DataRow(EventKind.Volcano, DisplayStyleTokens.VolcanoWarning, "噴火警報")]
+    [DataRow(EventKind.WeatherWarning, DisplayStyleTokens.WeatherWarning, "大雨警報")]
+    public void DesktopBadgeIsCenteredOnTheFirstCaptionLine(EventKind kind, string style, string badge)
+    {
+        RunSta(() =>
+        {
+            const string areas = "神奈川県横浜市　神奈川県川崎市　神奈川県相模原市　神奈川県横須賀市　神奈川県藤沢市　神奈川県平塚市";
+            DisplayBlock block = kind == EventKind.WeatherWarning
+                ? new DisplayBlock(badge, "周辺の状況に注意してください", string.Empty, style) { WeatherHeading = areas }
+                : new DisplayBlock(badge, areas, string.Empty, style);
+            var page = new DisplayPage(0, [block], areas, null);
+            var program = new DisplayProgram("caption-badge-alignment", EventId.Create("caption-badge-alignment"),
+                kind, SourceMode.ManualTest, Now, OverlayPriority.Quake, [page], Now, EndPolicy.AutoHide,
+                "操作テスト／訓練");
+
+            (TelopView view, _, _) = Render(program, 0, AppSettings.CreateDefault().Display);
+            Border badgeBorder = FindVisualChildren<Border>(view)
+                .Single(border => border.Child is TextBlock label && label.Text == badge && border.ActualHeight > 0);
+            var caption = (TextBlock)FindVisualChildren<OutlinedText>(view)
+                .Single(text => text.Text == areas && text.ActualHeight > 0).Child;
+
+            Assert.IsGreaterThan(caption.LineHeight, caption.ActualHeight, "本文が折り返される条件で検証します。");
+            var badgeLabel = (TextBlock)badgeBorder.Child;
+            double firstLineCenter = GetFirstGlyphBaseline(caption, view) - caption.FontSize / 2;
+            double badgeLabelCenter = GetFirstGlyphBaseline(badgeLabel, view) - badgeLabel.FontSize / 2;
+            Assert.AreEqual(firstLineCenter, badgeLabelCenter, 1.5, "バッジの文字を本文の1行目の文字に揃えます。");
         });
     }
 
@@ -366,8 +428,67 @@ public sealed class Phase9RenderingRegressionTests
                 Assert.AreEqual(1, FindVisualChildren<TextBlock>(text)
                     .Count(child => child.Text == text.Text),
                     "字幕と影が別の文字レイヤーとして重複しています。");
+                var row = (WrapPanel)VisualTreeHelper.GetParent(text);
+                var note = (TextBlock)((OutlinedText)row.Children[1]).Child;
+                Assert.IsFalse(string.IsNullOrWhiteSpace(note.Text));
+                Assert.AreEqual(GetFirstGlyphBaseline((TextBlock)text.Child, view),
+                    GetFirstGlyphBaseline(note, view), 1.5, "到達時刻・高さの基準線を予報区名に揃えます。");
             }
         });
+    }
+
+    [TestMethod]
+    public void TsunamiArrivalNoteWrapsToTheNextLineWhenItCannotFitBesideTheArea()
+    {
+        RunSta(() =>
+        {
+            var area = new OutlinedText { Text = "青森県太平洋沿岸", Width = 500 };
+            var note = new OutlinedText
+            {
+                Text = "〔01時42分 5m〕", Width = 300, FontSize = 34.8, LineHeight = 43.5,
+            };
+            var panel = new TsunamiCaptionPanel { Children = { area, note } };
+
+            panel.Measure(new Size(600, double.PositiveInfinity));
+            panel.Arrange(new Rect(panel.DesiredSize));
+
+            Point noteOrigin = note.TranslatePoint(new Point(), panel);
+            Assert.AreEqual(0, noteOrigin.X, 1);
+            Assert.AreEqual(area.DesiredSize.Height, noteOrigin.Y, 1);
+            Assert.AreEqual(note.DesiredSize.Height, note.ActualHeight, 1);
+        });
+    }
+
+    private static void AssertEewPrimaryLine(TextBlock text, TelopView view, double expectedTop)
+    {
+        var parent = (UIElement)VisualTreeHelper.GetParent(text);
+        double lineTop = parent.TranslatePoint(LayoutInformation.GetLayoutSlot(text).TopLeft, view).Y;
+        Assert.AreEqual(expectedTop, lineTop, 1.5, $"行の配置が一致しません。{text.Text}");
+
+        var typeface = new Typeface(text.FontFamily, text.FontStyle, text.FontWeight, text.FontStretch);
+        var naturalLine = new FormattedText(text.Text, text.Language.GetSpecificCulture(), text.FlowDirection,
+            typeface, text.FontSize, text.Foreground, VisualTreeHelper.GetDpi(text).PixelsPerDip);
+        double expectedBaseline = lineTop + naturalLine.Baseline + (text.LineHeight - naturalLine.Height) / 2;
+        Assert.AreEqual(expectedBaseline, GetFirstGlyphBaseline(text, view), 2, $"行の文字位置が一致しません。{text.Text}");
+    }
+
+    private static double GetFirstGlyphBaseline(TextBlock text, Visual view)
+    {
+        DrawingGroup drawing = VisualTreeHelper.GetDrawing(text);
+        GeneralTransform transform = text.TransformToAncestor(view);
+        return GetGlyphOrigins(drawing).Min(point => transform.Transform(point).Y);
+    }
+
+    private static IEnumerable<Point> GetGlyphOrigins(Drawing drawing)
+    {
+        if (drawing is GlyphRunDrawing { GlyphRun: { } run })
+            yield return run.BaselineOrigin;
+
+        if (drawing is DrawingGroup group)
+        {
+            foreach (Point origin in group.Children.SelectMany(GetGlyphOrigins))
+                yield return group.Transform?.Transform(origin) ?? origin;
+        }
     }
 
     private static (TelopView View, OverlayViewModel Overlay, byte[] Pixels) Render(
@@ -402,7 +523,7 @@ public sealed class Phase9RenderingRegressionTests
         var bitmap = new RenderTargetBitmap(1920, 1080, 96, 96, PixelFormats.Pbgra32);
         bitmap.Render(view);
         string? renderDirectory = Environment.GetEnvironmentVariable("EEWTELOP_RENDER_OUTPUT");
-        if (!string.IsNullOrWhiteSpace(renderDirectory) && program.Kind == EventKind.Quake)
+        if (!string.IsNullOrWhiteSpace(renderDirectory) && program.Kind is EventKind.Eew or EventKind.Quake or EventKind.Tsunami)
         {
             Directory.CreateDirectory(renderDirectory);
             string safeProgramId = string.Concat(program.ProgramId.Select(character =>

@@ -72,7 +72,7 @@ public sealed class EewVerticalSettingsTests
         var disabled = store.Publish(snapshot, settings, Now);
         Assert.DoesNotContain("eewEstimateText", JsonSerializer.Serialize(disabled, ObsJsonContext.Default.ObsViewSnapshot));
 
-        const string expected = "予想最大震度 6弱　推定M 6.4";
+        const string expected = "予想最大震度 6弱　推定マグニチュード 6.4";
         Assert.AreEqual(expected, store.PublishSettings(enabled, Now).Blocks
             .Single(block => block.StyleToken == DisplayStyleTokens.EewAreas).EewEstimateText);
         Assert.AreEqual(expected, store.Read(ObsViewChannel.Eew, Now).Blocks
@@ -146,7 +146,7 @@ public sealed class EewVerticalSettingsTests
         var changed = areas.GetProperty("eewAreaLabels").EnumerateArray()
             .Where(label => label.GetProperty("isChanged").GetBoolean())
             .Select(label => label.GetProperty("name").GetString()).ToArray();
-        Assert.AreEqual("千葉", changed.Single());
+        Assert.AreEqual("東京", changed.Single());
 
         var overlay = new OverlayViewModel();
         overlay.Apply(snapshot, settings);

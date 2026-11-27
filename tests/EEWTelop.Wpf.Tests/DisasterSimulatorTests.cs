@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
+using EEWTelop.Application.Configuration;
+using EEWTelop.Application.Display;
 using EEWTelop.Domain.Events;
 using EEWTelop.Wpf.Testing;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -51,6 +53,44 @@ public sealed class DisasterSimulatorTests
         if (item is TsunamiEvent tsunami) Assert.AreEqual(TsunamiGrade.MajorWarning, tsunami.Areas.Single().Grade);
     }
 
+
+    [TestMethod]
+    public void NotoWarningFollowUpHighlightsTheFiveAddedPrefectures()
+    {
+        using var firstPayload = JsonDocument.Parse("""
+            {
+              "eventId":"20240101161010","serial":1,"isWarning":true,"issuedAt":"2024-01-01T16:10:16+09:00",
+              "areas":[{"name":"石川","prefecture":"石川","intensity":"5-"}]
+            }
+            """);
+        using var nextPayload = JsonDocument.Parse("""
+            {
+              "eventId":"20240101161010","serial":2,"isWarning":true,"issuedAt":"2024-01-01T16:10:43+09:00",
+              "areas":[{"name":"石川","prefecture":"石川","intensity":"6-"},
+                       {"name":"富山","prefecture":"富山","intensity":"5-"},
+                       {"name":"新潟","prefecture":"新潟","intensity":"4"},
+                       {"name":"長野","prefecture":"長野","intensity":"4"},
+                       {"name":"岐阜","prefecture":"岐阜","intensity":"4"},
+                       {"name":"群馬","prefecture":"群馬","intensity":"3"}]
+            }
+            """);
+        DateTimeOffset receivedAt = DateTimeOffset.UtcNow;
+        var first = (EewEvent)DisasterSimulatorDecoder.Decode("eew", firstPayload.RootElement, receivedAt);
+        var next = (EewEvent)DisasterSimulatorDecoder.Decode("eew", nextPayload.RootElement, receivedAt.AddSeconds(27));
+        var settings = AppSettings.CreateDefault().Display with { HighlightEewAreaChanges = true };
+        var composer = new PageComposer();
+        var concurrent = new ConcurrentEewProgramComposer();
+        concurrent.Compose(first, composer.Compose(first, settings), settings);
+
+        var program = concurrent.Compose(next, composer.Compose(next, settings), settings);
+        var caption = program.Pages[0].Blocks.Single(block => block.StyleToken == DisplayStyleTokens.EewAreas);
+        Assert.AreEqual("石川　富山　新潟　長野　岐阜　群馬", caption.PrimaryText);
+        Assert.IsNotNull(caption.EewAreaLabels);
+        Assert.AreEqual(new EewAreaLabel("石川", false), caption.EewAreaLabels[0]);
+        Assert.AreEqual("富山　新潟　長野　岐阜　群馬",
+            string.Join('　', caption.EewAreaLabels.Where(area => area.IsChanged).Select(area => area.Name)));
+        Assert.AreEqual(SourceMode.ManualTest, program.SourceMode);
+    }
 
     [TestMethod]
     public void LongPeriodObservationPreservesSimulatorClasses()
@@ -135,6 +175,51 @@ public sealed class DisasterSimulatorTests
     }
 
     [TestMethod]
+    [DataRow("same-event", "test-session", "", true)]
+    [DataRow("other-event", "test-session", ",\"previousGrade\":\"MajorWarning\"", true)]
+    [DataRow("other-event", "test-session", "", false)]
+    [DataRow("same-event", "reset-session", "", false)]
+    public void SimulatorWarningDowngradeUsesTheReportedGradeOrAnEarlierForecastInTheSameSession(
+        string previousId, string session, string previousGrade, bool expectedSwitch)
+    {
+        var tracker = new SimulatorUpdateTracker();
+        DateTimeOffset receivedAt = DateTimeOffset.UnixEpoch;
+        var initial = ReadForecast("snapshot", "test-session", 1, previousId, "MajorWarning", "");
+        Assert.IsEmpty(initial.Events);
+
+        var changed = ReadForecast("update", session, 2, "same-event", "Warning", previousGrade);
+        var forecast = Assert.IsInstanceOfType<TsunamiEvent>(changed.Events.Single());
+        Assert.AreEqual(SourceMode.ManualTest, forecast.SourceMode);
+        var display = AppSettings.CreateDefault().Display;
+        var program = new PageComposer().Compose(forecast, display);
+        DisplayPage first = program.Pages[0];
+        Assert.AreEqual(expectedSwitch
+            ? "津波警報・注意報が切り替えられました"
+            : "津波警報・津波注意報は次の通りです", first.Blocks[0].PrimaryText);
+        if (expectedSwitch)
+        {
+            Assert.AreEqual("津波警報", first.Blocks[1].Badge);
+            Assert.AreEqual("石川県能登で発表中", first.Blocks[1].PrimaryText);
+            Assert.AreEqual("大津波警報から切り替えられました。", first.Blocks[1].SecondaryText);
+        }
+
+        Assert.IsEmpty(ReadForecast("heartbeat", session, 3, "same-event", "Warning", previousGrade, issuedAt: 2).Events);
+
+        (IReadOnlyList<DisasterEvent> Events, bool Reset) ReadForecast(
+            string type, string sessionId, int sequence, string id, string grade, string prior, int? issuedAt = null)
+        {
+            using var frame = JsonDocument.Parse($$$"""
+              {"apiVersion":"1","type":"{{{type}}}","sessionId":"{{{sessionId}}}","sequence":{{{sequence}}},
+               "tsunami":{"hasInformation":true,
+                 "forecast":{"eventId":"{{{id}}}","telegramType":"VTSE41","issuedAt":"2024-01-01T07:12:0{{{issuedAt ?? sequence}}}Z",
+                    "areas":[{"role":"ForecastArea","code":"371","name":"石川県能登","grade":"{{{grade}}}"{{{prior}}}}]}
+               }}
+              """);
+            return tracker.Read(frame.RootElement, receivedAt);
+        }
+    }
+
+    [TestMethod]
     public void SimulatorTracksTheForecastFromTheFullSnapshotAndClearsItOnReset()
     {
         var tracker = new SimulatorUpdateTracker();
@@ -214,6 +299,61 @@ public sealed class DisasterSimulatorTests
         Assert.AreEqual(DateTimeOffset.Parse("2026-09-26T01:00:20+09:00", CultureInfo.InvariantCulture), eew.Areas[0].ArrivalTime);
         Assert.AreEqual(JmaScale.Four, eew.Areas[1].ScaleFrom);
         Assert.AreEqual((int)JmaScale.Four, eew.Areas[1].ScaleTo);
+    }
+
+    [TestMethod]
+    [DataRow("""{"from":"5+","to":"5+"}""", false, "予想最大震度 5強　推定マグニチュード 5.7")]
+    [DataRow("""{"from":"5-","to":"6-"}""", false, "予想最大震度 5弱〜6弱　推定マグニチュード 5.7")]
+    [DataRow("""{"from":"6+","to":"over"}""", false, "予想最大震度 6強以上　推定マグニチュード 5.7")]
+    [DataRow("""{"from":"5-"}""", false, "予想最大震度 下限 5弱　推定マグニチュード 5.7")]
+    [DataRow("""{"to":"5+"}""", false, "予想最大震度 上限 5強　推定マグニチュード 5.7")]
+    [DataRow("""{"from":"6+","to":"5-"}""", false, "推定マグニチュード 5.7")]
+    [DataRow("""{"from":"5-?","to":"over"}""", false, "推定マグニチュード 5.7")]
+    [DataRow("null", false, "推定マグニチュード 5.7")]
+    [DataRow("""{"from":"5+","to":"5+"}""", true, null)]
+    public void SimulatorEewDisplaysOnlyTheProvidedMaximumForecast(
+        string forecast, bool cancelled, string? expectedEstimate)
+    {
+        using var json = JsonDocument.Parse($$$"""
+            {
+              "eventId":"20240101160608","isWarning":true,"isCancelled":{{{(cancelled ? "true" : "false")}}},
+              "earthquake":{"hypocenter":{"name":"石川県能登地方","magnitude":5.7}},
+              "areas":[{"prefecture":"石川","name":"石川","intensity":"5+"}],
+              "maximumForecastIntensity":{{{forecast}}}
+            }
+            """);
+
+        var eew = (EewEvent)DisasterSimulatorDecoder.Decode("eew", json.RootElement, DateTimeOffset.UtcNow);
+        var program = new PageComposer().Compose(eew, AppSettings.CreateDefault().Display);
+
+        Assert.AreEqual(SourceMode.ManualTest, program.SourceMode);
+        Assert.AreEqual(expectedEstimate, program.Pages[0].Blocks
+            .SingleOrDefault(block => block.StyleToken == DisplayStyleTokens.EewAreas)?.EewEstimateText);
+        if (cancelled)
+            Assert.IsNull(eew.MaximumForecastIntensity);
+    }
+
+    [TestMethod]
+    [DataRow("仮定震源要素", "予想最大震度 5強以上")]
+    [DataRow("", "予想最大震度 5強以上　推定マグニチュード 1.0")]
+    public void SimulatorEewUsesTheHypocenterConditionToIgnoreAPlaceholderMagnitude(
+        string condition, string expectedEstimate)
+    {
+        using var json = JsonDocument.Parse($$$"""
+            {
+              "eventId":"20240101165652","isWarning":true,
+              "earthquake":{"magnitude":1.0,"hypocenter":{"name":"能登半島沖","condition":"{{{condition}}}"}},
+              "maximumForecastIntensity":{"from":"5+","to":"over"}
+            }
+            """);
+        var eew = (EewEvent)DisasterSimulatorDecoder.Decode("eew", json.RootElement, DateTimeOffset.UtcNow);
+        var program = new PageComposer().Compose(eew, AppSettings.CreateDefault().Display);
+
+        Assert.AreEqual(condition, eew.Earthquake?.Hypocenter?.Condition);
+        Assert.AreEqual(condition.Length > 0 ? null : 1.0, eew.Earthquake?.Hypocenter?.Magnitude);
+        Assert.AreEqual(SourceMode.ManualTest, program.SourceMode);
+        Assert.AreEqual(expectedEstimate, program.Pages[0].Blocks
+            .Single(block => block.StyleToken == DisplayStyleTokens.EewAreas).EewEstimateText);
     }
 
     [TestMethod]

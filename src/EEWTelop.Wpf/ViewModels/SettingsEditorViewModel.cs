@@ -2,7 +2,6 @@ using EEWTelop.Application.Audio;
 using EEWTelop.Application.Configuration;
 using EEWTelop.Application.Coordination;
 using EEWTelop.Domain.Events;
-using EEWTelop.Infrastructure.P2P.Configuration;
 #if QTELOPPER_DMDATA_PROVIDER
 using EEWTelop.Infrastructure.Dmdata.Security;
 #endif
@@ -26,11 +25,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private ReceptionProvider _weatherProvider;
     private ReceptionProvider _volcanoProvider;
     private ReceptionProvider _nankaiTroughProvider;
-    private ProviderMode _providerMode;
     private bool _autoConnectOnStartup;
     private bool _jmaXmlAutoFallback;
-    private string _webSocketUrl;
-    private string _restBaseUrl;
     private string _dmdataApiBaseUrl;
     private string _dmdataCredential;
     private DmdataAuthenticationMode _dmdataAuthenticationMode;
@@ -71,8 +67,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private bool _hideNonJmaIntensityStations;
     private double _pageDurationSeconds;
     private SubtitleImageEditor _selectedSubtitleImage;
-    private bool _showPageIndicator;
     private bool _showTsunamiForecast;
+    private bool _showTsunamiDowngradeGradeBadge;
     private bool _omitScalePromptCautionWhenTsunamiWarningActive;
     private bool _suppressScalePromptWhenTsunamiWarningActive;
     private bool _separateIntensityPagesByScale;
@@ -114,6 +110,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
     private BackgroundMode _backgroundMode;
     private int _width;
     private int _height;
+    private bool _desktopOverlayEnabled;
+    private bool _desktopOverlayTopmost;
     private bool _obsEnabled;
     private int _obsPort;
     private bool _obsRuntimeRecovery;
@@ -177,7 +175,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(settings);
         _receptionProvider = NormalizeReceptionProvider(
             settings.Provider.ReceptionProvider);
-        _autoConnectOnStartup = settings.Provider.AutoConnectOnStartup;
+        _autoConnectOnStartup = settings.Provider.AutoConnectOnStartup &&
+            settings.Provider.Mode != ProviderMode.Sandbox;
         _jmaXmlAutoFallback = settings.Provider.JmaXmlAutoFallback;
         ProviderRoutingSettings initialRouting = settings.Provider.Routing;
         if (settings.Provider.ReceptionProvider != initialRouting.GetCompatibilityProvider())
@@ -191,14 +190,6 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _weatherProvider = NormalizeRouteProvider(initialRouting.Weather, CommercialProviderOptions);
         _volcanoProvider = NormalizeRouteProvider(initialRouting.Volcano, CommercialProviderOptions);
         _nankaiTroughProvider = NormalizeRouteProvider(initialRouting.NankaiTrough, SpecialEarthquakeProviderOptions);
-        _providerMode = settings.Provider.Mode == ProviderMode.Sandbox
-            ? ProviderMode.Sandbox
-            : ProviderMode.Production;
-        ProviderOptions provider = _providerMode == ProviderMode.Sandbox
-            ? ProviderOptions.Sandbox
-            : ProviderOptions.Production;
-        _webSocketUrl = provider.WebSocketUri.AbsoluteUri;
-        _restBaseUrl = provider.RestBaseUri.AbsoluteUri.TrimEnd('/');
         _dmdataApiBaseUrl = settings.Provider.DmdataApiBaseUrl;
         // Legacy pasted OAuth tokens are never reinterpreted as API keys.
         _dmdataCredential = settings.Provider.DmdataAuthenticationMode ==
@@ -266,8 +257,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _selectedSubtitleImage = SubtitleImages[0];
         SubtitleImageEditor MakeSubtitleImageEditor(EventKind kind, string label) =>
             new(kind, label, settings.Display.SubtitleImages?.GetValueOrDefault(kind));
-        _showPageIndicator = settings.Display.ShowPageIndicator;
         _showTsunamiForecast = settings.Display.ShowTsunamiForecast;
+        _showTsunamiDowngradeGradeBadge = settings.Display.ShowTsunamiDowngradeGradeBadge;
         _omitScalePromptCautionWhenTsunamiWarningActive = settings.Display.OmitScalePromptCautionWhenTsunamiWarningActive;
         _suppressScalePromptWhenTsunamiWarningActive = settings.Display.SuppressScalePromptWhenTsunamiWarningActive;
         _separateIntensityPagesByScale = settings.Display.SeparateIntensityPagesByScale;
@@ -313,6 +304,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _backgroundMode = BackgroundMode.Transparent;
         _width = settings.Display.Width;
         _height = settings.Display.Height;
+        _desktopOverlayEnabled = settings.DesktopOverlay.Enabled;
+        _desktopOverlayTopmost = settings.DesktopOverlay.Topmost;
         _obsEnabled = settings.Obs.Enabled;
         _obsPort = settings.Obs.Port;
         _obsRuntimeRecovery = settings.Obs.RuntimeRecovery;
@@ -393,7 +386,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
             new(AudioCueId.VolcanoEruptionFlash, "噴火速報（VFVO56）", eruptionFlash.Enabled,
                 eruptionFlash.FilePath ?? string.Empty, quakeScale: null, tsunamiGrade: null),
         ];
-        _historyApi = settings.History.Api;
+        _historyApi = GetAvailableHistoryApi(settings.History.Api);
         _historyLimit = settings.History.Limit;
         _historyIntervalSeconds = settings.History.IntervalSeconds;
         _niiHistoryDate = settings.History.NiiDate.ToDateTime(TimeOnly.MinValue);
@@ -411,9 +404,6 @@ public sealed class SettingsEditorViewModel : ObservableObject
         _rawMessageRetentionDays = settings.Log.RawMessageRetentionDays;
         _rawMessageMaximumTotalMegabytes = settings.Log.RawMessageMaximumTotalMegabytes;
     }
-
-    public IReadOnlyList<ProviderMode> ProviderModes { get; } =
-        [ProviderMode.Production, ProviderMode.Sandbox];
 
     public IReadOnlyList<ReceptionProvider> ReceptionProviders { get; } =
         Enum.GetValues<ReceptionProvider>()
@@ -486,22 +476,18 @@ public sealed class SettingsEditorViewModel : ObservableObject
 
     public IReadOnlyList<AudioCueOptionViewModel> VolcanoAudioCues { get; }
 
-    public IReadOnlyList<HistoryApiOption> HistoryApis { get; } = (
-        BuildFeatures.ExtendedFeaturesEnabled
+    public IReadOnlyList<HistoryApiOption> HistoryApis { get; } = !BuildFeatures.DmdataProviderEnabled
+        ? []
+        : BuildFeatures.ExtendedFeaturesEnabled
             ?
-            new HistoryApiOption[] {
-                new(HistoryApi.JmaQuake, "P2P地震情報（jma/quake）"),
-                new(HistoryApi.History, "P2P履歴（地震・津波・緊急地震速報）"),
+            [
                 new(HistoryApi.NiiJmaXml, "気象庁防災情報XML DB（NII）"),
                 new(HistoryApi.LocalJmaXml, "外部JMA XMLファイル"),
-            }
-            :
-            new HistoryApiOption[] {
-                new(HistoryApi.JmaQuake, "P2P地震情報（jma/quake）"),
-                new(HistoryApi.History, "P2P履歴（地震・津波・緊急地震速報）"),
-            }).Concat(BuildFeatures.DmdataProviderEnabled
-                ? new[] { new HistoryApiOption(HistoryApi.JmaXml, "気象庁XML（公式・数日分／毎時更新）") }
-                : Array.Empty<HistoryApiOption>()).ToArray();
+                new(HistoryApi.JmaXml, "気象庁XML（公式・数日分／毎時更新）"),
+            ]
+            : [new(HistoryApi.JmaXml, "気象庁XML（公式・数日分／毎時更新）")];
+
+    public bool HasHistorySources => HistoryApis.Count > 0;
 
     public IReadOnlyList<JmaHistoryContentOption> JmaHistoryContents { get; } =
     [
@@ -561,8 +547,6 @@ public sealed class SettingsEditorViewModel : ObservableObject
     public bool IsYditsEewProvider => EewProvider == ReceptionProvider.Ydits;
 
     public bool IsYditsTestProvider => EewProvider == ReceptionProvider.YditsTest;
-
-    public bool IsCustomProvider => IsP2pProvider && ProviderMode == ProviderMode.Custom;
 
     public ReceptionProvider ReceptionProvider
     {
@@ -625,28 +609,6 @@ public sealed class SettingsEditorViewModel : ObservableObject
 
     public bool IsJmaFallbackAvailable { get; } = BuildFeatures.DmdataProviderEnabled;
 
-    public ProviderMode ProviderMode
-    {
-        get => _providerMode;
-        set
-        {
-            ProviderMode normalized = value == ProviderMode.Sandbox
-                ? ProviderMode.Sandbox
-                : ProviderMode.Production;
-            if (SetProperty(ref _providerMode, normalized))
-            {
-                OnPropertyChanged(nameof(IsCustomProvider));
-                ProviderOptions preset = normalized == ProviderMode.Production
-                    ? ProviderOptions.Production
-                    : ProviderOptions.Sandbox;
-                WebSocketUrl = preset.WebSocketUri.AbsoluteUri;
-                RestBaseUrl = preset.RestBaseUri.AbsoluteUri.TrimEnd('/');
-            }
-        }
-    }
-
-    public string WebSocketUrl { get => _webSocketUrl; set => SetProperty(ref _webSocketUrl, value); }
-    public string RestBaseUrl { get => _restBaseUrl; set => SetProperty(ref _restBaseUrl, value); }
     public string DmdataApiBaseUrl { get => _dmdataApiBaseUrl; set => SetProperty(ref _dmdataApiBaseUrl, value); }
     public string DmdataCredential { get => _dmdataCredential; set => SetProperty(ref _dmdataCredential, value); }
     public DmdataAuthenticationMode DmdataAuthenticationMode
@@ -764,8 +726,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
         get => _selectedSubtitleImage;
         set => SetProperty(ref _selectedSubtitleImage, value);
     }
-    public bool ShowPageIndicator { get => _showPageIndicator; set => SetProperty(ref _showPageIndicator, value); }
     public bool ShowTsunamiForecast { get => _showTsunamiForecast; set => SetProperty(ref _showTsunamiForecast, value); }
+    public bool ShowTsunamiDowngradeGradeBadge { get => _showTsunamiDowngradeGradeBadge; set => SetProperty(ref _showTsunamiDowngradeGradeBadge, value); }
     public bool OmitScalePromptCautionWhenTsunamiWarningActive
     {
         get => _omitScalePromptCautionWhenTsunamiWarningActive;
@@ -835,6 +797,8 @@ public sealed class SettingsEditorViewModel : ObservableObject
     }
     public int Width { get => _width; set => SetProperty(ref _width, value); }
     public int Height { get => _height; set => SetProperty(ref _height, value); }
+    public bool DesktopOverlayEnabled { get => _desktopOverlayEnabled; set => SetProperty(ref _desktopOverlayEnabled, value); }
+    public bool DesktopOverlayTopmost { get => _desktopOverlayTopmost; set => SetProperty(ref _desktopOverlayTopmost, value); }
     public bool ObsEnabled { get => _obsEnabled; set => SetProperty(ref _obsEnabled, value); }
     public int ObsPort { get => _obsPort; set => SetProperty(ref _obsPort, value); }
     public bool ObsRuntimeRecovery { get => _obsRuntimeRecovery; set => SetProperty(ref _obsRuntimeRecovery, value); }
@@ -898,7 +862,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
         get => _historyApi;
         set
         {
-            if (SetProperty(ref _historyApi, value))
+            if (SetProperty(ref _historyApi, GetAvailableHistoryApi(value)))
             {
                 OnPropertyChanged(nameof(IsNiiHistoryApi));
                 OnPropertyChanged(nameof(IsJmaHistoryApi));
@@ -907,9 +871,12 @@ public sealed class SettingsEditorViewModel : ObservableObject
         }
     }
 
+    private HistoryApi GetAvailableHistoryApi(HistoryApi api) =>
+        HistoryApis.Any(option => option.Value == api) ? api : HistoryApi.JmaXml;
+
     public bool IsNiiHistoryApi => HistoryApi == HistoryApi.NiiJmaXml;
 
-    public bool IsJmaHistoryApi => HistoryApi == HistoryApi.JmaXml;
+    public bool IsJmaHistoryApi => HasHistorySources && HistoryApi == HistoryApi.JmaXml;
     public bool IsLocalHistoryApi => HistoryApi == HistoryApi.LocalJmaXml;
     public JmaHistoryContent JmaHistoryContent { get => _jmaHistoryContent; set => SetProperty(ref _jmaHistoryContent, value); }
     public string JmaHistoryReportUrl { get => _jmaHistoryReportUrl; set => SetProperty(ref _jmaHistoryReportUrl, value); }
@@ -930,24 +897,14 @@ public sealed class SettingsEditorViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(baseline);
         ProviderRoutingSettings routing = CurrentRouting;
         double pageDuration = PageClock.NormalizePageDuration(PageDurationSeconds).TotalSeconds;
-        ProviderMode providerMode = routing.Uses(ReceptionProvider.Axis) ||
-            routing.Uses(ReceptionProvider.Dmdata) ||
-            routing.Uses(ReceptionProvider.Wolfx) || routing.Uses(ReceptionProvider.JmaXml)
-            ? ProviderMode.Production
-            : ProviderMode == ProviderMode.Sandbox
-            ? ProviderMode.Sandbox
-            : ProviderMode.Production;
-        ProviderOptions provider = providerMode == ProviderMode.Sandbox
-            ? ProviderOptions.Sandbox
-            : ProviderOptions.Production;
         const BackgroundMode backgroundMode = BackgroundMode.Transparent;
         return baseline with
         {
             Provider = baseline.Provider with
             {
-                Mode = providerMode,
-                WebSocketUrl = provider.WebSocketUri.AbsoluteUri,
-                RestBaseUrl = provider.RestBaseUri.AbsoluteUri.TrimEnd('/'),
+                Mode = ProviderMode.Production,
+                WebSocketUrl = ProviderSettings.P2pWebSocketEndpoint,
+                RestBaseUrl = ProviderSettings.P2pRestBaseEndpoint,
                 ReceptionProvider = routing.GetCompatibilityProvider(),
                 Routing = routing,
                 AutoConnectOnStartup = AutoConnectOnStartup,
@@ -1016,7 +973,6 @@ public sealed class SettingsEditorViewModel : ObservableObject
             },
             Display = new DisplaySettings(
                 pageDuration,
-                ShowPageIndicator,
                 0,
                 1,
                 1,
@@ -1033,6 +989,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
                     .ToDictionary(static row => row.Kind, static row => row.ToSettings()),
                 HideNormalInformationBadges = HideNormalInformationBadges,
                 ShowTsunamiForecast = ShowTsunamiForecast,
+                ShowTsunamiDowngradeGradeBadge = ShowTsunamiDowngradeGradeBadge,
                 OmitScalePromptCautionWhenTsunamiWarningActive = OmitScalePromptCautionWhenTsunamiWarningActive,
                 SuppressScalePromptWhenTsunamiWarningActive = SuppressScalePromptWhenTsunamiWarningActive,
                 ShowLowIntensityPointsInStrongQuakes = ShowLowIntensityPointsInStrongQuakes,
@@ -1075,6 +1032,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
                         Math.Clamp(ProductionReplayVolcanoRepeatCount, 1, 100),
                         ProductionReplayVolcanoAudioEachCycle)),
             },
+            DesktopOverlay = new DesktopOverlaySettings(DesktopOverlayEnabled, DesktopOverlayTopmost),
             Obs = new ObsSettings(
                 ObsEnabled,
                 Math.Clamp(ObsPort, 0, 65535),
@@ -1439,10 +1397,7 @@ public sealed class SettingsEditorViewModel : ObservableObject
     {
         ProviderSettings defaults = AppSettings.CreateDefault().Provider;
         ApplyRouting(defaults.Routing);
-        ProviderMode = defaults.Mode;
         AutoConnectOnStartup = defaults.AutoConnectOnStartup;
-        WebSocketUrl = defaults.WebSocketUrl;
-        RestBaseUrl = defaults.RestBaseUrl;
         DmdataApiBaseUrl = defaults.DmdataApiBaseUrl;
         DmdataCredential = string.Empty;
         DmdataAuthenticationMode = EEWTelop.Application.Configuration.DmdataAuthenticationMode.ApiKey;
@@ -1516,9 +1471,9 @@ public sealed class SettingsEditorViewModel : ObservableObject
             row.Seconds = 0;
         }
 
-        ShowPageIndicator = defaults.ShowPageIndicator;
         HideNormalInformationBadges = defaults.HideNormalInformationBadges;
         ShowTsunamiForecast = defaults.ShowTsunamiForecast;
+        ShowTsunamiDowngradeGradeBadge = defaults.ShowTsunamiDowngradeGradeBadge;
         OmitScalePromptCautionWhenTsunamiWarningActive = defaults.OmitScalePromptCautionWhenTsunamiWarningActive;
         SuppressScalePromptWhenTsunamiWarningActive = defaults.SuppressScalePromptWhenTsunamiWarningActive;
         ShowLowIntensityPointsInStrongQuakes = defaults.ShowLowIntensityPointsInStrongQuakes;
@@ -1791,7 +1746,6 @@ public sealed class SettingsEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(IsWolfxQuakeProvider));
         OnPropertyChanged(nameof(IsYditsEewProvider));
         OnPropertyChanged(nameof(IsYditsTestProvider));
-        OnPropertyChanged(nameof(IsCustomProvider));
     }
 
     private static List<ReceptionProviderOption> CreateReceptionProviderOptions(

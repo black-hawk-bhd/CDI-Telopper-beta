@@ -212,7 +212,6 @@ public sealed class JsonSettingsStore : ISettingsStore
             SubtitlePhraseOverrides = NormalizeSubtitlePhraseOverrides(
                 settings.Display.SubtitlePhraseOverrides),
         };
-        bool useSandbox = settings.Provider.Mode == ProviderMode.Sandbox;
         ProviderRoutingSettings routing = settings.Provider.Routing;
         if (settings.Provider.ReceptionProvider != routing.GetCompatibilityProvider())
         {
@@ -249,16 +248,12 @@ public sealed class JsonSettingsStore : ISettingsStore
         {
             Routing = routing,
             ReceptionProvider = routing.GetCompatibilityProvider(),
-            Mode = routing.Uses(ReceptionProvider.Axis) ||
-                routing.Uses(ReceptionProvider.Dmdata)
-                ? ProviderMode.Production
-                : useSandbox ? ProviderMode.Sandbox : ProviderMode.Production,
-            WebSocketUrl = useSandbox
-                ? "wss://api-realtime-sandbox.p2pquake.net/v2/ws"
-                : "wss://api.p2pquake.net/v2/ws",
-            RestBaseUrl = useSandbox
-                ? "https://api-v2-sandbox.p2pquake.net/v2"
-                : "https://api.p2pquake.net/v2",
+            Mode = ProviderMode.Production,
+            WebSocketUrl = ProviderSettings.P2pWebSocketEndpoint,
+            RestBaseUrl = ProviderSettings.P2pRestBaseEndpoint,
+            // A user who opted into the sandbox should explicitly start live reception.
+            AutoConnectOnStartup = settings.Provider.AutoConnectOnStartup &&
+                settings.Provider.Mode != ProviderMode.Sandbox,
             DmdataReceiveEewWarnings = routing.Eew == ReceptionProvider.Dmdata,
             DmdataReceiveEarthquakeTelegrams =
                 routing.Quake == ReceptionProvider.Dmdata ||
@@ -324,8 +319,12 @@ public sealed class JsonSettingsStore : ISettingsStore
             Provider = provider,
             Filter = filter,
             Display = display,
+            DesktopOverlay = settings.DesktopOverlay ?? new DesktopOverlaySettings(),
             Obs = obs,
             Audio = audio,
+            History = settings.History.Api is HistoryApi.JmaQuake or HistoryApi.History
+                ? settings.History with { Api = HistoryApi.JmaXml }
+                : settings.History,
         };
     }
 
@@ -514,15 +513,7 @@ public sealed class JsonSettingsStore : ISettingsStore
         AppSettings migrated = settings.SchemaVersion switch
         {
             AppSettings.CurrentSchemaVersion => settings,
-            26 => settings with
-            {
-                SchemaVersion = AppSettings.CurrentSchemaVersion,
-            },
-            25 => settings with
-            {
-                SchemaVersion = AppSettings.CurrentSchemaVersion,
-            },
-            24 => settings with
+            27 or 26 or 25 or 24 => settings with
             {
                 SchemaVersion = AppSettings.CurrentSchemaVersion,
             },

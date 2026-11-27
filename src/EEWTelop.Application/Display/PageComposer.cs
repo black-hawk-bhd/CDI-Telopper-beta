@@ -21,7 +21,7 @@ public sealed class PageComposer : IPageComposer
             TsunamiEvent tsunami => TsunamiPageComposer.Compose(tsunami, settings),
             EewEvent eew => EewPageComposer.Compose(eew, settings),
             WeatherWarningEvent weather => WeatherWarningPageComposer.Compose(weather, settings),
-            VolcanoEvent volcano => VolcanoPageComposer.Compose(volcano, settings),
+            VolcanoEvent volcano => VolcanoPageComposer.Compose(volcano),
             _ => throw new NotSupportedException(
                 $"Unsupported disaster event type: {disasterEvent.GetType().FullName}"),
         };

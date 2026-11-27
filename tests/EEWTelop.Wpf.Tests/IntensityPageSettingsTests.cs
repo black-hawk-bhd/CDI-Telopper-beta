@@ -36,6 +36,22 @@ public sealed class IntensityPageSettingsTests
     }
 
     [TestMethod]
+    public void TsunamiDowngradeGradeBadgeDefaultsOnAndCanBeTurnedOffAndReset()
+    {
+        var settings = AppSettings.CreateDefault();
+        var oldDisplay = JsonNode.Parse(JsonSerializer.Serialize(settings.Display))!.AsObject();
+        oldDisplay.Remove(nameof(DisplaySettings.ShowTsunamiDowngradeGradeBadge));
+        Assert.IsTrue(JsonSerializer.Deserialize<DisplaySettings>(oldDisplay.ToJsonString())!.ShowTsunamiDowngradeGradeBadge);
+
+        var editor = new SettingsEditorViewModel(settings) { ShowTsunamiDowngradeGradeBadge = false };
+        var saved = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(editor.ToSettings(settings)))!;
+        var loaded = new SettingsEditorViewModel(saved);
+        Assert.IsFalse(loaded.ShowTsunamiDowngradeGradeBadge);
+        loaded.ResetDisplaySettings();
+        Assert.IsTrue(loaded.ToSettings(saved).Display.ShowTsunamiDowngradeGradeBadge);
+    }
+
+    [TestMethod]
     public void OmitTsunamiCautionDefaultsOffAndPersistsThroughTheEditor()
     {
         var settings = AppSettings.CreateDefault();

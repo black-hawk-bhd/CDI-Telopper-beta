@@ -73,9 +73,7 @@
     #content.eew.vertical.has-banner { top: 148px; }
     #content.eew.vertical #blocks { height: 100%; min-height: 0; background: transparent;
       flex-direction: row; justify-content: flex-end; gap: 24px; }
-    #content.eew.vertical #pageIndicator { position: absolute; left: 0; bottom: 0; margin: 0; }
     #content.eew.vertical.left-aligned #blocks { justify-content: flex-start; }
-    #content.eew.vertical.left-aligned #pageIndicator { left: auto; right: 0; }
     .vertical-eew-card { width: 320px; height: 100%; flex: 0 0 320px; display: grid;
       grid-template-columns: minmax(0, 1fr) 76px; grid-template-rows: minmax(0, 1fr) 46px;
       gap: 12px; padding: 14px 12px 8px; background: var(--eew-background); color: var(--eew-foreground);
@@ -157,9 +155,6 @@
     #content.subtitle .block.tsunami .texts { display: flex; align-items: baseline; flex-wrap: wrap; }
     #content.subtitle .block.tsunami .secondary { margin: 0 0 0 14px;
       font-size: calc(34.8px * var(--font-scale, 1)); }
-    #pageIndicator { width: max-content; margin-left: auto; padding: calc(3.12px * var(--font-scale, 1)) calc(13px * var(--font-scale, 1));
-      border-radius: 5px; background: rgba(0,0,0,.72); color: #fff;
-      font-size: calc(26px * var(--font-scale, 1)); font-weight: 900; }
     [hidden] { display: none !important; }
   </style>
 </head>
@@ -170,7 +165,6 @@
       <div id="banner" hidden></div>
       <div id="content" hidden>
         <div id="blocks"></div>
-        <div id="pageIndicator" hidden></div>
       </div>
       <audio id="alertAudio" preload="auto"></audio>
     </section>

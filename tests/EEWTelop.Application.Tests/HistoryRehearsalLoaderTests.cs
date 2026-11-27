@@ -31,7 +31,7 @@ public sealed class HistoryRehearsalLoaderTests
         const string niiReportUrl = "https://agora.ex.nii.ac.jp/cgi-bin/cps/report_xml.pl?id=20260802045019_0_VXSE53_270000";
         const string localXmlFilePath = @"C:\test-data\VXSE53.xml";
         HistoryRehearsalLoadResult result = await loader.LoadAsync(
-            new HistorySettings(HistoryApi.History, 500, 3)
+            new HistorySettings(HistoryApi.JmaXml, 500, 3)
             {
                 NiiReportUrl = niiReportUrl,
                 LocalXmlFilePath = localXmlFilePath,
@@ -46,7 +46,7 @@ public sealed class HistoryRehearsalLoaderTests
         Assert.AreEqual(1, result.IgnoredCount);
         Assert.AreEqual(1, result.InvalidCount);
         Assert.IsNotNull(source.LastRequest);
-        Assert.AreEqual(HistoryApi.History, source.LastRequest.Api);
+        Assert.AreEqual(HistoryApi.JmaXml, source.LastRequest.Api);
         Assert.AreEqual(100, source.LastRequest.Limit);
         Assert.AreEqual(settings.Provider, source.LastRequest.Provider);
         Assert.AreEqual(niiReportUrl, source.LastRequest.NiiReportUrl);

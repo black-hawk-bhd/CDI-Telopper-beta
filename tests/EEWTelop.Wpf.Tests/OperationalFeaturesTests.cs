@@ -295,6 +295,39 @@ public sealed class OperationalFeaturesTests
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task BundledVxse53KeepsIntensitySevenForKuriharaWhenFilteringStations(bool hideNonJmaStations)
+    {
+        string sample = FindRepositoryFile("jmaxml_20261118_CDI-Telopper", "地震情報", "VXSE53",
+            "32-39_11_05_240613_VXSE53.xml");
+        var library = new FileTestCaseLibrary(Path.Combine(_directory, "intensity-seven-sample"));
+        TestCaseManifest manifest = await library.ImportFilesAsync("震度7", [sample]);
+        RawProviderMessage message = library.LoadMessages(manifest.Id, SourceMode.HistoryRehearsal).Single();
+        AppSettings settings = AppSettings.CreateDefault();
+        DisplaySettings display = settings.Display with { HideNonJmaIntensityStations = hideNonJmaStations };
+        var pipeline = new EventIngestionPipeline(
+            new JmaXmlEventNormalizer(new EventSignatureBuilder()), new EventVersionCache(), new PageComposer(),
+            new PriorityCoordinator(new SystemClock(), display), display, settings.Filter);
+
+        EventIngestionResult result = pipeline.Process(message);
+
+        Assert.AreEqual(EventIngestionStatus.Accepted, result.Status);
+        var quake = Assert.IsInstanceOfType<QuakeEvent>(result.Event);
+        QuakePoint station = quake.Points.Single(point => point.StationCode == "0421320");
+        Assert.AreEqual("栗原市築館＊", station.Address);
+        Assert.AreEqual(JmaScale.Seven, station.Scale);
+        Assert.AreEqual(JmaScale.Seven, station.MunicipalityMaximumScale);
+        Assert.IsTrue(station.IsNonJmaIntensityStation);
+        Assert.IsNotNull(result.Program);
+        Assert.AreEqual(SourceMode.HistoryRehearsal, result.Program.SourceMode);
+        DisplayBlock[] intensitySeven = result.Program.Pages.SelectMany(page => page.Blocks)
+            .Where(block => block.StyleToken == DisplayStyleTokens.Intensity && block.Badge == "震度7").ToArray();
+        Assert.HasCount(1, intensitySeven);
+        Assert.AreEqual("宮城県栗原市", intensitySeven[0].PrimaryText);
+    }
+
+    [TestMethod]
     public async Task BundledForeignEarthquakeDisplaysAllOverseasTsunamiObservationsInSourceOrder()
     {
         string? sample = FindOptionalRepositoryFile("jmaxml_20261118_CDI-Telopper", "地震情報", "VXSE53",

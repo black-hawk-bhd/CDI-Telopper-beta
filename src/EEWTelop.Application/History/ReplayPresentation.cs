@@ -11,8 +11,7 @@ public static class ReplayPresentation
         DisplayProgram program,
         HistorySettings settings,
         DateTimeOffset issuedAt,
-        bool isReplay,
-        bool showPageIndicator)
+        bool isReplay)
     {
         ArgumentNullException.ThrowIfNull(program);
         ArgumentNullException.ThrowIfNull(settings);
@@ -32,12 +31,7 @@ public static class ReplayPresentation
         DisplayPage[] pages = program.Pages.Append(notice).ToArray();
         for (int index = 0; index < pages.Length; index++)
         {
-            DisplayBlock[] blocks = pages[index].Blocks
-                .Where(static block => block.StyleToken != DisplayStyleTokens.PageIndicator).ToArray();
-            if (showPageIndicator)
-                blocks = [.. blocks, new DisplayBlock(string.Empty, $"{index + 1} / {pages.Length}",
-                    string.Empty, DisplayStyleTokens.PageIndicator)];
-            pages[index] = pages[index] with { Index = index + 1, Blocks = blocks };
+            pages[index] = pages[index] with { Index = index + 1 };
         }
         return program with { Pages = pages };
     }

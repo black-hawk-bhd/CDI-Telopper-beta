@@ -14,7 +14,7 @@ public sealed class ReplayPresentationTests
     {
         var settings = AppSettings.CreateDefault();
         DisplayProgram source = CreateProgram();
-        DisplayProgram result = ReplayPresentation.Apply(source, settings.History, source.IssuedAt, true, true);
+        DisplayProgram result = ReplayPresentation.Apply(source, settings.History, source.IssuedAt, true);
         Assert.AreSame(source.Pages, result.Pages);
         Assert.AreEqual(source.RehearsalLabel, result.RehearsalLabel);
         Assert.IsFalse(result.HideInformationBadges);
@@ -27,7 +27,7 @@ public sealed class ReplayPresentationTests
     {
         DisplayProgram source = CreateProgram();
         var options = AppSettings.CreateDefault().History with { HideInformationBadges = badges };
-        DisplayProgram result = ReplayPresentation.Apply(source, options, source.IssuedAt, false, true);
+        DisplayProgram result = ReplayPresentation.Apply(source, options, source.IssuedAt, false);
         Assert.AreEqual(badges, result.HideInformationBadges);
         Assert.AreEqual(SourceMode.HistoryRehearsal, result.SourceMode);
         Assert.AreEqual("過去情報／訓練", result.RehearsalLabel);
@@ -37,17 +37,17 @@ public sealed class ReplayPresentationTests
     }
 
     [TestMethod]
-    public void ReplayNoticeIsSeparateFinalPageWithJstAnnouncementTimeAndUpdatedIndicators()
+    public void ReplayNoticeIsSeparateFinalPageWithJstAnnouncementTime()
     {
         DisplayProgram source = CreateProgram();
         var options = AppSettings.CreateDefault().History with { AppendIssuedAtPage = true };
         DateTimeOffset announced = new(2026, 10, 20, 16, 2, 0, TimeSpan.Zero);
-        DisplayProgram result = ReplayPresentation.Apply(source, options, announced, true, true);
+        DisplayProgram result = ReplayPresentation.Apply(source, options, announced, true);
         Assert.HasCount(2, result.Pages);
         Assert.AreEqual("これは10月21日01時02分発表の情報です", result.Pages[^1].AccessibleText);
         Assert.AreEqual(2, result.Pages[^1].Index);
-        Assert.AreEqual("1 / 2", result.Pages[0].Blocks[^1].PrimaryText);
-        Assert.AreEqual("2 / 2", result.Pages[1].Blocks[^1].PrimaryText);
+        Assert.AreSame(source.Pages[0].Blocks, result.Pages[0].Blocks);
+        Assert.HasCount(1, result.Pages[1].Blocks);
         Assert.HasCount(1, source.Pages);
         Assert.AreEqual(source.IssuedAt, result.IssuedAt);
         Assert.AreEqual(source.EventId, result.EventId);
@@ -57,14 +57,11 @@ public sealed class ReplayPresentationTests
     }
 
     [TestMethod]
-    public void NoticeIsNotAddedToOrdinaryTrainingAndRespectsPageIndicatorOff()
+    public void NoticeIsNotAddedToOrdinaryTraining()
     {
         DisplayProgram source = CreateProgram();
         var options = AppSettings.CreateDefault().History with { AppendIssuedAtPage = true };
-        Assert.AreSame(source.Pages, ReplayPresentation.Apply(source, options, source.IssuedAt, false, true).Pages);
-        var replay = ReplayPresentation.Apply(source, options, source.IssuedAt, true, false);
-        Assert.IsFalse(replay.Pages.SelectMany(static page => page.Blocks)
-            .Any(static block => block.StyleToken == DisplayStyleTokens.PageIndicator));
+        Assert.AreSame(source.Pages, ReplayPresentation.Apply(source, options, source.IssuedAt, false).Pages);
     }
 
     private static DisplayProgram CreateProgram() => new("history", EventId.Create("test-history"),

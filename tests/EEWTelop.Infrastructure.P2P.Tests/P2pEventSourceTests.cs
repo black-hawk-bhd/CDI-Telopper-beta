@@ -50,6 +50,7 @@ public sealed class P2pEventSourceTests
 
         Assert.IsTrue(moved);
         Assert.AreEqual("{\"code\":551}", reader.Current.Json);
+        Assert.AreEqual(ProviderOptions.Production.WebSocketUri, socket.ConnectedUri);
         Assert.AreEqual(SourceMode.Production, reader.Current.SourceMode);
         Assert.AreEqual(ProviderConnectionState.Connected, source.Connection.State);
         Assert.IsNotNull(source.Connection.LastReceivedAt);
@@ -58,21 +59,17 @@ public sealed class P2pEventSourceTests
     }
 
     [TestMethod]
-    public async Task ConfigureProviderUsesSandboxPresetInsteadOfStoredProductionUrls()
+    public async Task ConfigureProviderRejectsUnmigratedSandboxSettings()
     {
-        var socket = new FakeWebSocket().EnqueueMessage("{\"code\":551}");
+        var socket = new FakeWebSocket();
         var source = CreateSource(new FakeWebSocketFactory(socket));
-        source.ConfigureProvider(new ProviderSettings(
+        var settings = new ProviderSettings(
             ProviderMode.Sandbox,
             ProviderOptions.Production.WebSocketUri.AbsoluteUri,
-            ProviderOptions.Production.RestBaseUri.AbsoluteUri));
-        await using IAsyncEnumerator<RawProviderMessage> reader =
-            source.ReadAllAsync().GetAsyncEnumerator();
+            ProviderOptions.Production.RestBaseUri.AbsoluteUri);
 
-        Assert.IsTrue(await reader.MoveNextAsync());
-        Assert.AreEqual(ProviderOptions.Sandbox.WebSocketUri, socket.ConnectedUri);
-        Assert.AreEqual(SourceMode.Sandbox, reader.Current.SourceMode);
-        await source.StopAsync();
+        Assert.ThrowsExactly<ArgumentException>(() => source.ConfigureProvider(settings));
+        Assert.IsNull(socket.ConnectedUri);
         await source.DisposeAsync();
     }
 

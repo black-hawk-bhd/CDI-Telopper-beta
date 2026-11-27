@@ -20,24 +20,61 @@ public sealed class TsunamiEventStateAccumulator
         _signatureBuilder = signatureBuilder ?? new EventSignatureBuilder();
     }
 
-    internal void ObserveWarningReport(TsunamiEvent tsunami)
+    internal TsunamiEvent ObserveWarningReport(TsunamiEvent tsunami)
     {
         // Observation reports can carry the current grade, but cannot replace or release a warning.
-        if (tsunami.Issue.RawType is "VTSE51" or "VTSE52") return;
+        if (tsunami.Issue.RawType is "VTSE51" or "VTSE52") return tsunami;
 
         lock (_gate)
         {
+            _latestWarningReports.TryGetValue(tsunami.SourceMode, out TsunamiEvent? previous);
             if (tsunami.SnapshotObservations is null &&
-                _latestWarningReports.TryGetValue(tsunami.SourceMode, out TsunamiEvent? previous) &&
+                previous is not null &&
                 string.Equals(previous.Provider, tsunami.Provider, StringComparison.OrdinalIgnoreCase) &&
                 tsunami.IssuedAt < previous.IssuedAt)
             {
-                return;
+                return tsunami;
             }
 
             // A forecast downgrade, release, or cleared snapshot replaces the prior state as well.
             _latestWarningReports[tsunami.SourceMode] = tsunami;
+            return WithPreviousWarningGrades(tsunami, previous);
         }
+    }
+
+    public static TsunamiEvent WithPreviousWarningGrades(TsunamiEvent incoming, TsunamiEvent? previous)
+    {
+        if (previous is null || previous.Id != incoming.Id || previous.SourceMode != incoming.SourceMode ||
+            !string.Equals(previous.Provider, incoming.Provider, StringComparison.OrdinalIgnoreCase) ||
+            previous.IssuedAt > incoming.IssuedAt || incoming.IsCancelled || incoming.IsExpired ||
+            previous.Issue.RawType is "VTSE51" or "VTSE52" || incoming.Issue.RawType is "VTSE51" or "VTSE52" ||
+            !HasActiveWarning(previous, incoming.IssuedAt))
+        {
+            return incoming;
+        }
+
+        TsunamiArea[]? updatedAreas = null;
+        for (int index = 0; index < incoming.Areas.Count; index++)
+        {
+            TsunamiArea area = incoming.Areas[index];
+            if (area.Role != TsunamiInformationRole.ForecastArea || area.PreviousGrade is not null ||
+                area.Grade is not (TsunamiGrade.Warning or TsunamiGrade.Watch))
+            {
+                continue;
+            }
+
+            TsunamiArea? earlierArea = previous.Areas.FirstOrDefault(candidate =>
+                candidate.Role == TsunamiInformationRole.ForecastArea &&
+                (area.Code.Length > 0 && candidate.Code.Length > 0 ? candidate.Code == area.Code : candidate.Name == area.Name));
+            TsunamiArea withPreviousGrade = area with { PreviousGrade = earlierArea?.Grade };
+            if (withPreviousGrade.IsWarningDowngrade)
+            {
+                updatedAreas ??= incoming.Areas.ToArray();
+                updatedAreas[index] = withPreviousGrade;
+            }
+        }
+
+        return updatedAreas is null ? incoming : incoming with { Areas = updatedAreas };
     }
 
     internal bool HasActiveWarningFor(SourceMode sourceMode, EventId? earthquakeId, DateTimeOffset now)

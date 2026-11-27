@@ -9,6 +9,7 @@ public sealed partial class ControlWindowViewModel
 {
     private ListCollectionView? _reviewTelegramsView;
     private TelegramReviewCategory _selectedReviewCategory;
+    private bool _showOnlyFilterHiddenTelegrams;
 
     public IReadOnlyList<TelegramReviewCategoryOption> ReviewCategoryOptions { get; } =
     [
@@ -28,7 +29,7 @@ public sealed partial class ControlWindowViewModel
     // A private view keeps review filtering independent of maps and reception/display settings.
     public ICollectionView ReviewTelegramsView => _reviewTelegramsView ??= new ListCollectionView(ReceivedTelegrams)
     {
-        Filter = value => value is ReceivedTelegramViewModel item && MatchesReviewCategory(item),
+        Filter = value => value is ReceivedTelegramViewModel item && MatchesReviewFilters(item),
     };
 
     public TelegramReviewCategory SelectedReviewCategory
@@ -36,13 +37,29 @@ public sealed partial class ControlWindowViewModel
         get => _selectedReviewCategory;
         set
         {
-            if (!SetProperty(ref _selectedReviewCategory, value)) return;
-            ReviewTelegramsView.Refresh();
-            if (SelectedReceivedTelegram is null || !MatchesReviewCategory(SelectedReceivedTelegram))
-                SelectedReceivedTelegram = ReceivedTelegrams.FirstOrDefault(MatchesReviewCategory);
+            if (SetProperty(ref _selectedReviewCategory, value))
+                RefreshReviewTelegrams();
         }
     }
 
-    private bool MatchesReviewCategory(ReceivedTelegramViewModel item) =>
+    public bool ShowOnlyFilterHiddenTelegrams
+    {
+        get => _showOnlyFilterHiddenTelegrams;
+        set
+        {
+            if (SetProperty(ref _showOnlyFilterHiddenTelegrams, value))
+                RefreshReviewTelegrams();
+        }
+    }
+
+    private void RefreshReviewTelegrams()
+    {
+        ReviewTelegramsView.Refresh();
+        if (SelectedReceivedTelegram is null || !MatchesReviewFilters(SelectedReceivedTelegram))
+            SelectedReceivedTelegram = ReceivedTelegrams.FirstOrDefault(MatchesReviewFilters);
+    }
+
+    private bool MatchesReviewFilters(ReceivedTelegramViewModel item) =>
+        (!ShowOnlyFilterHiddenTelegrams || item.IsHiddenByDisplayFilter) &&
         TelegramReviewCategoryFilter.Matches(item.Event, SelectedReviewCategory);
 }

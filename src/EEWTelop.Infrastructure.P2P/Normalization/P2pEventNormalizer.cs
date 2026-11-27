@@ -257,11 +257,16 @@ public sealed class P2pEventNormalizer : IEventNormalizer
             return null;
         }
 
+        string condition = dto.Condition?.Trim() ?? string.Empty;
         return new EarthquakeInfo(
             ParseRequired(dto.OriginTime),
             ParseOptional(dto.ArrivalTime),
             NormalizeHypocenter(dto.Hypocenter) is { } hypocenter
-                ? hypocenter with { Condition = dto.Condition?.Trim() ?? string.Empty }
+                ? hypocenter with
+                {
+                    Condition = condition,
+                    Magnitude = condition == HypocenterInfo.ProvisionalCondition ? null : hypocenter.Magnitude,
+                }
                 : null,
             JmaScale.Unknown,
             DomesticTsunami.Unknown,

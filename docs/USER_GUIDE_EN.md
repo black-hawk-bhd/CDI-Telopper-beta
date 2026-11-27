@@ -43,13 +43,17 @@ Expand **電文別のページ秒数** (Seconds per page by bulletin type) to se
 
 Under **出力** (Output) → **字幕と一緒に送出する画像** (Image shown with captions), register one PNG per information category. Set the left position (X), top position (Y), and width in pixels on the 1920×1080 canvas. After saving, the image appears in OBS and the browser preview only while the matching caption is visible. Transparency and aspect ratio are preserved. PNGs may be up to 2 MB and 4096 pixels per side.
 
-In **表示** (Display), **緊急地震速報の継続報で更新された地域名をオレンジ色にする** highlights areas already in the previous warning when their expected intensity, arrival time or warning status changes. It applies to horizontal and vertical OBS layouts and the in-app preview. The option is off by default.
+In **表示** (Display), **緊急地震速報の続報で追加された警報対象地域をオレンジ色にする** highlights warning districts added since the previous warning for the same earthquake. When districts are grouped under a regional label, the label is highlighted if that group includes a newly warned district. It applies to horizontal and vertical OBS layouts and the in-app preview. The option is off by default.
 
 In **表示** (Display), **緊急地震速報に予想最大震度・推定マグニチュードを表示** adds available forecast maximum intensity and estimated magnitude to the warning in the preview and OBS. Both values are labeled as estimates. The option is off by default. A cancellation replaces the matching warning and removes its estimates.
 
 In **表示** (Display), **津波注意報以上の発表中は震度速報の定型注意文を省く** omits the provisional tsunami caution sentence from a seismic intensity bulletin when tsunami captions are enabled and an active advisory or warning has already been received for the same earthquake. If the earthquake IDs cannot be matched, the caution still appears. The option is off by default.
 
 **津波注意報以上の発表中は震度速報を表示しない** hides the entire seismic intensity bulletin for the same earthquake while a tsunami advisory or warning is active and tsunami captions are enabled. An advisory or warning that arrives later also removes a bulletin that is already visible or queued. The received bulletin stays in the message review list. If both options are enabled, hiding the bulletin takes precedence. A forecast alone or an unavailable earthquake ID leaves the bulletin visible. The option is off by default.
+
+**津波警報・注意報の切替時に現在の区分をバッジで表示** shows the current warning or advisory grade in a badge for each affected forecast area when the grade is lowered. The option is on by default. Turn it off to show the current grade with the area name in the caption. The explanatory text gives the previous grade. The global subtitle setting also keeps the current grade readable in the caption.
+
+In **受信前の定型文を編集** (Edit subtitle templates), you can edit the text that follows the previous grade. Leave it blank to omit the note about the previous grade.
 
 Under **フィルター** (Filters) → **表示フィルター** (Display filters) → **地震情報** (Earthquake information), you can toggle **南海トラフ地震の情報** (Nankai Trough earthquake information) and **北海道・三陸沖後発地震注意情報** (Hokkaido and Sanriku subsequent earthquake advisory) separately. Both are on by default. Saving an unchecked option clears its captions. Received reports remain available in message review. To show routine Nankai Trough commentary, enable both the Nankai Trough option and **南海トラフの定例解説をテロップに表示**. The routine commentary option is off by default.
 
@@ -60,9 +64,17 @@ Under **フィルター** (Filters) → **表示フィルター** (Display filte
 - Select **ブラウザープレビューを開く（無音）** (Open silent browser preview) to inspect active captions and individual received messages. Check notification audio in OBS. If you registered OBS URLs manually, copy the current URLs after restarting CDI-Telopper.
 - Under **受信済み電文の個別確認** (Review individual messages), use **南海トラフの定例解説を表示** (Show routine Nankai Trough commentary) to control whether routine reports appear in the review list. The checkbox is on by default.
 
+### Show captions on the desktop
+
+Under **出力** (Output) → **デスクトップ表示** (Desktop display), turn on **デスクトップにスーパーを表示** (Show captions on the desktop), then select **保存して反映** (Save and apply). Active captions appear near the top of the primary monitor. Use **常に手前に表示** (Always on top) to keep them in front of other windows. Mouse input reaches apps behind the captions. The desktop display also works while the control window is in the system tray.
+
+Select **デスクトップ表示を消去** (Clear desktop captions) in the left Output panel to clear the current desktop caption while reception and OBS output continue. Desktop captions resume when the next caption is sent.
+
 ## Review past messages and run rehearsals
 
-Open **受信・過去電文を確認** (Review received and past messages). Under **取得元と再掲の表示設定** (Sources and replay settings), select a history source such as the official JMA XML long feeds, the NII archive, a local JMA XML file or P2PQuake history. Use **過去電文を取得** (Fetch past messages) to populate the list. Fetching alone sends no captions or audio. Both past-information presentation and live-message replay are available during live reception. The live-message replay option is reserved for messages received in production. [History retrieval limits](data-sources.md#manual-history--replay)
+Open **受信・過去電文を確認** (Review received and past messages). Under **取得元と再掲の表示設定** (Sources and replay settings), choose the official JMA XML long feeds, the NII archive, or a local JMA XML file. For a local file, select **参照…** (Browse) below the source selector. Use **過去電文を取得** (Fetch past messages) to populate the list. Fetching alone sends no captions or audio. Both past-information presentation and live-message replay are available during live reception. The live-message replay option is reserved for messages received in production. [History retrieval limits](data-sources.md#manual-history--replay)
+
+When a display filter hides an entire message, the list shows **フィルター非表示** (Hidden by filter) and the reason. Use **表示フィルターで非表示の電文のみ** (Only messages hidden by display filters) with the message category selector. Past messages are checked against the active display filters when fetched. To replay a message that was hidden during live reception, the current display filters must allow it.
 
 In **テスト** (Test) → **生データ・テストライブラリー** (Test library), select **XMLフォルダーを一括登録** (Import XML folder). Each XML file, including files in subfolders, is registered as a training case. The import reports the number of cases and unreadable files. Filter the list by information category or bulletin type, such as VPBS50.
 

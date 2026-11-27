@@ -747,7 +747,7 @@ public sealed class QuakePageComposerTests
     }
 
     [TestMethod]
-    public void CorrectionAndPageIndicatorAreExplicitBlocks()
+    public void CorrectionUsesAnExplicitBlockAndPreservesPagination()
     {
         DisplayProgram program = Compose(DisplayEventFactory.CreateQuake(
             QuakeIssueType.DetailScale,
@@ -756,9 +756,8 @@ public sealed class QuakePageComposerTests
 
         Assert.AreEqual("訂正", ContentBlocks(program.Pages[0])[0].Badge);
         Assert.AreEqual("震度・震源を訂正します", ContentBlocks(program.Pages[0])[0].PrimaryText);
-        Assert.IsTrue(program.Pages.All(page =>
-            page.Blocks[^1].StyleToken == DisplayStyleTokens.PageIndicator));
-        Assert.AreEqual("1 / 3", program.Pages[0].Blocks[^1].PrimaryText);
+        CollectionAssert.AreEqual(Enumerable.Range(1, 3).ToArray(), program.Pages.Select(page => page.Index).ToArray());
+        Assert.IsFalse(program.Pages.SelectMany(page => page.Blocks).Any(block => block.StyleToken == "page-indicator"));
     }
 
     [TestMethod]
@@ -797,6 +796,5 @@ public sealed class QuakePageComposerTests
     private DisplayProgram Compose(QuakeEvent quake) =>
         _composer.Compose(quake, DisplayEventFactory.Settings);
 
-    private static IReadOnlyList<DisplayBlock> ContentBlocks(DisplayPage page) =>
-        page.Blocks.Where(static block => block.StyleToken != DisplayStyleTokens.PageIndicator).ToArray();
+    private static IReadOnlyList<DisplayBlock> ContentBlocks(DisplayPage page) => page.Blocks;
 }

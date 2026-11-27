@@ -12,7 +12,6 @@ const canvas = document.getElementById("canvas");
 const banner = document.getElementById("banner");
 const content = document.getElementById("content");
 const blocks = document.getElementById("blocks");
-const pageIndicator = document.getElementById("pageIndicator");
 const alertAudio = document.getElementById("alertAudio");
 const subtitleImage = document.getElementById("subtitleImage");
 let subtitleImageUrl = "";
@@ -280,9 +279,6 @@ function applySnapshot(state) {
   canvas.style.setProperty("--font-scale", String(Number(state.fontScale) || 1));
   canvas.style.setProperty("--letter-spacing", `${Number(state.letterSpacingEm) || 0}em`);
   canvas.style.setProperty("--line-spacing", String(Number(state.lineSpacing) || 1));
-  const indicatorText = state.pageIndicator ?? "";
-  pageIndicator.textContent = indicatorText;
-  pageIndicator.hidden = !indicatorText;
   document.body.setAttribute("aria-label", state.accessibleText ?? "");
   if (handlesAudio) applyAudioCommand(state);
 }

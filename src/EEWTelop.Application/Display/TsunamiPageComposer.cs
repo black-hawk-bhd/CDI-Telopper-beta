@@ -29,7 +29,6 @@ internal static class TsunamiPageComposer
                 DisplayStyleTokens.TsunamiCancel);
             return PageComposerSupport.CreateProgram(
                 tsunami,
-                settings,
                 OverlayPriority.TsunamiCancel,
                 EndPolicy.AutoHide,
                 [new PageDraft([telegramCancelBlock], TimeSpan.FromSeconds(20))]);
@@ -44,7 +43,6 @@ internal static class TsunamiPageComposer
                 DisplayStyleTokens.TsunamiCancel);
             return PageComposerSupport.CreateProgram(
                 tsunami,
-                settings,
                 OverlayPriority.TsunamiCancel,
                 EndPolicy.AutoHide,
                 [new PageDraft([cancelBlock], TimeSpan.FromSeconds(20))]);
@@ -66,7 +64,12 @@ internal static class TsunamiPageComposer
             .ToArray();
         bool hasObservations = coastalObservations.Length > 0 || offshoreObservations.Length > 0;
         bool isObservationTelegram = tsunami.Issue.RawType is "VTSE51" or "VTSE52";
-        if (tsunami.WarningStateChanged)
+        if (!isObservationTelegram)
+        {
+            pages.AddRange(BuildWarningDowngradePages(forecastAreas, settings));
+        }
+
+        if (pages.Count == 0 && tsunami.WarningStateChanged)
         {
             pages.Add(BuildWarningChangedPage());
         }
@@ -106,7 +109,6 @@ internal static class TsunamiPageComposer
         bool persistent = tsunami.SourceMode == SourceMode.Production && pages.Count > 0;
         return PageComposerSupport.CreateProgram(
             tsunami,
-            settings,
             GetPriority(forecastAreas),
             persistent ? EndPolicy.LoopUntilReplaced : EndPolicy.AutoHide,
             pages);
@@ -118,6 +120,36 @@ internal static class TsunamiPageComposer
             "津波情報が変更されました",
             string.Empty,
             DisplayStyleTokens.Tsunami)]);
+
+    private static IEnumerable<PageDraft> BuildWarningDowngradePages(
+        IEnumerable<TsunamiArea> forecastAreas, DisplaySettings settings)
+    {
+        SubtitlePhraseDefinition phrase = SubtitlePhraseCatalog.TsunamiDowngradeSuffix;
+        string suffix = settings.SubtitlePhraseOverrides?.TryGetValue(phrase.Id, out string? customText) == true
+            ? customText ?? string.Empty
+            : phrase.DefaultText;
+        bool showGradeBadge = settings.ShowTsunamiDowngradeGradeBadge;
+        foreach (TsunamiArea[] areas in forecastAreas.Where(area => area.IsWarningDowngrade &&
+                     !string.IsNullOrWhiteSpace(area.Name)).Chunk(AreasPerPage - 1))
+        {
+            var blocks = new List<DisplayBlock>
+            {
+                new("津波情報", "津波警報・注意報が切り替えられました", string.Empty, DisplayStyleTokens.Tsunami),
+            };
+            foreach (TsunamiArea area in areas)
+            {
+                string grade = GetGradeLabel(area.Grade);
+                string previousGrade = GetGradeLabel(area.PreviousGrade.GetValueOrDefault());
+                blocks.Add(new DisplayBlock(
+                    showGradeBadge ? grade : string.Empty,
+                    showGradeBadge ? $"{area.Name}で発表中" : $"{area.Name}　{grade}を発表中",
+                    string.IsNullOrWhiteSpace(suffix) ? string.Empty : previousGrade + suffix,
+                    DisplayStyleTokens.Tsunami));
+            }
+
+            yield return new PageDraft(blocks);
+        }
+    }
 
     private static PageDraft? BuildWarningIntroductionPage(
         IReadOnlyCollection<TsunamiArea> forecastAreas)

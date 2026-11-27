@@ -29,7 +29,6 @@ using EEWTelop.Infrastructure.Dmdata.Security;
 #endif
 using EEWTelop.Infrastructure.P2P.Configuration;
 using EEWTelop.Infrastructure.P2P.Normalization;
-using EEWTelop.Infrastructure.P2P.Recovery;
 using EEWTelop.Infrastructure.P2P.Transport;
 using EEWTelop.Infrastructure.Wolfx.Configuration;
 using EEWTelop.Infrastructure.Wolfx.Normalization;
@@ -128,16 +127,15 @@ public static class AppComposition
             new ProviderRoutingEventNormalizer(liveNormalizers),
             settings.Provider) { FallbackRouting = fallbackRouting };
         var pageComposer = new PageComposer();
-        var p2pHistory = new P2pHistoryMessageSource(clock, logWriter);
+#if QTELOPPER_DMDATA_PROVIDER
         var historySources = new List<KeyValuePair<HistoryApi, IHistoryMessageSource>>
         {
-            new(HistoryApi.JmaQuake, p2pHistory),
-            new(HistoryApi.History, p2pHistory),
+            new(HistoryApi.JmaXml, new JmaXmlHistoryMessageSource(clock)),
         };
-        var historyNormalizers = new List<KeyValuePair<string, IEventNormalizer>> { new("p2pquake", p2pNormalizer) };
-#if QTELOPPER_DMDATA_PROVIDER
-        historySources.Add(new(HistoryApi.JmaXml, new JmaXmlHistoryMessageSource(clock)));
-        historyNormalizers.Add(new("jma-xml", jmaXmlNormalizer));
+        var historyNormalizers = new List<KeyValuePair<string, IEventNormalizer>>
+        {
+            new("jma-xml", jmaXmlNormalizer),
+        };
         if (BuildFeatures.ExtendedFeaturesEnabled)
         {
             historySources.Add(new(HistoryApi.NiiJmaXml, new NiiJmaXmlHistoryMessageSource(
@@ -146,10 +144,12 @@ public static class AppComposition
             historyNormalizers.Add(new("nii-jma-xml", jmaXmlNormalizer));
             historyNormalizers.Add(new("local-jma-xml", jmaXmlNormalizer));
         }
-#endif
         // History bypasses live provider selection/version caches, not normalization or source-mode separation.
         var historyLoader = new HistoryRehearsalLoader(new HistoryMessageSourceRouter(historySources),
             new ProviderRoutingEventNormalizer(historyNormalizers));
+#else
+        IHistoryRehearsalLoader? historyLoader = null;
+#endif
         var displayCoordinator = new PriorityCoordinator(clock, settings.Display);
         displayCoordinator.SetSpecialQuakeFilters(settings.Filter);
         DisplayStateDocument storedState = stateStore.LoadAsync().AsTask().GetAwaiter().GetResult();

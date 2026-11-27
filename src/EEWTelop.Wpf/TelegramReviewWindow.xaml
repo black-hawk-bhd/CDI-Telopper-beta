@@ -9,6 +9,7 @@
         Background="#FF0F141B" Foreground="White"
         WindowStartupLocation="CenterScreen">
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="SourcePanelVisibility" />
         <SolidColorBrush x:Key="PanelBrush" Color="#FF18212B" />
         <SolidColorBrush x:Key="MutedBrush" Color="#FF9AA8B7" />
         <Style TargetType="TextBlock">
@@ -58,13 +59,14 @@
         <Border Grid.Row="1" Background="#FF202C38" CornerRadius="6" Padding="10" Margin="0,12,0,12">
             <StackPanel>
                 <TextBlock Text="{Binding TelegramReviewStatusText}" TextWrapping="Wrap" />
-                <Expander Header="取得元と再掲の表示設定" Foreground="White" Margin="0,8,0,0">
+                <Expander x:Name="HistorySettingsExpander" Header="取得元と再掲の表示設定" Foreground="White" Margin="0,8,0,0">
                     <ScrollViewer MaxHeight="280" VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="4,8,12,0">
                             <TextBlock Text="過去電文の取得元（取得だけでは字幕・音声は送出しません）" />
-                            <ComboBox ItemsSource="{Binding Settings.HistoryApis}" DisplayMemberPath="Label"
+                            <ComboBox x:Name="HistorySourceSelector" ItemsSource="{Binding Settings.HistoryApis}" DisplayMemberPath="Label"
+                                      IsEnabled="{Binding Settings.HasHistorySources}"
                                       SelectedValuePath="Value" SelectedValue="{Binding Settings.HistoryApi}" />
-                            <StackPanel IsEnabled="{Binding Settings.IsJmaHistoryApi}" Margin="0,8,0,0">
+                            <StackPanel Visibility="{Binding Settings.IsJmaHistoryApi, Converter={StaticResource SourcePanelVisibility}}" Margin="0,8,0,0">
                                 <TextBlock Text="気象庁XMLの対象種別" />
                                 <ComboBox ItemsSource="{Binding Settings.JmaHistoryContents}" DisplayMemberPath="Label"
                                           SelectedValuePath="Value" SelectedValue="{Binding Settings.JmaHistoryContent}" />
@@ -73,24 +75,31 @@
                                 <TextBlock Text="公式の長期フィードは数日分・毎時更新。緊急地震速報は対象外です。それ以前はNIIまたは保存済みXMLを利用してください。"
                                            TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
                             </StackPanel>
-                            <Expander Header="NII・外部XMLの設定" Foreground="White" Margin="0,8,0,0">
-                                <StackPanel>
-                                    <StackPanel IsEnabled="{Binding Settings.IsNiiHistoryApi}">
-                                        <TextBlock Text="NII検索日・取得対象（最大20件）" />
-                                        <DatePicker SelectedDate="{Binding Settings.NiiHistoryDate}" />
-                                        <ComboBox ItemsSource="{Binding Settings.NiiHistoryContents}" DisplayMemberPath="Label"
-                                                  SelectedValuePath="Value" SelectedValue="{Binding Settings.NiiHistoryContent}" />
-                                        <TextBlock Text="NII個別電文URL（任意・検索日より優先）" />
-                                        <TextBox Text="{Binding Settings.NiiHistoryReportUrl, UpdateSourceTrigger=PropertyChanged}" MaxLength="2048" />
-                                        <TextBlock Text="データ提供：気象庁防災情報XMLデータベース（国立情報学研究所）／CC BY 4.0" TextWrapping="Wrap" />
-                                    </StackPanel>
-                                    <TextBlock Text="外部JMA XML（最大2MiB）" Margin="0,6,0,0" />
-                                    <DockPanel>
-                                        <Button DockPanel.Dock="Right" Content="XMLを選択…" Command="{Binding BrowseHistoryXmlFileCommand}" />
-                                        <TextBox Text="{Binding Settings.LocalHistoryXmlFilePath}" IsReadOnly="True" />
-                                    </DockPanel>
-                                </StackPanel>
-                            </Expander>
+                            <StackPanel Visibility="{Binding Settings.IsNiiHistoryApi, Converter={StaticResource SourcePanelVisibility}}" Margin="0,8,0,0">
+                                <TextBlock Text="NII検索日・取得対象（最大20件）" />
+                                <DatePicker SelectedDate="{Binding Settings.NiiHistoryDate}" />
+                                <ComboBox ItemsSource="{Binding Settings.NiiHistoryContents}" DisplayMemberPath="Label"
+                                          SelectedValuePath="Value" SelectedValue="{Binding Settings.NiiHistoryContent}" />
+                                <TextBlock Text="NII個別電文URL（任意・検索日より優先）" />
+                                <TextBox Text="{Binding Settings.NiiHistoryReportUrl, UpdateSourceTrigger=PropertyChanged}" MaxLength="2048" />
+                                <TextBlock Text="データ提供：気象庁防災情報XMLデータベース（国立情報学研究所）／CC BY 4.0" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel x:Name="LocalXmlHistorySettings"
+                                        Visibility="{Binding Settings.IsLocalHistoryApi, Converter={StaticResource SourcePanelVisibility}}"
+                                        Margin="0,8,0,0">
+                                <TextBlock Text="外部JMA XMLファイル（最大2MiB）" />
+                                <DockPanel Margin="0,3,0,0">
+                                    <Button x:Name="BrowseHistoryXmlButton" DockPanel.Dock="Right" Content="参照…"
+                                            Command="{Binding BrowseHistoryXmlFileCommand}"
+                                            CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=Window}}"
+                                            Margin="6,0,0,0" />
+                                    <TextBox x:Name="LocalXmlHistoryPath" Text="{Binding Settings.LocalHistoryXmlFilePath, Mode=OneWay}"
+                                             AutomationProperties.Name="外部JMA XMLファイルのパス"
+                                             IsReadOnly="True" VerticalContentAlignment="Center" />
+                                </DockPanel>
+                                <TextBlock Text="ファイルを選択したら「過去電文を取得」を押してください。"
+                                           Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                            </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,8">
                                 <TextBlock Text="取得件数（1～100）" VerticalAlignment="Center" />
                                 <TextBox Text="{Binding Settings.HistoryLimit}" Width="65" Margin="8,0,0,0" />
@@ -154,6 +163,9 @@
                                   Foreground="Black" Background="White" Padding="6,4"
                                   AutomationProperties.Name="電文一覧の種別"
                                   ToolTip="確認画面だけを絞り込みます。配信用字幕・音声の設定は変わりません。" />
+                        <CheckBox Content="表示フィルターで非表示の電文のみ"
+                                  IsChecked="{Binding ShowOnlyFilterHiddenTelegrams}"
+                                  Foreground="White" Margin="0,6,0,0" />
                         <TextBlock Text="{Binding ReviewTelegramsView.Count, StringFormat=該当 {0} 件}"
                                    Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0" />
                     </StackPanel>

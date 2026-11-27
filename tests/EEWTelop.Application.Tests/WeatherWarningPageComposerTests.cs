@@ -26,7 +26,7 @@ public sealed class WeatherWarningPageComposerTests
             Assert.IsTrue(program.Pages.Count > 0);
             foreach (var page in program.Pages)
             {
-                var block = page.Blocks.First(b => b.StyleToken != DisplayStyleTokens.PageIndicator);
+                var block = page.Blocks[0];
                 Assert.AreEqual(badge, block.Badge);
                 Assert.AreEqual(expected, block.WeatherHeading);
                 StringAssert.Contains(page.AccessibleText, expected);
@@ -50,7 +50,7 @@ public sealed class WeatherWarningPageComposerTests
                  "【警戒レベル5相当】第四観測所の説明です。", "第四観測所の続きです。"]),
         };
         var blocks = new PageComposer().Compose(weather, AppSettings.CreateDefault().Display).Pages
-            .SelectMany(p => p.Blocks).Where(b => b.StyleToken != DisplayStyleTokens.PageIndicator).ToArray();
+            .SelectMany(p => p.Blocks).ToArray();
         Assert.AreEqual("酒谷川｜レベル４氾濫危険警報", blocks[0].Badge);
         Assert.AreEqual("酒谷川｜警戒レベル２", blocks[1].Badge);
         Assert.AreEqual(blocks[1].Badge, blocks[2].Badge);
@@ -77,8 +77,7 @@ public sealed class WeatherWarningPageComposerTests
     [TestMethod]
     public void SharedHeadingSeparatesStatusesAndPrefecturesAndRepeatsOnContinuationPages()
     {
-        static DisplayBlock[] WeatherBlocks(DisplayPage page) => page.Blocks
-            .Where(b => b.StyleToken != DisplayStyleTokens.PageIndicator).ToArray();
+        static DisplayBlock[] WeatherBlocks(DisplayPage page) => page.Blocks.ToArray();
         var items = Enumerable.Range(1, 12)
             .Select(i => Active($"地域{i:00}", $"07{i:00000}", "大雨警報", "継続"))
             .Concat(new[] {
@@ -131,7 +130,7 @@ public sealed class WeatherWarningPageComposerTests
             names.Select(n => Released(n, "120000", "大雨注意報", WeatherWarningLevel.Advisory)).ToArray(),
             isCancelled: true);
         var blocks = new PageComposer().Compose(weather, AppSettings.CreateDefault().Display)
-            .Pages.SelectMany(p => p.Blocks).Where(b => b.StyleToken != DisplayStyleTokens.PageIndicator).ToArray();
+            .Pages.SelectMany(p => p.Blocks).ToArray();
         Assert.IsGreaterThan(1, blocks.Length);
         foreach (string name in names) Assert.IsTrue(blocks.Any(b => b.PrimaryText.Split('\n').Last().Contains(name)));
         Assert.IsTrue(blocks.All(b => b.PrimaryText.Split('\n').Last().Length <= 48));
@@ -345,7 +344,6 @@ public sealed class WeatherWarningPageComposerTests
             AppSettings.CreateDefault().Display);
         DisplayBlock[] blocks = program.Pages
             .SelectMany(static page => page.Blocks)
-            .Where(static block => block.StyleToken != DisplayStyleTokens.PageIndicator)
             .ToArray();
 
         Assert.HasCount(2, blocks);
@@ -373,7 +371,6 @@ public sealed class WeatherWarningPageComposerTests
             AppSettings.CreateDefault().Display);
         DisplayBlock[] blocks = program.Pages
             .SelectMany(static page => page.Blocks)
-            .Where(static block => block.StyleToken != DisplayStyleTokens.PageIndicator)
             .ToArray();
 
         Assert.HasCount(2, blocks);
@@ -398,7 +395,6 @@ public sealed class WeatherWarningPageComposerTests
             weather,
             AppSettings.CreateDefault().Display);
         DisplayBlock[] blocks = program.Pages.Single().Blocks
-            .Where(static block => block.StyleToken != DisplayStyleTokens.PageIndicator)
             .ToArray();
 
         Assert.HasCount(2, blocks);
@@ -464,18 +460,15 @@ public sealed class WeatherWarningPageComposerTests
             Assert.HasCount(4, threeRows.Pages);
             CollectionAssert.AreEqual(
                 threeRows.Pages.SelectMany(page => page.Blocks)
-                    .Where(block => block.StyleToken != DisplayStyleTokens.PageIndicator)
                     .Select(block => block.PrimaryText.Split('\n').Last()).ToArray(),
                 twoRows.Pages.SelectMany(page => page.Blocks)
-                    .Where(block => block.StyleToken != DisplayStyleTokens.PageIndicator)
                     .Select(block => block.PrimaryText.Split('\n').Last()).ToArray());
             foreach (DisplayProgram program in new[] { twoRows, threeRows })
             {
                 int limit = ReferenceEquals(program, twoRows) ? 2 : 3;
                 foreach (DisplayPage page in program.Pages)
                 {
-                    DisplayBlock[] blocks = page.Blocks
-                        .Where(block => block.StyleToken != DisplayStyleTokens.PageIndicator).ToArray();
+                    DisplayBlock[] blocks = page.Blocks.ToArray();
                     Assert.IsTrue(blocks.Length <= limit);
                     Assert.AreEqual(kind, blocks[0].Badge);
                     StringAssert.StartsWith(blocks[0].PrimaryText, "東京都　｜");
@@ -485,7 +478,6 @@ public sealed class WeatherWarningPageComposerTests
                 }
                 CollectionAssert.AreEquivalent(items.Select(item => item.AreaName).ToArray(),
                     program.Pages.SelectMany(page => page.Blocks)
-                        .Where(block => block.StyleToken != DisplayStyleTokens.PageIndicator)
                         .SelectMany(block => block.PrimaryText.Split('\n').Last().Split('　')).ToArray());
                 Assert.AreEqual(mode, program.SourceMode);
             }
@@ -534,7 +526,6 @@ public sealed class WeatherWarningPageComposerTests
             AppSettings.CreateDefault().Display);
         string[] displayed = program.Pages
             .SelectMany(static page => page.Blocks)
-            .Where(static block => block.StyleToken != DisplayStyleTokens.PageIndicator)
             .Select(static block => block.PrimaryText.Split('\n').Last())
             .ToArray();
 
@@ -573,8 +564,7 @@ public sealed class WeatherWarningPageComposerTests
         Assert.IsTrue(WeatherBlocks(program.Pages[1])[0].PrimaryText.Split('\n')[0].EndsWith("更新", StringComparison.Ordinal));
         Assert.IsTrue(WeatherBlocks(program.Pages[2])[0].PrimaryText.Split('\n')[0].EndsWith("継続中", StringComparison.Ordinal));
         Assert.IsTrue(program.Pages.All(static page =>
-            page.Blocks.Count(static block =>
-                block.StyleToken != DisplayStyleTokens.PageIndicator) <= 2));
+            page.Blocks.Count <= 2));
     }
 
     [TestMethod]
@@ -592,7 +582,6 @@ public sealed class WeatherWarningPageComposerTests
         DisplayBlock[] blocks = new PageComposer()
             .Compose(weather, AppSettings.CreateDefault().Display)
             .Pages.SelectMany(static page => page.Blocks)
-            .Where(static block => block.StyleToken != DisplayStyleTokens.PageIndicator)
             .ToArray();
 
         Assert.AreEqual(DisplayStyleTokens.WeatherSpecialWarning, blocks[0].StyleToken);
@@ -627,9 +616,9 @@ public sealed class WeatherWarningPageComposerTests
             weather,
             AppSettings.CreateDefault().Display);
         DisplayBlock firstHeadline = program.Pages[0].Blocks
-            .Single(static block => block.StyleToken != DisplayStyleTokens.PageIndicator);
+            .Single();
         DisplayBlock secondHeadline = program.Pages[1].Blocks
-            .Single(static block => block.StyleToken != DisplayStyleTokens.PageIndicator);
+            .Single();
 
         Assert.AreEqual("レベル５大雨特別警報", firstHeadline.Badge);
         StringAssert.StartsWith(firstHeadline.WeatherHeading, "千葉県");
@@ -643,7 +632,6 @@ public sealed class WeatherWarningPageComposerTests
             secondHeadline.PrimaryText);
         Assert.IsTrue(program.Pages.Take(2).All(static page =>
             page.Blocks
-                .Where(static block => block.StyleToken != DisplayStyleTokens.PageIndicator)
                 .All(static block => block.PrimaryText.Split('\n').Length <= 2)));
         Assert.IsTrue(program.Pages.Skip(2)
             .SelectMany(static page => page.Blocks)
@@ -665,7 +653,7 @@ public sealed class WeatherWarningPageComposerTests
         Assert.AreEqual(
             "熊本県　｜新たに発表\n熊本市",
             program.Pages.Single().Blocks
-                .Single(static block => block.StyleToken != DisplayStyleTokens.PageIndicator)
+                .Single()
                 .PrimaryText);
     }
 

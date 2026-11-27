@@ -155,14 +155,15 @@ public sealed class EventIngestionPipeline
         DisasterEvent disasterEvent = receivedEvent;
         if (receivedEvent is TsunamiEvent tsunami)
         {
-            _tsunamiStateAccumulator.ObserveWarningReport(tsunami);
+            tsunami = _tsunamiStateAccumulator.ObserveWarningReport(tsunami);
             if (_settings.SuppressScalePromptWhenTsunamiWarningActive && _filter.Tsunami &&
                 _displayCoordinator is PriorityCoordinator coordinator)
                 coordinator.RemoveQuakePrograms(program => IsScalePromptSuppressed(program, raw.ReceivedAt));
-            if (!completeTsunami) disasterEvent = _tsunamiStateAccumulator.Merge(tsunami);
+            disasterEvent = completeTsunami ? tsunami : _tsunamiStateAccumulator.Merge(tsunami);
         }
 
-        DisasterEvent? displayEvent = EventDisplayFilter.Apply(_filter, disasterEvent);
+        FilterSettings filter = _filter;
+        DisasterEvent? displayEvent = EventDisplayFilter.Apply(filter, disasterEvent);
         if (disasterEvent is TsunamiEvent { SnapshotObservations: not null } snapshotTsunami &&
             (snapshotTsunami.IsExpired || snapshotTsunami.ExpireAt <= raw.ReceivedAt ||
              snapshotTsunami.Areas.Count == 0 && !snapshotTsunami.IsCancelled ||
@@ -193,9 +194,12 @@ public sealed class EventIngestionPipeline
                 null,
                 null,
                 normalized.Issues,
-                EventDisplayFilter.DescribeSuppression(_filter, disasterEvent)) with
+                EventDisplayFilter.DescribeSuppression(filter, disasterEvent)) with
             {
-                ReviewProgram = ComposeSuppressedSpecialQuake(disasterEvent),
+                IsHiddenByDisplayFilter = true,
+                ReviewProgram = disasterEvent.SourceMode == SourceMode.Production
+                    ? _pageComposer.Compose(disasterEvent, _settings)
+                    : ComposeSuppressedSpecialQuake(disasterEvent),
             };
         }
 
@@ -269,6 +273,7 @@ public sealed class EventIngestionPipeline
             return CreateResult(raw, EventIngestionStatus.Accepted, disasterEvent, null, null,
                 normalized.Issues, snapshot.Decision.Message) with
             {
+                IsHiddenByDisplayFilter = true,
                 ReviewProgram = program,
             };
         }
@@ -467,6 +472,8 @@ public sealed record EventIngestionResult(
     public ReceptionLogSummary? ReceptionSummary { get; init; }
 
     public string? DisplaySuppressionReason { get; init; }
+
+    public bool IsHiddenByDisplayFilter { get; init; }
 
     public DisplayProgram? ReviewProgram { get; init; }
 

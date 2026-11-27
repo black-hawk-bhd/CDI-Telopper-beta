@@ -57,6 +57,21 @@ public sealed class WolfxEventNormalizerTests
     }
 
     [TestMethod]
+    [DataRow("true", null)]
+    [DataRow("false", 1.0)]
+    public void IsAssumptionMakesTheMagnitudeUnavailable(string isAssumption, double? expected)
+    {
+        string json = $$"""
+            {
+              "type":"jma_eew","EventID":"plum-test","isWarn":true,"WarnArea":[],
+              "Hypocenter":"能登半島沖","Magunitude":1.0,"MaxIntensity":"5+","isAssumption":{{isAssumption}}
+            }
+            """;
+        var eew = Assert.IsInstanceOfType<EewEvent>(_normalizer.Normalize(Raw(json)).Event);
+        Assert.AreEqual(expected, eew.Earthquake?.Hypocenter?.Magnitude);
+    }
+
+    [TestMethod]
     public void ForecastOnlyEewIsIgnored()
     {
         const string json = """

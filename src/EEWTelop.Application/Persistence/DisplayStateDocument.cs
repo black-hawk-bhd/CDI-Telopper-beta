@@ -232,9 +232,17 @@ public sealed record StoredDisplayPage(
 
     public DisplayPage ToPage() => new(
         Index,
-        Blocks?.ToArray() ?? [],
+        // Display state from earlier versions may include a page number as a subtitle block.
+        Blocks?.Where(static block => block.StyleToken != "page-indicator").Select(RestoreBlock).ToArray() ?? [],
         AccessibleText ?? string.Empty,
         DurationOverrideSeconds is { } seconds && seconds > 0
             ? TimeSpan.FromSeconds(seconds)
             : null);
+
+    private static DisplayBlock RestoreBlock(DisplayBlock block)
+    {
+        string? estimate = block.EewEstimateText?.Replace(
+            "推定M ", EewPageComposer.EstimatedMagnitudePrefix, StringComparison.Ordinal);
+        return estimate == block.EewEstimateText ? block : block with { EewEstimateText = estimate };
+    }
 }

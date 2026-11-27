@@ -503,6 +503,9 @@ public sealed class EventIngestionPipelineTests
         Assert.IsNull(result.Snapshot);
         Assert.IsNull(coordinator.Evaluate().CurrentProgram);
         Assert.AreEqual("最大震度フィルター", result.DisplaySuppressionReason);
+        Assert.IsTrue(result.IsHiddenByDisplayFilter);
+        Assert.IsNotNull(result.ReviewProgram);
+        Assert.IsNotEmpty(result.ReviewProgram.Pages);
         Assert.IsNotNull(result.ReceptionSummary);
         Assert.Contains("採用・非表示", result.ReceptionSummary.ProcessingResult);
     }
@@ -831,6 +834,7 @@ public sealed class EventIngestionPipelineTests
         Assert.IsNull(unchanged.Snapshot);
         Assert.IsNotNull(unchanged.ReviewProgram);
         Assert.AreEqual("表示対象の変更なし", unchanged.DisplaySuppressionReason);
+        Assert.IsFalse(unchanged.IsHiddenByDisplayFilter);
         Assert.AreEqual(0, unchanged.DisplayedItemCount);
         Assert.IsNotNull(unchanged.ReceptionSummary);
         Assert.Contains(

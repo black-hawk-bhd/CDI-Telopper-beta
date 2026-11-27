@@ -1,5 +1,6 @@
 using EEWTelop.Wpf.ViewModels;
 using EEWTelop.Application.Configuration;
+using EEWTelop.Infrastructure.Settings;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace EEWTelop.Wpf.Tests;
@@ -35,6 +36,27 @@ public sealed class SubtitlePhraseTemplateViewModelTests
         viewModel.ResetAll();
 
         Assert.IsEmpty(viewModel.BuildOverrides());
+    }
+
+    [TestMethod]
+    public void TsunamiDowngradeNoteSuffixCanBeEditedSavedAndReset()
+    {
+        const string id = "tsunami.warning.downgrade.suffix";
+        var defaults = AppSettings.CreateDefault();
+        var editor = new SettingsEditorViewModel(defaults);
+        var dialog = new SubtitlePhraseTemplateViewModel(editor.SubtitlePhraseOverrides);
+        var phrase = dialog.Phrases.Single(item => item.Id == id);
+        Assert.AreEqual("から切り替えられました。", phrase.Text);
+
+        phrase.Text = "から変更になりました。";
+        editor.SetSubtitlePhraseOverrides(dialog.BuildOverrides());
+        AppSettings saved = JsonSettingsStore.NormalizeDocument(editor.ToSettings(defaults));
+        var restored = new SubtitlePhraseTemplateViewModel(saved.Display.SubtitlePhraseOverrides);
+        Assert.AreEqual("から変更になりました。", restored.Phrases.Single(item => item.Id == id).Text);
+
+        restored.ResetAll();
+        Assert.AreEqual("から切り替えられました。", restored.Phrases.Single(item => item.Id == id).Text);
+        Assert.IsFalse(restored.BuildOverrides().ContainsKey(id));
     }
 
     [TestMethod]

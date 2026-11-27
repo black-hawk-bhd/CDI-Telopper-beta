@@ -53,7 +53,7 @@ public sealed class ReplaySettingsTests
             DateTimeOffset.UnixEpoch, EndPolicy.AutoHide, "過去情報");
         var history = JsonSerializer.Deserialize<HistorySettings>("""{"HideModeBanner":true}""")! with
             { HideInformationBadges = hideBadge };
-        var program = ReplayPresentation.Apply(source, history, source.IssuedAt, true, true);
+        var program = ReplayPresentation.Apply(source, history, source.IssuedAt, true);
         var coordinator = new PriorityCoordinator(new Clock(), settings.Display);
         var snapshot = coordinator.Apply(program);
         var store = new ObsSnapshotStore(settings.Display, DateTimeOffset.UnixEpoch);
@@ -108,7 +108,7 @@ public sealed class ReplaySettingsTests
             mode, now, OverlayPriority.TsunamiWatch, [page], now, EndPolicy.AutoHide,
             mode == SourceMode.Production && replay ? "" : "操作テスト／訓練");
         var program = ReplayPresentation.Apply(source, settings.History with
-            { HideInformationBadges = true }, source.IssuedAt, replay, true);
+            { HideInformationBadges = true }, source.IssuedAt, replay);
         var coordinator = new PriorityCoordinator(new Clock(), settings.Display);
         var snapshot = coordinator.Apply(program);
         var store = new ObsSnapshotStore(settings.Display, now);

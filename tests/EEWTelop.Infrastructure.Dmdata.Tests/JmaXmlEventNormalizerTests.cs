@@ -81,14 +81,21 @@ public sealed class JmaXmlEventNormalizerTests
     }
 
     [TestMethod]
-    [DataRow("VXSE43", "6-", "6-", "発表", "予想最大震度 6弱　推定M 6.6")]
-    [DataRow("VXSE45", "5-", "5+", "発表", "予想最大震度 5弱〜5強　推定M 6.6")]
-    [DataRow("VXSE43", "5+", "over", "発表", "予想最大震度 5強以上　推定M 6.6")]
-    [DataRow("VXSE43", "6-", "4", "発表", "推定M 6.6")]
+    [DataRow("VXSE43", "6-", "6-", "発表", "予想最大震度 6弱　推定マグニチュード 6.6")]
+    [DataRow("VXSE45", "5-", "5+", "発表", "予想最大震度 5弱〜5強　推定マグニチュード 6.6")]
+    [DataRow("VXSE43", "5+", "over", "発表", "予想最大震度 5強以上　推定マグニチュード 6.6")]
+    [DataRow("VXSE43", "5-", null, "発表", "予想最大震度 下限 5弱　推定マグニチュード 6.6")]
+    [DataRow("VXSE45", null, "5+", "発表", "予想最大震度 上限 5強　推定マグニチュード 6.6")]
+    [DataRow("VXSE43", null, null, "発表", "推定マグニチュード 6.6")]
+    [DataRow("VXSE43", null, "over", "発表", "推定マグニチュード 6.6")]
+    [DataRow("VXSE43", "5-", "不明", "発表", "推定マグニチュード 6.6")]
+    [DataRow("VXSE43", "6-", "4", "発表", "推定マグニチュード 6.6")]
     [DataRow("VXSE43", "6-", "6-", "取消", null)]
     public void EewEstimatesUseTheTelegramMaximumRatherThanItsAreaForecasts(
-        string telegramType, string from, string to, string infoType, string? expected)
+        string telegramType, string? from, string? to, string infoType, string? expected)
     {
+        string lower = from is null ? string.Empty : $"<From>{from}</From>";
+        string upper = to is null ? string.Empty : $"<To>{to}</To>";
         string xml = $$"""
             <Report><Control><Type>{{telegramType}}</Type><Status>通常</Status></Control>
               <Head><EventID>eew-estimates</EventID><InfoType>{{infoType}}</InfoType>
@@ -96,7 +103,7 @@ public sealed class JmaXmlEventNormalizerTests
               </Head>
               <Body>
                 <Earthquake><Hypocenter><Area><Name>試験震源</Name></Area></Hypocenter><Magnitude>6.6</Magnitude></Earthquake>
-                <Intensity><Forecast><ForecastInt><From>{{from}}</From><To>{{to}}</To></ForecastInt>
+                <Intensity><Forecast><ForecastInt>{{lower}}{{upper}}</ForecastInt>
                     <Pref><Area><Name>試験地域</Name><Category><Kind><Code>10</Code></Kind></Category>
                         <ForecastInt><From>3</From><To>4</To></ForecastInt></Area></Pref>
                 </Forecast></Intensity>
@@ -110,6 +117,88 @@ public sealed class JmaXmlEventNormalizerTests
         var program = new PageComposer().Compose(eew, AppSettings.CreateDefault().Display);
         Assert.AreEqual(expected, program.Pages[0].Blocks
             .SingleOrDefault(block => block.StyleToken == DisplayStyleTokens.EewAreas)?.EewEstimateText);
+    }
+
+    [TestMethod]
+    [DataRow("<Condition>仮定震源要素</Condition>", "予想最大震度 5強以上")]
+    [DataRow("", "予想最大震度 5強以上　推定マグニチュード 1.0")]
+    public void Vxse43OmitsFixedMagnitudeOnlyForAnAssumedHypocenter(string condition, string expected)
+    {
+        string xml = $"""
+            <Report><Control><Title>緊急地震速報（警報）</Title><Status>通常</Status></Control>
+            <Head><EventID>plum-eew</EventID><InfoType>発表</InfoType></Head>
+            <Body><Earthquake>{condition}<Hypocenter><Area><Name>能登半島沖</Name></Area></Hypocenter>
+              <Magnitude description="Ｍ１．０">1.0</Magnitude></Earthquake>
+              <Intensity><Forecast><ForecastInt><From>5+</From><To>over</To></ForecastInt>
+                <Pref><Name>石川</Name><Area><Name>石川県能登</Name><Category><Kind><Code>19</Code></Kind></Category></Area></Pref>
+              </Forecast></Intensity>
+            </Body></Report>
+            """;
+        var raw = new RawProviderMessage("jma-xml", xml, SourceMode.Production, DateTimeOffset.UnixEpoch)
+            { ContentFormat = RawProviderContentFormat.JmaXml };
+        var eew = Assert.IsInstanceOfType<EewEvent>(
+            new JmaXmlEventNormalizer(new EventSignatureBuilder()).Normalize(raw).Event);
+        var hypocenter = Assert.IsInstanceOfType<HypocenterInfo>(eew.Earthquake?.Hypocenter);
+        bool isProvisional = condition.Length > 0;
+        Assert.AreEqual(isProvisional ? null : 1.0, hypocenter.Magnitude);
+        Assert.AreEqual(isProvisional ? string.Empty : "Ｍ１．０", hypocenter.MagnitudeDescription);
+        Assert.AreEqual(SourceMode.Production, eew.SourceMode);
+
+        var program = new PageComposer().Compose(eew, AppSettings.CreateDefault().Display);
+        var block = program.Pages[0].Blocks.Single(item => item.StyleToken == DisplayStyleTokens.EewAreas);
+        Assert.AreEqual(expected, block.EewEstimateText);
+    }
+
+    [TestMethod]
+    [DataRow("発表", "", true, "愛媛")]
+    [DataRow("発表", "", false, "高知県西部")]
+    [DataRow("発表", "<Pref><Area><Name>大分県南部</Name></Area></Pref>", true, "大分県南部")]
+    [DataRow("取消", "", true, null)]
+    public void Vxse43UsesHeadlineWarningAreasOnlyIfBodyHasNoAreas(
+        string infoType, string bodyAreas, bool prefectureHeadline, string? expected)
+    {
+        string prefGroup = prefectureHeadline
+            ? """
+              <Information type="緊急地震速報（府県予報区）"><Item>
+                <Kind><Name>緊急地震速報（警報）</Name><Code>31</Code></Kind>
+                <Areas codeType="緊急地震速報／府県予報区"><Area><Name>愛媛</Name></Area></Areas>
+              </Item></Information>
+              """
+            : string.Empty;
+        string xml = $"""
+            <Report><Control><Title>緊急地震速報（警報）</Title></Control>
+            <Head><EventID>headline-areas</EventID><InfoType>{infoType}</InfoType><Headline><Text>強い揺れに警戒</Text>
+              <Information type="緊急地震速報（地方予報区）"><Item>
+                <Kind><Name>緊急地震速報（警報）</Name><Code>31</Code></Kind>
+                <Areas codeType="緊急地震速報／地方予報区"><Area><Name>四国</Name></Area></Areas>
+              </Item></Information>
+              <Information type="緊急地震速報（府県予報区）"><Item>
+                <Kind><Name>なし</Name><Code>00</Code></Kind>
+                <LastKind><Name>緊急地震速報（警報）</Name><Code>31</Code></LastKind>
+                <Areas codeType="緊急地震速報／府県予報区"><Area><Name>徳島</Name></Area></Areas>
+              </Item></Information>
+              <Information type="緊急地震速報（細分区域）"><Item>
+                <Kind><Name>緊急地震速報（警報）</Name><Code>31</Code></Kind>
+                <Areas codeType="地震情報／細分区域"><Area><Name>高知県西部</Name></Area></Areas>
+              </Item></Information>
+              {prefGroup}
+            </Headline></Head><Body><Intensity><Forecast>{bodyAreas}</Forecast></Intensity></Body></Report>
+            """;
+        var raw = new RawProviderMessage("jma-xml", xml, SourceMode.HistoryRehearsal, DateTimeOffset.UnixEpoch)
+            { ContentFormat = RawProviderContentFormat.JmaXml };
+        var eew = Assert.IsInstanceOfType<EewEvent>(
+            new JmaXmlEventNormalizer(new EventSignatureBuilder()).Normalize(raw).Event);
+
+        Assert.AreEqual(expected, eew.Areas.SingleOrDefault()?.Name);
+        var program = new PageComposer().Compose(eew, AppSettings.CreateDefault().Display);
+        string? areaText = program.Pages[0].Blocks
+            .SingleOrDefault(block => block.StyleToken == DisplayStyleTokens.EewAreas)?.PrimaryText;
+        Assert.AreEqual(expected switch
+        {
+            "高知県西部" => "高知",
+            "大分県南部" => "大分",
+            _ => expected,
+        }, areaText);
     }
 
     [TestMethod]
@@ -138,6 +227,48 @@ public sealed class JmaXmlEventNormalizerTests
             Assert.AreEqual("851", station.SeismicAreaCode);
             Assert.IsTrue(quake.Points.Any(p => p.MunicipalityName == "日向市" && p.Scale == JmaScale.Three));
             Assert.IsTrue(quake.Points.Any(p => p.IsArea && p.Scale == JmaScale.Two));
+        }
+    }
+
+    [TestMethod]
+    [DataRow(true, "", false, "宮城県栗原市")]
+    [DataRow(true, "<Int>6-</Int>", false, "宮城県栗原市")]
+    [DataRow(true, "<Int>震度５弱以上未入電</Int>", false, "宮城県栗原市")]
+    [DataRow(false, "", false, "宮城県北部")]
+    [DataRow(false, "<Int>7</Int>", true, "宮城県北部")]
+    public void Vxse53KeepsReportedAggregateWhenDetailedIntensityIsUnavailable(
+        bool hasCity, string intensity, bool hideNonJmaStations, string expectedPlace)
+    {
+        string station = $"<IntensityStation><Name>栗原市築館＊</Name><Code>0421320</Code>{intensity}</IntensityStation>";
+        string details = hasCity
+            ? $"<City><Name>栗原市</Name><Code>0421300</Code><MaxInt>7</MaxInt>{station}</City>"
+            : station;
+        string xml = $"""
+            <Report><Control><Title>震源・震度に関する情報</Title></Control>
+            <Head><EventID>aggregate</EventID></Head>
+            <Body><Intensity><Observation><MaxInt>7</MaxInt>
+              <Pref><Name>宮城県</Name><Code>04</Code>
+                <Area><Name>宮城県北部</Name><Code>220</Code><MaxInt>7</MaxInt>{details}</Area>
+              </Pref>
+            </Observation></Intensity></Body></Report>
+            """;
+        var raw = new RawProviderMessage("jma-xml", xml, SourceMode.HistoryRehearsal, DateTimeOffset.UnixEpoch)
+            { ContentFormat = RawProviderContentFormat.JmaXml };
+        var quake = Assert.IsInstanceOfType<QuakeEvent>(
+            new JmaXmlEventNormalizer(new EventSignatureBuilder()).Normalize(raw).Event);
+        DisplaySettings display = AppSettings.CreateDefault().Display with { HideNonJmaIntensityStations = hideNonJmaStations };
+        DisplayBlock[] blocks = new PageComposer().Compose(quake, display).Pages.SelectMany(page => page.Blocks)
+            .Where(block => block.StyleToken == DisplayStyleTokens.Intensity).ToArray();
+
+        Assert.AreEqual(expectedPlace, blocks.Single(block => block.Badge == "震度7").PrimaryText);
+        if (intensity.Contains("未入電", StringComparison.Ordinal))
+            Assert.IsTrue(blocks.Any(block => block.Badge == "震度5弱以上 未入電"));
+        if (hideNonJmaStations)
+        {
+            QuakePoint originalStation = quake.Points.Single();
+            Assert.AreEqual("栗原市築館＊", originalStation.Address);
+            Assert.AreEqual("0421320", originalStation.StationCode);
+            Assert.DoesNotContain("築館", string.Concat(blocks.Select(block => block.PrimaryText)));
         }
     }
 
@@ -2115,6 +2246,12 @@ public sealed class JmaXmlEventNormalizerTests
         Assert.AreEqual("岩手県", tsunami.Areas[0].Name);
         Assert.AreEqual(TsunamiGrade.Watch, tsunami.Areas[0].Grade);
         Assert.IsTrue(tsunami.WarningStateChanged);
+        Assert.AreEqual(TsunamiGrade.Warning, tsunami.Areas[0].PreviousGrade);
+        DisplayProgram program = new PageComposer().Compose(tsunami, AppSettings.CreateDefault().Display);
+        Assert.AreEqual("津波警報・注意報が切り替えられました", program.Pages[0].Blocks[0].PrimaryText);
+        Assert.AreEqual("津波注意報", program.Pages[0].Blocks[1].Badge);
+        Assert.AreEqual("岩手県で発表中", program.Pages[0].Blocks[1].PrimaryText);
+        Assert.AreEqual("津波警報から切り替えられました。", program.Pages[0].Blocks[1].SecondaryText);
     }
 
     [TestMethod]

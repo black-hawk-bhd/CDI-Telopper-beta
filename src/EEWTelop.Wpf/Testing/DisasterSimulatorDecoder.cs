@@ -44,6 +44,18 @@ internal static class DisasterSimulatorDecoder
         int.TryParse(Text(value, name), NumberStyles.Integer, CultureInfo.InvariantCulture, out int result) &&
         result is >= 1 and <= 4 ? result : 0;
 
+    private static EewIntensityRange? DecodeMaximumForecastIntensity(JsonElement item)
+    {
+        JsonElement forecast = Get(item, "maximumForecastIntensity");
+        string lowerBound = Text(forecast, "from").Trim();
+        string upperBound = Text(forecast, "to").Trim();
+        bool isOpenEnded = string.Equals(upperBound, "over", StringComparison.Ordinal);
+        return EewIntensityRange.Create(
+            lowerBound.Length > 0 ? Scale(lowerBound) : null,
+            upperBound.Length > 0 && !isOpenEnded ? Scale(upperBound) : null,
+            isOpenEnded);
+    }
+
     private static LongPeriodIntensityInfo? DecodeLongPeriodIntensity(JsonElement item)
     {
         JsonElement value = Get(item, "longPeriodIntensity");
@@ -81,12 +93,14 @@ internal static class DisasterSimulatorDecoder
             CorrectionType.None, Text(item, "serial"), Flag(item, "isTelegramCancellation") ? "取消" : "");
         var eq = Get(item, "earthquake");
         var h = Get(eq, "hypocenter");
+        string condition = Text(h, "condition").Trim();
         double? depth = Number(h, "depthKilometers");
         var earthquake = new EarthquakeInfo(Time(eq, "originTime") ?? issued, null,
             h.ValueKind == JsonValueKind.Object ? new HypocenterInfo(Text(h, "name"), Text(h, "name"),
                 Number(h, "latitude"), Number(h, "longitude"),
                 depth is >= 0 and <= 1000 ? (int)depth.Value : null,
-                Number(h, "magnitude") ?? Number(eq, "magnitude"), "") : null,
+                condition == HypocenterInfo.ProvisionalCondition ? null : Number(h, "magnitude") ?? Number(eq, "magnitude"),
+                condition) : null,
             Scale(Text(eq, "maximumIntensity")), EnumValue<DomesticTsunami>(eq, "domesticTsunami"),
             EnumValue<ForeignTsunami>(eq, "foreignTsunami")) { OriginTimeIsKnown = Time(eq, "originTime") is not null };
         DisasterEvent result = kind switch
@@ -110,7 +124,10 @@ internal static class DisasterSimulatorDecoder
                     return new EewArea(Text(a, "prefecture"), Text(a, "name"),
                         Scale(from), (int)Scale(to), EewWarningKind.Unknown, Time(a, "arrivalTime"));
                 }).ToArray(), Flag(item, "isWarning"), Flag(item, "isFinal"), cancelled, true)
-                { SourceMessageTime = Time(item, "sourceMessageTime") ?? Time(item, "issuedAt") },
+                {
+                    MaximumForecastIntensity = cancelled ? null : DecodeMaximumForecastIntensity(item),
+                    SourceMessageTime = Time(item, "sourceMessageTime") ?? Time(item, "issuedAt"),
+                },
             "tsunami" => new TsunamiEvent(eventId, provider, issued, receivedAt, "", SourceMode.ManualTest, issue,
                 Array(item, "areas").Select(a =>
                 {
@@ -128,6 +145,8 @@ internal static class DisasterSimulatorDecoder
                             ? new TsunamiMaximumHeight(Text(Get(a, "maximumHeight"), "description"), Number(Get(a, "maximumHeight"), "valueMeters"),
                                 Time(Get(a, "maximumHeight"), "observedAt"), Text(Get(a, "maximumHeight"), "condition")) : null)
                         { Role = EnumValue<TsunamiInformationRole>(a, "role"), Code = Text(a, "code"),
+                        PreviousGrade = Enum.TryParse(Text(a, "previousGrade"), out TsunamiGrade previousGrade) &&
+                            Enum.IsDefined(previousGrade) ? previousGrade : null,
                             ParentAreaName = Text(a, "parentAreaName"), ParentAreaCode = Text(a, "parentAreaCode"),
                             HighTideAt = Time(a, "highTideAt") };
                 }).ToArray(),

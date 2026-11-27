@@ -139,8 +139,8 @@ run('left alignment moves the group without changing its contents or inner layou
   });
 });
 run('estimates are attached to their own warning in both layouts', () => {
-  const firstDetails = '予想最大震度 7　推定M 9.9';
-  const secondDetails = '予想最大震度 5弱〜5強　推定M 6.6';
+  const firstDetails = '予想最大震度 7　推定マグニチュード 9.9';
+  const secondDetails = '予想最大震度 5弱〜5強　推定マグニチュード 6.6';
   const firstBlocks = warning(first);
   const secondBlocks = warning(second);
   firstBlocks[2].eewEstimateText = firstDetails;
@@ -170,17 +170,15 @@ run('cancellation replaces its card only', () => {
   assert(getComputedStyle(panels[0]).backgroundColor === horizontalStyle.background, 'Cancellation body color differs');
   assert(getComputedStyle(panels[0].querySelector('.vertical-eew-title')).backgroundColor === 'rgb(85, 85, 85)', 'Cancellation heading not gray');
 });
-run('left cancellation and training label stay separate from the page number', () => {
+run('left cancellation keeps the training label and the other warning visible', () => {
   const cancel = card('先ほどの、緊急地震速報を取り消します', [], true);
-  applySnapshot({ ...base, alignVerticalEewWarningsLeft: true, pageIndicator: '1 / 2',
+  applySnapshot({ ...base, alignVerticalEewWarningsLeft: true,
     rehearsalLabel: '訓練・試験電文 実際の地震ではありません', blocks: [...warning(cancel), ...warning(first)] });
   const panels = checkFit();
   assert(!banner.hidden && banner.textContent.includes('訓練'), 'Training banner hidden');
   assert(panels[0].getBoundingClientRect().top > banner.getBoundingClientRect().bottom, 'Training banner overlaps');
   assert(panels[0].classList.contains('cancelled') && panels[0].textContent.includes('取り消します'), 'Cancel lost');
   assert(panels[1].textContent.includes('石川'), 'Other warning lost');
-  assert(!pageIndicator.hidden && pageIndicator.getBoundingClientRect().left > panels[1].getBoundingClientRect().right,
-    'Page number overlaps left cards');
 });
 run('forecast and legacy snapshots fall back to horizontal', () => {
   const forecast = warning(first).map(({ eewCard, ...block }) => block);

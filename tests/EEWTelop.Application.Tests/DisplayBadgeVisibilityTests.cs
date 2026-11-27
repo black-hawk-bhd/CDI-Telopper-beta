@@ -42,13 +42,13 @@ public sealed class DisplayBadgeVisibilityTests
     {
         var settings = AppSettings.CreateDefault();
         var source = Program(SourceMode.Production);
-        var replay = ReplayPresentation.Apply(source, settings.History, source.IssuedAt, true, true);
+        var replay = ReplayPresentation.Apply(source, settings.History, source.IssuedAt, true);
         Assert.IsTrue(replay.IsReplayPresentation);
         Assert.IsFalse(DisplayBadgeVisibility.HideInformationBadges(replay, settings.Display));
         Assert.IsTrue(DisplayBadgeVisibility.HideInformationBadges(replay, settings.Display with
             { HideNormalInformationBadges = true }));
         var hiddenReplay = ReplayPresentation.Apply(source, settings.History with
-            { HideInformationBadges = true }, source.IssuedAt, true, true);
+            { HideInformationBadges = true }, source.IssuedAt, true);
         Assert.IsTrue(DisplayBadgeVisibility.HideInformationBadges(hiddenReplay, settings.Display));
         Assert.AreEqual(SourceMode.Production, hiddenReplay.SourceMode);
     }

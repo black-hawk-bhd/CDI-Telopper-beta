@@ -7,6 +7,8 @@ namespace EEWTelop.Application.Display;
 
 internal static class EewPageComposer
 {
+    internal const string EstimatedMagnitudePrefix = "推定マグニチュード ";
+
     public static DisplayProgram Compose(EewEvent eew, DisplaySettings settings)
     {
         var blocks = new List<DisplayBlock>();
@@ -64,7 +66,6 @@ internal static class EewPageComposer
 
         return PageComposerSupport.CreateProgram(
             eew,
-            settings,
             OverlayPriority.Eew,
             EndPolicy.AutoHide,
             [new PageDraft(blocks)]);
@@ -75,9 +76,14 @@ internal static class EewPageComposer
         var details = new List<string>(2);
         if (eew.MaximumForecastIntensity is { } range)
         {
-            string lower = ScaleFormatter.Format(range.From);
-            string intensity = range.IsOpenEnded ? lower + "以上" :
-                range.From == range.To ? lower : $"{lower}〜{ScaleFormatter.Format(range.To)}";
+            string intensity = range switch
+            {
+                { IsOpenEnded: true } => ScaleFormatter.Format(range.From) + "以上",
+                { From: JmaScale.Unknown } => "上限 " + ScaleFormatter.Format(range.To),
+                { To: JmaScale.Unknown } => "下限 " + ScaleFormatter.Format(range.From),
+                _ when range.From == range.To => ScaleFormatter.Format(range.From),
+                _ => $"{ScaleFormatter.Format(range.From)}〜{ScaleFormatter.Format(range.To)}",
+            };
             details.Add($"予想最大震度 {intensity}");
         }
         else if (eew.Earthquake?.MaximumScale is { } scale && scale != JmaScale.Unknown &&
@@ -86,9 +92,10 @@ internal static class EewPageComposer
             details.Add($"予想最大震度 {ScaleFormatter.Format(scale)}");
         }
 
-        if (eew.Earthquake?.Hypocenter?.Magnitude is { } magnitude && double.IsFinite(magnitude) && magnitude > 0)
+        if (eew.Earthquake?.Hypocenter is { Condition: not HypocenterInfo.ProvisionalCondition, Magnitude: { } magnitude } &&
+            double.IsFinite(magnitude) && magnitude > 0)
         {
-            details.Add("推定M " + magnitude.ToString("0.0", CultureInfo.InvariantCulture));
+            details.Add(EstimatedMagnitudePrefix + magnitude.ToString("0.0", CultureInfo.InvariantCulture));
         }
 
         return details.Count == 0 ? null : string.Join("　", details);

@@ -108,5 +108,4 @@ public static class DisplayStyleTokens
     public const string VolcanoWarning = "volcano-warning";
     public const string EruptionFlash = "eruption-flash";
     public const string Empty = "empty";
-    public const string PageIndicator = "page-indicator";
 }

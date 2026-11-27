@@ -19,6 +19,8 @@ public sealed class SettingsTabLayoutTests
         XElement[] tabs = LoadControlWindow().Descendants(Presentation + "TabItem").ToArray();
         CollectionAssert.AreEqual(SplitTabHeaders, tabs.Take(4).Select(tab => (string)tab.Attribute("Header")!).ToArray());
         Assert.IsFalse(tabs.Any(tab => (string?)tab.Attribute("Header") is "受信・フィルター" or "表示・出力"));
+        Assert.IsFalse(tabs.SelectMany(tab => tab.Descendants(Presentation + "CheckBox"))
+            .Any(control => (string?)control.Attribute("Content") == "ページ番号を表示"));
         foreach (string header in SplitTabHeaders)
         {
             XElement tab = tabs.Single(item => (string?)item.Attribute("Header") == header);
@@ -32,7 +34,7 @@ public sealed class SettingsTabLayoutTests
             ["受信"] = ["受信元", "DMDATA.JP 契約情報", "互換設定"],
             ["フィルター"] = ["表示フィルター"],
             ["表示"] = ["ページと文字", "本番情報の繰り返し表示"],
-            ["出力"] = ["キャンバス", "字幕と一緒に送出する画像", "OBS Local View", "CDI External API v1", "訓練・リハーサル専用API", "OBS WebSocket 自動登録"],
+            ["出力"] = ["デスクトップ表示", "キャンバス", "字幕と一緒に送出する画像", "OBS Local View", "CDI External API v1", "訓練・リハーサル専用API", "OBS WebSocket 自動登録"],
         };
         foreach ((string header, string[] expectedGroups) in groups)
         {
@@ -40,6 +42,15 @@ public sealed class SettingsTabLayoutTests
             CollectionAssert.AreEqual(expectedGroups, tab.Descendants(Presentation + "GroupBox")
                 .Select(group => (string)group.Attribute("Header")!).ToArray());
         }
+    }
+
+    [TestMethod]
+    public void P2pReceptionHasNoConnectionPresetPicker()
+    {
+        XElement panel = LoadControlWindow().Descendants(Presentation + "TextBlock")
+            .Single(item => (string?)item.Attribute("Text") == "P2P地震情報 API").Parent!;
+        Assert.AreEqual("受信", ParentTab(panel));
+        Assert.IsFalse(panel.Elements(Presentation + "ComboBox").Any());
     }
 
     [TestMethod]
@@ -97,9 +108,12 @@ public sealed class SettingsTabLayoutTests
             ("表示", "ItemsSource", "{Binding Settings.TelegramPageDurations}"),
             ("表示", "IsChecked", "{Binding Settings.SeparateIntensityPagesByScale}"),
             ("表示", "IsChecked", "{Binding Settings.LimitActiveWeatherAreaRowsToTwo}"),
+            ("表示", "IsChecked", "{Binding Settings.ShowTsunamiDowngradeGradeBadge}"),
             ("表示", "IsChecked", "{Binding Settings.ProductionReplayQuakeEnabled}"),
             ("表示", "Command", "{Binding ResetDisplaySettingsCommand}"),
             ("表示", "Command", "{Binding ResetProductionReplaySettingsCommand}"),
+            ("出力", "IsChecked", "{Binding Settings.DesktopOverlayEnabled}"),
+            ("出力", "IsChecked", "{Binding Settings.DesktopOverlayTopmost}"),
             ("出力", "SelectedItem", "{Binding Settings.BackgroundMode}"),
             ("出力", "Text", "{Binding Settings.Width}"),
             ("出力", "Text", "{Binding Settings.Height}"),

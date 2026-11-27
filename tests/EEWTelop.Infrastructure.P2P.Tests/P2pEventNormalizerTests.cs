@@ -17,6 +17,20 @@ public sealed class P2pEventNormalizerTests
     private readonly P2pEventNormalizer _normalizer = new(new EventSignatureBuilder());
 
     [TestMethod]
+    [DataRow("仮定震源要素", null)]
+    [DataRow("", 1.0)]
+    public void Code556KeepsMagnitudeOnlyForANonProvisionalHypocenter(string condition, double? expected)
+    {
+        var payload = System.Text.Json.Nodes.JsonNode.Parse(ReadFixture("556-eew.json"))!;
+        var earthquake = payload["earthquake"]!;
+        earthquake["condition"] = condition;
+        earthquake["hypocenter"]!["magnitude"] = 1.0;
+
+        var eew = Assert.IsInstanceOfType<EewEvent>(_normalizer.Normalize(CreateRaw(payload.ToJsonString())).Event);
+        Assert.AreEqual(expected, eew.Earthquake?.Hypocenter?.Magnitude);
+    }
+
+    [TestMethod]
     public void Code551NormalizesToProviderIndependentQuakeEvent()
     {
         NormalizeResult result = NormalizeFixture("551-detail-scale.json");

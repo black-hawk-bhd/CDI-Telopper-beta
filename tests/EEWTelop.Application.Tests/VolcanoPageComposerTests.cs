@@ -177,11 +177,9 @@ public sealed class VolcanoPageComposerTests
         Assert.IsTrue(
             textPages.All(page =>
                 page.Blocks
-                    .Where(static block => block.StyleToken != DisplayStyleTokens.PageIndicator)
                     .Sum(block => EstimateVisualLines(block.PrimaryText)) <= 3),
             string.Join(" | ", textPages.Select(page =>
                 $"{page.Index}:{page.Blocks
-                    .Where(static block => block.StyleToken != DisplayStyleTokens.PageIndicator)
                     .Sum(block => EstimateVisualLines(block.PrimaryText))}:" +
                 string.Join("/", page.Blocks.Select(static block => block.PrimaryText)))));
         Assert.IsTrue(program.Pages.Any(page =>
@@ -210,8 +208,7 @@ public sealed class VolcanoPageComposerTests
             appendix: "噴火警戒レベルの説明。"));
 
         Assert.AreEqual(1, program.Pages.Count);
-        Assert.AreEqual(1, program.Pages[0].Blocks.Count(block =>
-            block.StyleToken != DisplayStyleTokens.PageIndicator));
+        Assert.HasCount(1, program.Pages[0].Blocks);
         Assert.AreEqual("噴火警報", program.Pages[0].Blocks[0].Badge);
         Assert.AreEqual(
             "阿蘇山に火口周辺警報（噴火警戒レベル３、入山規制）を発表しました\n" +

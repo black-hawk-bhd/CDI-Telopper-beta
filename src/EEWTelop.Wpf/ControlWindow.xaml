@@ -8,7 +8,8 @@
         Icon="Assets/CDI-Telopper.ico"
         Width="1240" Height="820" MinWidth="1040" MinHeight="700"
         Background="#FF0F141B" Foreground="White"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        Loaded="OnControlWindowLoaded">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <SolidColorBrush x:Key="PanelBrush" Color="#FF18212B" />
@@ -272,6 +273,9 @@
                             <Button Content="受信前の定型文を編集"
                                     ToolTip="『念のため津波に注意してください』など、受信前に用意する固定文を編集します。決定後は「保存して反映」を押してください。"
                                     Command="{Binding EditSubtitlePhraseTemplatesCommand}" />
+                            <Button x:Name="ClearDesktopOverlayButton" Content="デスクトップ表示を消去"
+                                    Style="{StaticResource DangerButton}" Command="{Binding ClearDesktopOverlayCommand}"
+                                    ToolTip="デスクトップに重ねて表示している字幕を消去します。受信とOBS出力は継続します。" />
                             <TextBlock Text="種別別に表示を消去" Foreground="{StaticResource MutedBrush}" Margin="0,5,0,2" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -388,7 +392,7 @@
                                                   DisplayMemberPath="Label" SelectedValuePath="Value"
                                                   SelectedValue="{Binding Settings.NankaiTroughProvider}" />
                                     </Grid>
-                                    <TextBlock Text="YDITSは一般向け緊急地震速報（警報・VXSE43）専用です。Sandboxでは接続しません。ベータ提供のため配信の遅延・停止があり、警報の対象地域は表示できません。"
+                                    <TextBlock Text="YDITSは一般向け緊急地震速報（警報・VXSE43）専用です。ベータ提供のため配信の遅延・停止があり、警報の対象地域は表示できません。"
                                                Visibility="{Binding Settings.IsYditsEewProvider, Converter={StaticResource BooleanToVisibilityConverter}}"
                                                TextWrapping="Wrap" Foreground="Orange" Margin="0,8,0,0" />
                                     <TextBlock Text="YDITSのテスト電文は訓練扱いです。ブラウザーモニターの「受信済み電文の個別確認」で確認できます。字幕や音声は自動送出しません。"
@@ -396,14 +400,9 @@
                                                TextWrapping="Wrap" Foreground="Orange" Margin="0,8,0,0" />
                                     <TextBlock Text="気象庁XML：手動選択／接続障害時の自動代替・60秒以上の間隔で巡回。緊急地震速報は対象外です。公開の遅延・停止や、長時間の停止中の取りこぼしがあり、即時配信は保証されません。手動接続前の電文は新着表示しません。" TextWrapping="Wrap" Foreground="Orange" Margin="0,8,0,8" />
                                     <CheckBox Content="接続障害時に気象庁XMLへ自動切替（緊急地震速報対象外）" IsChecked="{Binding Settings.JmaXmlAutoFallback}" IsEnabled="{Binding Settings.IsJmaFallbackAvailable}" />
-                                    <TextBlock Text="DMDATA.JP・P2P・AXISの再接続・異常が30秒続いた場合、対応情報を60秒以上の間隔で代替取得します。復旧後は元に戻ります。新着なしだけでは切り替えず、Sandboxは対象外です。" TextWrapping="Wrap" Foreground="Orange" Margin="0,0,0,8" />
+                                    <TextBlock Text="DMDATA.JP・P2P・AXISの再接続・異常が30秒続いた場合、対応情報を60秒以上の間隔で代替取得します。復旧後は元に戻ります。新着なしだけでは切り替えません。" TextWrapping="Wrap" Foreground="Orange" Margin="0,0,0,8" />
                                     <StackPanel Visibility="{Binding Settings.IsP2pProvider, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <TextBlock Text="P2P地震情報 API" FontWeight="Bold" />
-                                        <TextBlock Text="運用モード（接続先プリセット）" Foreground="{StaticResource MutedBrush}" />
-                                        <ComboBox ItemsSource="{Binding Settings.ProviderModes}"
-                                                  SelectedItem="{Binding Settings.ProviderMode}" />
-                                        <TextBlock Text="Sandboxは専用WSへ接続します。約30秒間隔で受信しますが、554/555/561/9611は表示対象外のため受信結果とログだけ更新されます。"
-                                                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,5,0,0" />
                                         <TextBlock Text="P2P地震情報 APIは気象庁が運営する公式APIではありません。気象庁などの公式情報と併用し、提供元の利用条件とレート制限を守って使用してください。"
                                                    Foreground="#FFFFC66D" TextWrapping="Wrap" Margin="0,5,0,0" />
                                     </StackPanel>
@@ -693,7 +692,6 @@
                                                 </ItemsControl>
                                             </StackPanel>
                                         </Expander>
-                                        <CheckBox Content="ページ番号を表示" IsChecked="{Binding Settings.ShowPageIndicator}" />
                                         <CheckBox Content="緊急地震速報（警報）を縦型で表示"
                                                   IsChecked="{Binding Settings.UseVerticalEewWarningLayout}"
                                                   ToolTip="初期値はOFF（従来の横型）です。ONでは震源地・対象地域を縦書きで表示します。初期の配置は右側で、下の設定で左側へ切り替えられます。2件同時の警報は横に並べます。取消も縦型、予報は従来表示です。ブラウザプレビュー・OBSに共通で反映し、音声や本番・訓練の区分は変更しません。" />
@@ -701,9 +699,9 @@
                                                   IsChecked="{Binding Settings.AlignVerticalEewWarningsLeft}"
                                                   IsEnabled="{Binding Settings.UseVerticalEewWarningLayout}"
                                                   ToolTip="初期値はOFF（右揃え）です。ONでは縦型の帯を画面左側へ配置します。2件の帯の並び順・帯の中の配置・色・文字は変えません。保存して反映すると表示中の警報にも適用します。横型には影響しません。" />
-                                        <CheckBox Content="緊急地震速報の継続報で更新された地域名をオレンジ色にする"
+                                        <CheckBox Content="緊急地震速報の続報で追加された警報対象地域をオレンジ色にする"
                                                   IsChecked="{Binding Settings.HighlightEewAreaChanges}"
-                                                  ToolTip="初期値はOFFです。同じ警報の前報にもあった地域で、予想震度・到達時刻・警報の状態が変わったものだけを強調します。保存後に受信する継続報から反映します。" />
+                                                  ToolTip="初期値はOFFです。同じ地震の前報と比べ、新たに警報対象となった府県予報区を強調します。地方名にまとめて表示する場合は、追加された府県予報区を含む地方名を強調します。" />
                                         <CheckBox Content="緊急地震速報に予想最大震度・推定マグニチュードを表示"
                                                   IsChecked="{Binding Settings.ShowEewEstimates}"
                                                   ToolTip="初期値はオフです。有効な場合は、受信した警報に含まれる予想値をプレビューとOBSに表示します。［保存して反映］で適用します。" />
@@ -718,6 +716,9 @@
                                                   ToolTip="初期値はONです。新規発表・更新・継続・解除など、全ての状態の地名一覧に適用します。余った地名は都道府県・状態を添えて次ページに表示します。OFFでは従来の3行表示です。説明文のページは変更しません。" />
                                         <CheckBox Content="津波予報（0.2m／若干の海面変動）を表示"
                                                   IsChecked="{Binding Settings.ShowTsunamiForecast}" />
+                                        <CheckBox Content="津波警報・注意報の切替時に現在の区分をバッジで表示"
+                                                  IsChecked="{Binding Settings.ShowTsunamiDowngradeGradeBadge}"
+                                                  ToolTip="初期値はONです。区分が下がったときの切替ページに適用します。OFFでは現在の区分を字幕に表示します。保存後に生成するページから反映します。" />
                                         <CheckBox Content="津波注意報以上の発表中は震度速報の定型注意文を省く"
                                                   IsChecked="{Binding Settings.OmitScalePromptCautionWhenTsunamiWarningActive}"
                                                   ToolTip="初期値はOFFです。津波情報の表示を有効にし、同じ地震の有効な津波注意報・警報を受信済みの場合に、新たな震度速報の「念のため津波に注意してください。」だけを省きます。" />
@@ -796,6 +797,14 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <StackPanel>
+                                <GroupBox Header="デスクトップ表示">
+                                    <StackPanel>
+                                        <CheckBox Content="デスクトップにスーパーを表示"
+                                                  IsChecked="{Binding Settings.DesktopOverlayEnabled}" />
+                                        <CheckBox Content="常に手前に表示"
+                                                  IsChecked="{Binding Settings.DesktopOverlayTopmost}" />
+                                    </StackPanel>
+                                </GroupBox>
                                 <GroupBox Header="キャンバス">
                                     <StackPanel>
                                         <TextBlock Text="背景" Foreground="{StaticResource MutedBrush}" />

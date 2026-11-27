@@ -105,6 +105,51 @@ public sealed class JsonDisplayStateStoreTests
     }
 
     [TestMethod]
+    public async Task LegacyPageNumbersAreRemovedFromRestoredCaptions()
+    {
+        string path = Path.Combine(_directory, "legacy-state.json");
+        var store = new JsonDisplayStateStore(path, new UiLogBuffer());
+        DisplayStateDocument state = CreateState();
+        StoredDisplayProgram program = state.Current!;
+        StoredDisplayPage first = program.Pages[0];
+        DisplayBlock[] WithPageNumber(int index) =>
+            [.. first.Blocks, new DisplayBlock("", $"{index} / 2", "", "page-indicator")];
+        var legacy = program with
+        {
+            Pages =
+            [
+                first with { Blocks = WithPageNumber(1) },
+                first with { Index = 2, Blocks = WithPageNumber(2) },
+            ],
+        };
+        await store.SaveAsync(state with { Current = legacy, PersistentTsunami = legacy });
+
+        var restored = (await store.LoadAsync()).ToRestoreState(state.SavedAtUtc);
+        Assert.IsNotNull(restored.PersistentTsunami);
+        var pages = restored.PersistentTsunami.Program.Pages;
+        CollectionAssert.AreEqual(legacy.Pages.Select(page => page.Index).ToArray(), pages.Select(page => page.Index).ToArray());
+        foreach (DisplayPage page in pages)
+        {
+            CollectionAssert.AreEqual(first.Blocks.ToArray(), page.Blocks.ToArray());
+            Assert.AreEqual(first.AccessibleText, page.AccessibleText);
+        }
+    }
+
+    [TestMethod]
+    [DataRow("推定M 6.6", "推定マグニチュード 6.6")]
+    [DataRow("予想最大震度 7　推定M 6.6", "予想最大震度 7　推定マグニチュード 6.6")]
+    [DataRow("予想最大震度 7", "予想最大震度 7")]
+    [DataRow(null, null)]
+    public void RestoredWarningUsesTheFullMagnitudeLabel(string? storedEstimate, string? expected)
+    {
+        var block = new DisplayBlock("", "石川", "", DisplayStyleTokens.EewAreas) { EewEstimateText = storedEstimate };
+        var page = new StoredDisplayPage(1, [block], "石川", null).ToPage();
+
+        Assert.AreEqual("石川", page.Blocks[0].PrimaryText);
+        Assert.AreEqual(expected, page.Blocks[0].EewEstimateText);
+    }
+
+    [TestMethod]
     public async Task LegitimateEmptyStateAllowsNullCurrentAndPersistentPrograms()
     {
         string path = Path.Combine(_directory, "state.json");

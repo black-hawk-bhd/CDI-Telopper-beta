@@ -1,12 +1,11 @@
 using System.Text.RegularExpressions;
-using EEWTelop.Application.Configuration;
 using EEWTelop.Domain.Events;
 
 namespace EEWTelop.Application.Display;
 
 internal static partial class WeatherWarningPageComposer
 {
-    private static DisplayProgram ComposeRiverFlood(WeatherWarningEvent weather, DisplaySettings settings)
+    private static DisplayProgram ComposeRiverFlood(WeatherWarningEvent weather)
     {
         RiverFloodInfo flood = weather.RiverFlood!;
         string style = weather.IsCancelled ? DisplayStyleTokens.WeatherCancel : flood.AlertLevel switch
@@ -90,7 +89,7 @@ internal static partial class WeatherWarningPageComposer
                 }
             }
         }
-        return PageComposerSupport.CreateProgram(weather, settings,
+        return PageComposerSupport.CreateProgram(weather,
             flood.AlertLevel == 2 || weather.IsCancelled ? OverlayPriority.WeatherAdvisory : OverlayPriority.WeatherWarning,
             EndPolicy.AutoHide, pages.ToArray());
     }

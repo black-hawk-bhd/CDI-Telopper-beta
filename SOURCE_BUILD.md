@@ -59,7 +59,7 @@ stream instead of being retained as a complete batch before delivery.
 After verification succeeds, build the next unified beta release:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.76
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 2.0.0-beta.77
 ```
 
 Starting with beta.75, place both ZIPs in the same GitHub release and list the
@@ -70,7 +70,7 @@ self-contained package first in the download instructions.
 
 Both ZIPs include the JMA training XML and its attribution in `TrainingSamples`.
 Both ZIPs, `version.json`, and `SHA256SUMS.txt` are written to
-`artifacts\release\2.0.0-beta.76\win-x64`. The script restores each deployment
+`artifacts\release\2.0.0-beta.77\win-x64`. The script restores each deployment
 mode, verifies its runtime configuration, and checks startup. For the lightweight
 startup check, install the required Desktop Runtime on the build PC. Use
 `-OutputLabel` for local verification builds and `-PackageMode Both` when

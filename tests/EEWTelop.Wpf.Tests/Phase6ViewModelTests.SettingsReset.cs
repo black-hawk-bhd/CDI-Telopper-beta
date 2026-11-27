@@ -219,7 +219,13 @@ public sealed partial class Phase6ViewModelTests
     public async Task ResetAllSettingsReconfiguresAnActiveReceiverWithoutASecondReader()
     {
         AppSettings defaults = AppSettings.CreateDefault();
-        AppSettings settings = defaults with { Provider = defaults.Provider with { Mode = ProviderMode.Sandbox } };
+        AppSettings settings = defaults with
+        {
+            Provider = defaults.Provider with
+            {
+                Routing = defaults.Provider.Routing with { Eew = ReceptionProvider.Disabled },
+            },
+        };
         var source = new FaultedActiveConfigurableEventSource();
         var services = CreateServices(ProviderConnectionState.Stopped, suppliedSettings: settings, suppliedEventSource: source);
         await using var viewModel = new ControlWindowViewModel(services, settings,
@@ -233,7 +239,7 @@ public sealed partial class Phase6ViewModelTests
         Assert.AreEqual(2, source.ReadCount);
         Assert.IsTrue(source.IsReaderActive);
         Assert.IsGreaterThanOrEqualTo(1, source.StopCount);
-        Assert.AreEqual(ProviderMode.Production, (await services.SettingsStore.LoadAsync()).Provider.Mode);
+        Assert.AreEqual(defaults.Provider.Routing, (await services.SettingsStore.LoadAsync()).Provider.Routing);
         Assert.IsFalse(services.UiLogs.GetSnapshot().Any(entry => entry.EventName == "AllSettingsResetFailed"));
     }
 

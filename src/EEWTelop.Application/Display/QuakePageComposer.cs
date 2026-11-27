@@ -21,7 +21,6 @@ internal static partial class QuakePageComposer
                 PageComposerSupport.GetQuakeCancellationSubject(quake));
             return PageComposerSupport.CreateProgram(
                 quake,
-                settings,
                 OverlayPriority.Quake,
                 EndPolicy.AutoHide,
                 [new PageDraft(
@@ -62,7 +61,6 @@ internal static partial class QuakePageComposer
 
         return PageComposerSupport.CreateProgram(
             quake,
-            settings,
             OverlayPriority.Quake,
             EndPolicy.AutoHide,
             pages);
@@ -479,14 +477,32 @@ internal static partial class QuakePageComposer
         for (int index = 0; index < points.Count; index++)
         {
             QuakePoint point = points[index];
-            if (point.Scale == JmaScale.Unknown || hideNonJmaStations && point.IsNonJmaIntensityStation)
+            if (point.Scale == JmaScale.Unknown)
             {
                 continue;
             }
 
-            string displayName = string.IsNullOrWhiteSpace(point.DisplayName)
-                ? PlaceNormalizer.BuildDisplayName(point.Prefecture, point.Address, point.IsArea)
-                : point.DisplayName;
+            string displayName = point.DisplayName;
+            if (hideNonJmaStations && point.IsNonJmaIntensityStation)
+            {
+                bool hasMunicipality = !string.IsNullOrWhiteSpace(point.MunicipalityName);
+                JmaScale reportedMaximum = hasMunicipality
+                    ? point.MunicipalityMaximumScale : point.SeismicAreaMaximumScale;
+                string reportedPlace = hasMunicipality ? point.MunicipalityName : point.SeismicAreaName;
+                // Keep the bulletin's peak intensity under the reported city or area when its station is hidden.
+                if (point.Scale != earthquakeMaximum || point.Scale != reportedMaximum ||
+                    point.Scale == JmaScale.FiveLowerOrMore || string.IsNullOrWhiteSpace(reportedPlace))
+                {
+                    continue;
+                }
+
+                displayName = PlaceNormalizer.BuildDisplayName(point.Prefecture, reportedPlace, isArea: true);
+            }
+            else if (string.IsNullOrWhiteSpace(displayName))
+            {
+                displayName = PlaceNormalizer.BuildDisplayName(point.Prefecture, point.Address, point.IsArea);
+            }
+
             displayName = FormatIntensityPlaceNameForDisplay(displayName);
             bool isUnreported = point.Scale == JmaScale.FiveLowerOrMore;
             var key = (displayName, isUnreported);

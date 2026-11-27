@@ -232,13 +232,13 @@ public sealed class Phase7ObsLocalViewTests
         StringAssert.Contains(policy, "media-src 'self'");
         StringAssert.Contains(html, "background: transparent");
         StringAssert.Contains(html, "white-space: nowrap");
-        StringAssert.Contains(html, "<div id=\"pageIndicator\" hidden>");
+        Assert.DoesNotContain("pageIndicator", html);
         StringAssert.Contains(html, "<audio id=\"alertAudio\"");
 
         string script = await client.GetStringAsync($"http://127.0.0.1:{server.Port}/assets/overlay.js");
         StringAssert.Contains(script, "[\"震度5弱以上 未入電\", [\"#ff5500\", \"#fff\"]]");
         StringAssert.Contains(script, "textContent");
-        StringAssert.Contains(script, "pageIndicator.hidden = !indicatorText");
+        Assert.DoesNotContain("pageIndicator", script);
         StringAssert.Contains(script, "new EventSource");
         StringAssert.Contains(script, "alertAudio.play()");
         StringAssert.Contains(script, "const handlesAudio = !monitorMode;");

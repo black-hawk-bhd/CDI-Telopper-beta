@@ -68,6 +68,69 @@ public sealed class Phase8PersistenceDiagnosticsTests
     }
 
     [TestMethod]
+    [DataRow("Sandbox", false)]
+    [DataRow("Production", true)]
+    public async Task PreviousP2pSettingsMigrateToProductionWithoutStartingFormerSandboxAutomatically(
+        string mode, bool expectedAutoConnect)
+    {
+        string path = Path.Combine(_directory, "legacy-p2p-settings.json");
+        var routing = ProviderRoutingSettings.Default with
+        {
+            Weather = ReceptionProvider.Disabled,
+            Volcano = ReceptionProvider.Disabled,
+            NankaiTrough = ReceptionProvider.Disabled,
+        };
+        AppSettings defaults = AppSettings.CreateDefault();
+        AppSettings legacy = defaults with
+        {
+            SchemaVersion = 27,
+            Provider = defaults.Provider with { Routing = routing, AutoConnectOnStartup = true },
+        };
+        var json = System.Text.Json.JsonSerializer.SerializeToNode(legacy, CamelCaseJson)!.AsObject();
+        var provider = json["provider"]!.AsObject();
+        provider["mode"] = mode;
+        if (mode == "Sandbox")
+        {
+            provider["webSocketUrl"] = "wss://api-realtime-sandbox.p2pquake.net/v2/ws";
+            provider["restBaseUrl"] = "https://api-v2-sandbox.p2pquake.net/v2";
+        }
+        await File.WriteAllTextAsync(path, json.ToJsonString(), TestContext.CancellationToken);
+        var store = new JsonSettingsStore(path, new UiLogBuffer());
+
+        AppSettings settings = await store.LoadAsync(TestContext.CancellationToken);
+        Assert.AreEqual(AppSettings.CurrentSchemaVersion, settings.SchemaVersion);
+        Assert.AreEqual(routing, settings.Provider.Routing);
+        Assert.AreEqual(ProviderMode.Production, settings.Provider.Mode);
+        Assert.AreEqual(ProviderSettings.P2pWebSocketEndpoint, settings.Provider.WebSocketUrl);
+        Assert.AreEqual(ProviderSettings.P2pRestBaseEndpoint, settings.Provider.RestBaseUrl);
+        Assert.AreEqual(expectedAutoConnect, settings.Provider.AutoConnectOnStartup);
+        Assert.AreEqual(expectedAutoConnect, (await store.LoadAsync(TestContext.CancellationToken)).Provider.AutoConnectOnStartup);
+
+        var saved = JsonNode.Parse(await File.ReadAllTextAsync(path, TestContext.CancellationToken))!;
+        Assert.AreEqual(AppSettings.CurrentSchemaVersion, saved["schemaVersion"]!.GetValue<int>());
+        Assert.AreEqual("Production", saved["provider"]!["mode"]!.GetValue<string>());
+    }
+
+    [TestMethod]
+    public async Task LegacyPageNumberSettingIsIgnoredWhileOtherDisplaySettingsLoad()
+    {
+        string path = Path.Combine(_directory, "legacy-page-number.json");
+        var legacyJson = System.Text.Json.JsonSerializer.SerializeToNode(
+            AppSettings.CreateDefault(), CamelCaseJson)!.AsObject();
+        var display = legacyJson["display"]!.AsObject();
+        display["showPageIndicator"] = true;
+        display["pageDurationSeconds"] = 6;
+        await File.WriteAllTextAsync(path, legacyJson.ToJsonString(), TestContext.CancellationToken);
+        var store = new JsonSettingsStore(path, new UiLogBuffer());
+
+        AppSettings settings = await store.LoadAsync(TestContext.CancellationToken);
+        Assert.AreEqual(6d, settings.Display.PageDurationSeconds);
+        await store.SaveAsync(settings, TestContext.CancellationToken);
+        var saved = JsonNode.Parse(await File.ReadAllTextAsync(path, TestContext.CancellationToken))!;
+        Assert.IsFalse(saved["display"]!.AsObject().ContainsKey("showPageIndicator"));
+    }
+
+    [TestMethod]
     public async Task SettingsRoundTripUsesSchemaVersionAndLeavesNoTemporaryFile()
     {
         const string logoPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=";
@@ -111,6 +174,7 @@ public sealed class Phase8PersistenceDiagnosticsTests
                     WeatherWarning = new ProductionReplayPolicy(true, 90, true),
                 },
             },
+            DesktopOverlay = new DesktopOverlaySettings(Enabled: true, Topmost: false),
             Obs = AppSettings.CreateDefault().Obs with
             {
                 SnapshotIntervalMilliseconds = 50,
@@ -171,6 +235,7 @@ public sealed class Phase8PersistenceDiagnosticsTests
         Assert.IsTrue(actual.Display.ProductionReplay.Tsunami.Enabled);
         Assert.AreEqual(10, actual.Display.ProductionReplay.Tsunami.RepeatCount);
         Assert.IsTrue(actual.Display.ProductionReplay.WeatherWarning.AudioOnEachCycle);
+        Assert.AreEqual(expected.DesktopOverlay, actual.DesktopOverlay);
         Assert.IsTrue(actual.Obs.BrowserSourceSyncEnabled);
         Assert.AreEqual(50, actual.Obs.SnapshotIntervalMilliseconds);
         Assert.AreEqual("protected-value", actual.Obs.WebSocketProtectedPassword);
@@ -403,6 +468,30 @@ public sealed class Phase8PersistenceDiagnosticsTests
         Assert.AreEqual(AppSettings.CurrentSchemaVersion, sourceSchema);
         Assert.AreEqual(expected.Provider.Mode, actual.Provider.Mode);
         Assert.AreEqual(expected.Provider.ReceptionProvider, actual.Provider.ReceptionProvider);
+    }
+
+    [TestMethod]
+    [DataRow("0")]
+    [DataRow("1")]
+    [DataRow("\"JmaQuake\"")]
+    [DataRow("\"History\"")]
+    public async Task LegacyP2pHistorySourceLoadsAsJmaXml(string legacyApi)
+    {
+        string path = Path.Combine(_directory, "legacy-history.json");
+        AppSettings defaults = AppSettings.CreateDefault();
+        var document = System.Text.Json.JsonSerializer.SerializeToNode(defaults, CamelCaseJson)!.AsObject();
+        document["history"]!["api"] = JsonNode.Parse(legacyApi);
+        document["history"]!["limit"] = 17;
+        await File.WriteAllTextAsync(path, document.ToJsonString(), TestContext.CancellationToken);
+        var store = new JsonSettingsStore(path, new UiLogBuffer());
+
+        AppSettings settings = await store.LoadAsync(TestContext.CancellationToken);
+        var editor = new SettingsEditorViewModel(settings);
+
+        Assert.AreEqual(HistoryApi.JmaXml, settings.History.Api);
+        Assert.AreEqual(HistoryApi.JmaXml, editor.HistoryApi);
+        Assert.AreEqual(17, editor.HistoryLimit);
+        Assert.AreEqual(defaults.Provider.Routing, settings.Provider.Routing);
     }
 
     [TestMethod]

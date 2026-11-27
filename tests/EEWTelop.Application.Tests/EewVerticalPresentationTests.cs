@@ -88,7 +88,7 @@ public sealed class EewVerticalPresentationTests
     }
 
     [TestMethod]
-    public void ContinuedWarningHighlightsOnlyRevisedAreasEvenAfterAutoHide()
+    public void ContinuedWarningHighlightsOnlyNewWarningDistrictsEvenAfterAutoHide()
     {
         var settings = DisplayEventFactory.Settings with { HighlightEewAreaChanges = true };
         var composer = new PageComposer();
@@ -108,8 +108,8 @@ public sealed class EewVerticalPresentationTests
         Assert.AreEqual("石川　富山　新潟", areas.PrimaryText);
         Assert.AreEqual(plain.Pages[0].AccessibleText, updated.Pages[0].AccessibleText);
         Assert.IsNotNull(areas.EewAreaLabels);
-        Assert.AreEqual("富山", areas.EewAreaLabels.Single(label => label.IsChanged).Name);
-        Assert.Contains(new EewAreaLabel("新潟", false), areas.EewAreaLabels);
+        Assert.AreEqual("新潟", areas.EewAreaLabels.Single(label => label.IsChanged).Name);
+        Assert.Contains(new EewAreaLabel("富山", false), areas.EewAreaLabels);
         Assert.AreSame(areas.EewAreaLabels, updated.Pages[0].Blocks[0].EewAreaLabels);
 
         EewEvent identical = DisplayEventFactory.CreateEew(next.Areas.Reverse().ToArray(), issuedAt: next.IssuedAt.AddSeconds(1));
@@ -118,7 +118,7 @@ public sealed class EewVerticalPresentationTests
     }
 
     [TestMethod]
-    public void AreaChangesRespectTheSettingAndCompareIndividualAreasWithinGroupedLabels()
+    public void NewWarningDistrictsRespectTheSettingAndHighlightTheirGroupedLabel()
     {
         var disabled = DisplayEventFactory.Settings;
         var enabled = disabled with { HighlightEewAreaChanges = true };
@@ -129,7 +129,7 @@ public sealed class EewVerticalPresentationTests
         EewEvent first = DisplayEventFactory.CreateEew(areas);
         concurrent.Compose(first, composer.Compose(first, disabled), disabled);
 
-        areas = [areas[0] with { ArrivalTime = first.IssuedAt.AddSeconds(10) }, .. areas.Skip(1)];
+        areas = [.. areas, Area("山梨県")];
         EewEvent next = DisplayEventFactory.CreateEew(areas, issuedAt: first.IssuedAt.AddSeconds(1));
         var off = concurrent.Compose(next, composer.Compose(next, disabled), disabled);
         Assert.IsTrue(off.Pages[0].Blocks.All(block => block.EewAreaLabels is null));
@@ -138,7 +138,7 @@ public sealed class EewVerticalPresentationTests
         var test = concurrent.Compose(training, composer.Compose(training, enabled), enabled);
         Assert.IsTrue(test.Pages[0].Blocks.All(block => block.EewAreaLabels is null));
 
-        areas = [areas[0], areas[1] with { ScaleFrom = JmaScale.SixLower }, .. areas.Skip(2)];
+        areas = [.. areas, Area("茨城県"), areas[4] with { Name = "石川県加賀", ScaleFrom = JmaScale.SixLower }];
         EewEvent continued = DisplayEventFactory.CreateEew(areas, issuedAt: next.IssuedAt.AddSeconds(1));
         var on = concurrent.Compose(continued, composer.Compose(continued, enabled), enabled);
         var labels = on.Pages[0].Blocks.Single(block => block.StyleToken == DisplayStyleTokens.EewAreas).EewAreaLabels;
@@ -146,10 +146,24 @@ public sealed class EewVerticalPresentationTests
         Assert.AreEqual("関東", labels.Single(label => label.IsChanged).Name);
         Assert.Contains(new EewAreaLabel("北陸", false), labels);
 
-        EewEvent membershipOnly = DisplayEventFactory.CreateEew(
-            [Area("群馬県"), areas[0], areas[1], .. areas.Skip(3)], issuedAt: continued.IssuedAt.AddSeconds(1));
-        var sameForecasts = concurrent.Compose(membershipOnly, composer.Compose(membershipOnly, enabled), enabled);
-        Assert.IsTrue(sameForecasts.Pages[0].Blocks.All(block => block.EewAreaLabels is null));
+        EewEvent narrowed = DisplayEventFactory.CreateEew(
+            areas.Skip(1).Reverse().ToArray(), issuedAt: continued.IssuedAt.AddSeconds(1));
+        var noAdditions = concurrent.Compose(narrowed, composer.Compose(narrowed, enabled), enabled);
+        Assert.IsTrue(noAdditions.Pages[0].Blocks.All(block => block.EewAreaLabels is null));
+    }
+
+    [TestMethod]
+    public void WarningWithNoPreviousDistrictsKeepsAllLabelsWhite()
+    {
+        var settings = DisplayEventFactory.Settings with { HighlightEewAreaChanges = true };
+        var composer = new PageComposer();
+        var concurrent = new ConcurrentEewProgramComposer();
+        EewEvent first = DisplayEventFactory.CreateEew([]);
+        concurrent.Compose(first, composer.Compose(first, settings), settings);
+
+        EewEvent next = DisplayEventFactory.CreateEew([Area("石川県")], issuedAt: first.IssuedAt.AddSeconds(1));
+        var program = concurrent.Compose(next, composer.Compose(next, settings), settings);
+        Assert.IsTrue(program.Pages[0].Blocks.All(block => block.EewAreaLabels is null));
     }
 
     [TestMethod]

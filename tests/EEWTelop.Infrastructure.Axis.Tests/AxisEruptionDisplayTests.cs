@@ -23,10 +23,9 @@ public sealed class AxisEruptionDisplayTests
         XDocument document = LoadFixture();
         QuakeEvent quake = Normalize(document, provider, mode);
         DisplayProgram program = Compose(quake);
-        DisplayBlock[] content = program.Pages.SelectMany(static page => page.Blocks)
-            .Where(static block => block.StyleToken != DisplayStyleTokens.PageIndicator)
-            .ToArray();
+        DisplayBlock[] content = program.Pages.SelectMany(static page => page.Blocks).ToArray();
 
+        Assert.IsGreaterThan(1, program.Pages.Count);
         Assert.IsNull(quake.Earthquake.Hypocenter!.Magnitude);
         Assert.HasCount(0, quake.Points);
         Assert.IsTrue(content.All(static block => block.StyleToken == DisplayStyleTokens.Comment));
@@ -41,7 +40,6 @@ public sealed class AxisEruptionDisplayTests
             Assert.DoesNotContain("念のため津波に注意してください", page.AccessibleText);
             Assert.DoesNotContain("各地の詳しい震度情報はありません", page.AccessibleText);
         }
-        Assert.AreEqual($"1 / {program.Pages.Count}", program.Pages[0].Blocks[^1].PrimaryText);
     }
 
     [TestMethod]

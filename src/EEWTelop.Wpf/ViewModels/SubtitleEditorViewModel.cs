@@ -138,12 +138,10 @@ public sealed class EditableSubtitleBlockViewModel : ObservableObject
 
     public string StyleDescription => _sourceBlock.StyleToken;
 
-    public bool IsEditable => _sourceBlock.StyleToken != DisplayStyleTokens.PageIndicator;
-
     public DisplayBlock BuildBlock() => _sourceBlock with
     {
-        Badge = IsEditable ? Badge : _sourceBlock.Badge,
-        PrimaryText = IsEditable ? PrimaryText : _sourceBlock.PrimaryText,
-        SecondaryText = IsEditable ? SecondaryText : _sourceBlock.SecondaryText,
+        Badge = Badge,
+        PrimaryText = PrimaryText,
+        SecondaryText = SecondaryText,
     };
 }
