@@ -3,7 +3,8 @@
 
 [English](README_EN.md) | 日本語
 
-Comprehensive Disaster Information Telopper（CDI-Telopper）は、緊急地震速報、地震・津波・気象・火山などの防災情報を受信し、OBSへ字幕と通知音を送出するWindowsアプリです。
+Comprehensive Disaster Information Telopper（CDI-Telopper）は、緊急地震速報、地震・津波・気象・火山などの防災情報を受信し、ライブ配信向け防災情報テロップシステムWindowsアプリです。
+OBS Studio等と組み合わせることで、配信映像に防災情報を表示することができます。
 
 現在の公開版は **2.0.0-beta.77** です（2026年11月28日）。開発中のベータ版であるため、本番配信へ導入する前に、利用環境で受信、再接続、OBS出力、音声、取消・解除を十分に確認してください。CDI-Telopperは気象庁の公式ソフトではありません。
 本ソフトウェアだけを防災判断の根拠にせず、必ず気象庁などの公式情報も確認してください。
